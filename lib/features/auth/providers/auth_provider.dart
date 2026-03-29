@@ -111,19 +111,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
             user: profile,
             bootstrapped: true,
           );
-          try {
-            await _supabase
-                .from('users_directory')
-                .update({
-                  'status': 'online',
-                  'last_seen_at': DateTime.now().toIso8601String(),
-                })
-                .eq('auth_user_id', userId);
-          } catch (e) {
-            debugPrint('[AuthProvider] status update failed (non-fatal): $e');
+          if (complete) {
+            try {
+              await _supabase
+                  .from('users_directory')
+                  .update({
+                    'status': 'online',
+                    'last_seen_at': DateTime.now().toIso8601String(),
+                  })
+                  .eq('auth_user_id', userId);
+            } catch (e) {
+              debugPrint('[AuthProvider] status update failed (non-fatal): $e');
+            }
           }
           return;
         }
+
+        // Session exists but no profile row: user verified OTP but
+        // registration (complete-profile) never succeeded.
+        state = state.copyWith(
+          isNewUser: true,
+          bootstrapped: true,
+        );
+        return;
       }
     } catch (e) {
       debugPrint('[AuthProvider] _checkExistingSession error: $e');

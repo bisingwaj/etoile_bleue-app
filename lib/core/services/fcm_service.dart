@@ -1,6 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
-import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
 
 /// Gestionnaire centralisé des notifications Push (Anciennement Firebase).
 /// TODO: Migrer vers OneSignal ou intégration Native Supabase Edge Functions.

@@ -113,7 +113,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             builder: (context, ref, _) {
                               final userAsync = ref.watch(userProvider);
                               final pdName = userAsync.when(
-                                data: (data) => "${data?['firstName'] ?? ''} ${data?['lastName'] ?? ''}".trim(),
+                                data: (data) => "${data?['first_name'] ?? ''} ${data?['last_name'] ?? ''}".trim(),
                                 loading: () => "Chargement...",
                                 error: (_, __) => "Utilisateur",
                               );
@@ -124,7 +124,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               );
                               final pdMemberSince = userAsync.when(
                                 data: (data) {
-                                  final ts = data?['createdAt'];
+                                  final ts = data?['created_at'];
                                   if (ts == null) return 'profile.member_since'.tr();
                                   final date = DateTime.tryParse(ts.toString()) ?? DateTime.now();
                                   const months = ['Jan', 'Fév', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
@@ -155,9 +155,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     Consumer(
                       builder: (context, ref, _) {
                         final userData = ref.watch(userProvider).value;
-                        final bloodType = userData?['bloodType'] as String? ?? 'Non renseigné';
+                        final bloodType = userData?['blood_type'] as String? ?? 'Non renseigné';
                         final allergies = (userData?['allergies'] as List?)?.cast<String>() ?? [];
-                        final medHistory = (userData?['medicalHistory'] as List?)?.cast<String>() ?? [];
+                        final medHistory = (userData?['medical_history'] as List?)?.cast<String>() ?? [];
                         return _buildCardGroup([
                           _buildListTile(context, icon: CupertinoIcons.heart_fill, color: AppColors.red,
                             title: 'profile.blood_group'.tr(), subtitle: bloodType,

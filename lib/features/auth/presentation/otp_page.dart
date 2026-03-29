@@ -54,37 +54,33 @@ class _OtpPageState extends ConsumerState<OtpPage> {
     
     final success = await ref.read(authProvider.notifier).verifyOtp(code);
     
-    if (mounted) {
-      if (success) {
-        DynamicIslandNotification.show(
-          context,
-          message: 'Numéro vérifié', // Message de confirmation rapide
-          icon: CupertinoIcons.checkmark_seal_fill,
-        );
+    if (!mounted) return;
 
-        // Laisser 2 secondes à l'utilisateur pour voir la belle notification
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            setState(() => _isLoading = false);
-            final isNewUser = ref.read(authProvider).isNewUser;
-            if (isNewUser) {
-              context.go('/register');
-            } else {
-              context.go('/home'); 
-            }
-          }
-        });
-      } else {
-        setState(() => _isLoading = false);
-        // Utiliser l'erreur détaillée générée par le provider
-        final errorMessage = ref.read(authProvider).error ?? 'auth.invalid_code'.tr();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
+    if (success) {
+      DynamicIslandNotification.show(
+        context,
+        message: 'Numéro vérifié',
+        icon: CupertinoIcons.checkmark_seal_fill,
+      );
+
+      final isNewUser = ref.read(authProvider).isNewUser;
+      final destination = isNewUser ? '/register' : '/home';
+
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          context.go(destination);
+        }
+      });
+    } else {
+      setState(() => _isLoading = false);
+      final errorMessage = ref.read(authProvider).error ?? 'auth.invalid_code'.tr();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 

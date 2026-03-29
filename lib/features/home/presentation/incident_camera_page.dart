@@ -278,7 +278,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
       final locationService = ref.read(locationServiceProvider);
       final gpsPosition = await locationService.getCurrentPosition();
 
-      // 3. Upload Firebase Storage + Création Firestore
+      // 3. Upload Supabase Storage + Création Incident
       final repo = ref.read(incidentRepositoryProvider);
       final result = await repo.submitIncident(
         file: finalFile,

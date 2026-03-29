@@ -76,7 +76,6 @@ dependencies:
   flutter_foreground_task: ^9.2.1
   flutter_callkit_incoming: ^3.0.0
   supabase_flutter: ^2.12.2
-  dotenv: ^4.2.0
 
 dev_dependencies:
   flutter_test:

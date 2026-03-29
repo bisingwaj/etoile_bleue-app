@@ -9,10 +9,10 @@ import 'package:geolocator/geolocator.dart';
 /// ─── Edge Cases couverts ──────────────────────────────────────────────────────
 /// ✅ EC-7  : UID capturé au runtime (pas à l'init) — corrige le bug si service créé avant login
 /// ✅ EC-8  : startTracking() appelé deux fois — guard _isTracking empêche un double stream
-/// ✅ EC-9  : stopTracking() si uid nul — skip silencieux du delete Firestore
+/// ✅ EC-9  : stopTracking() si uid nul — skip silencieux du delete Supabase
 /// ✅ EC-10 : GPS service désactivé sur l'appareil — log explicite + return false
 /// ✅ EC-11 : Permission refusée définitivement — badge "Paramètres" à afficher dans l'UI
-/// ✅ EC-12 : Erreur Firestore transitoire → retry automatique via le prochain événement stream
+/// ✅ EC-12 : Erreur Supabase transitoire → retry automatique via le prochain événement stream
 class LocationService {
   final SupabaseClient _supabase;
   bool _isTracking = false; // EC-8 : Guard anti-double stream
@@ -116,7 +116,7 @@ class LocationService {
 
   // ─── STREAM TEMPS RÉEL (Secouristes) ─────────────────────────────────────────
 
-  /// Démarrer le flux GPS temps réel → Firestore `active_rescuers/{uid}`
+  /// Démarrer le flux GPS temps réel → Supabase `active_rescuers`
   Future<void> startTracking() async {
     // EC-7 : UID résolu au runtime
     final uid = _uid;
@@ -169,8 +169,8 @@ class LocationService {
         'updated_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
-      // EC-12 : Erreur Firestore transitoire — le prochain événement GPS retentera
-      debugPrint('[LocationService] Erreur écriture Firestore: $e');
+      // EC-12 : Erreur Supabase transitoire — le prochain événement GPS retentera
+      debugPrint('[LocationService] Erreur écriture Supabase: $e');
     }
   }
 
@@ -181,7 +181,7 @@ class LocationService {
     _positionSub = null;
     _lastUpdate = null;
 
-    // EC-9 : uid nul → skip le delete (déjà non-présent dans Firestore)
+    // EC-9 : uid nul → skip le delete (déjà non-présent dans Supabase)
     final uid = _uid;
     if (uid != null) {
       try {

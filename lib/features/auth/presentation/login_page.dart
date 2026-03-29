@@ -30,24 +30,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (!mounted) return;
 
-      if (next.error != null && next.error != previous?.error) {
+      final route = ModalRoute.of(context);
+      final isCurrentRoute = route == null || route.isCurrent;
+
+      if (isCurrentRoute && next.error != null && next.error != previous?.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(next.error!)),
         );
       }
 
-      if (next.isAuthenticated) {
-        if (next.isNewUser) {
-          context.go('/register');
-        } else {
-          context.go('/home');
-        }
-        return;
-      }
+      if (!isCurrentRoute) return;
 
       if (next.otpSent && !(previous?.otpSent ?? false)) {
-        final route = ModalRoute.of(context);
-        if (route != null && !route.isCurrent) return;
         final phone = '+243${_phoneController.text}';
         context.push('/otp', extra: phone);
       }

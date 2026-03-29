@@ -41,10 +41,10 @@ class DirectoryPage extends StatefulWidget {
   const DirectoryPage({super.key});
 
   @override
-  State<DirectoryPage> createState() => _DirectoryPageState();
+  DirectoryPageState createState() => DirectoryPageState();
 }
 
-class _DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderStateMixin {
+class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<String> get _categories => [
     'directory.tab_hospitals'.tr(),
@@ -55,6 +55,7 @@ class _DirectoryPageState extends State<DirectoryPage> with SingleTickerProvider
   ];
 
   bool _isLoadingLocation = true;
+  bool _hasLoadedGps = false;
   Position? _currentPosition;
   int _selectedDistanceFilter = 5; // Radius par défaut en KM
   final List<int> _distanceOptions = [1, 5, 10, 20];
@@ -90,6 +91,20 @@ class _DirectoryPageState extends State<DirectoryPage> with SingleTickerProvider
   void initState() {
     super.initState();
     _tabController = TabController(length: _categories.length, vsync: this);
+    _currentPosition = Position(
+      latitude: -4.316,
+      longitude: 15.311,
+      timestamp: DateTime.now(),
+      accuracy: 0, altitude: 0, altitudeAccuracy: 0,
+      heading: 0, headingAccuracy: 0, speed: 0, speedAccuracy: 0,
+    );
+    _isLoadingLocation = false;
+    _filterAndSortInstitutions();
+  }
+
+  void refreshLocation() {
+    if (_hasLoadedGps) return;
+    _hasLoadedGps = true;
     _getUserLocationAndFilter();
   }
 

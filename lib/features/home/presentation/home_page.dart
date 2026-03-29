@@ -59,6 +59,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   StreamSubscription<Position>? _positionStreamSubscription;
   int _currentIndex = 0;
   final AudioPlayer _sosAudioPlayer = AudioPlayer();
+  final GlobalKey<DirectoryPageState> _directoryKey = GlobalKey<DirectoryPageState>();
   
   String? _activeIncidentId;
   RealtimeChannel? _dispatchSub;
@@ -777,8 +778,8 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
               final userOpt = ref.read(userProvider).value;
               String userName = "Citoyen(ne)";
               if (userOpt != null) {
-                final String first = userOpt['firstName'] ?? '';
-                final String last = userOpt['lastName'] ?? '';
+                final String first = userOpt['first_name'] ?? '';
+                final String last = userOpt['last_name'] ?? '';
                 final String full = "$first $last".trim();
                 if (full.isNotEmpty) userName = full;
               }
@@ -1128,7 +1129,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             ],
           ),
           // Index 1: Annuaire
-          const DirectoryPage(),
+          DirectoryPage(key: _directoryKey),
           // Index 2: Historique
           const HistoryPage(),
           // Index 3: Profil
@@ -1230,7 +1231,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             builder: (context, ref, _) {
               final userAsync = ref.watch(userProvider);
               final userName = userAsync.when(
-                data: (data) => data?['firstName'] ?? 'David',
+                data: (data) => data?['first_name'] ?? 'David',
                 loading: () => '...',
                 error: (_, __) => 'David',
               );
@@ -1657,6 +1658,9 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           setState(() {
             _currentIndex = index;
           });
+          if (index == 1) {
+            _directoryKey.currentState?.refreshLocation();
+          }
         },
         items: [
           BottomNavigationBarItem(
