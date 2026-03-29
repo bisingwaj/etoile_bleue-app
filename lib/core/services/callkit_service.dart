@@ -1,24 +1,27 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 
-/// Service CallKit — Affiche l'écran d'appel natif iOS (et Android)
-/// pour les appels entrants reçus même lorsque l'app est en arrière-plan.
+/// Service CallKit — Native call UI on iOS (CallKit) and Android (full-screen notification).
+/// Works when the app is in foreground or recently minimized.
 class CallKitService {
-  /// Afficher un écran d'appel entrant (utilisé par le Secouriste qui reçoit un SOS)
+  static StreamSubscription? _eventSubscription;
+
+  /// Show native incoming call screen
   static Future<void> showIncomingCall({
     required String callId,
     required String callerName,
-    bool hasVideo = true,
+    bool hasVideo = false,
+    Map<String, dynamic>? extra,
   }) async {
     try {
       final params = CallKitParams(
         id: callId,
         nameCaller: callerName,
         appName: 'Étoile Bleue',
-        avatar: 'https://i.pravatar.cc/100',
-        handle: 'SOS',
-        type: hasVideo ? 1 : 0, // 0=audio, 1=vidéo
+        handle: 'SOS Urgence',
+        type: hasVideo ? 1 : 0,
         textAccept: 'Décrocher',
         textDecline: 'Refuser',
         missedCallNotification: const NotificationParams(
@@ -32,15 +35,14 @@ class CallKitService {
           isShowCallback: false,
           subtitle: 'Appel en cours...',
         ),
-        duration: 45000, // 45s de sonnerie
-        extra: <String, dynamic>{'channelId': callId},
+        duration: 45000,
+        extra: extra ?? <String, dynamic>{},
         headers: <String, dynamic>{'platform': 'flutter'},
         android: const AndroidParams(
           isCustomNotification: true,
           isShowLogo: false,
           ringtonePath: 'system_ringtone_default',
           backgroundColor: '#0D1421',
-          backgroundUrl: null,
           actionColor: '#4CAF50',
           textColor: '#FFFFFF',
           incomingCallNotificationChannelName: 'Appels SOS',
@@ -66,54 +68,120 @@ class CallKitService {
       );
 
       await FlutterCallkitIncoming.showCallkitIncoming(params);
-      debugPrint('[CallKit] Écran d\'appel affiché pour $callerName (id: $callId)');
+      debugPrint('[CallKit] Incoming call displayed for $callerName (id: $callId)');
     } catch (e) {
-      debugPrint('[CallKit] Erreur showIncomingCall: $e');
+      debugPrint('[CallKit] Error showIncomingCall: $e');
     }
   }
 
-  /// Terminer un appel CallKit (appeler quand raccroché côté Agora)
+  /// Report an active outgoing call to the system (green pill on iOS)
+  static Future<void> startOutgoingCall({
+    required String callId,
+    required String callerName,
+    bool hasVideo = false,
+  }) async {
+    try {
+      final params = CallKitParams(
+        id: callId,
+        nameCaller: callerName,
+        appName: 'Étoile Bleue',
+        handle: 'SOS Urgence',
+        type: hasVideo ? 1 : 0,
+        extra: <String, dynamic>{},
+        headers: <String, dynamic>{'platform': 'flutter'},
+        android: const AndroidParams(
+          isCustomNotification: true,
+          isShowLogo: false,
+          backgroundColor: '#0D1421',
+          actionColor: '#4CAF50',
+          textColor: '#FFFFFF',
+          incomingCallNotificationChannelName: 'Appels SOS',
+          isShowCallID: false,
+        ),
+        ios: const IOSParams(
+          iconName: 'AppIcon',
+          handleType: 'generic',
+          supportsVideo: true,
+          maximumCallGroups: 1,
+          maximumCallsPerCallGroup: 1,
+          audioSessionMode: 'default',
+          audioSessionActive: true,
+          audioSessionPreferredSampleRate: 44100.0,
+          audioSessionPreferredIOBufferDuration: 0.005,
+        ),
+      );
+
+      await FlutterCallkitIncoming.startCall(params);
+      debugPrint('[CallKit] Outgoing call started for $callerName (id: $callId)');
+    } catch (e) {
+      debugPrint('[CallKit] Error startOutgoingCall: $e');
+    }
+  }
+
+  /// End a specific call
   static Future<void> endCall(String callId) async {
     try {
       await FlutterCallkitIncoming.endCall(callId);
-      debugPrint('[CallKit] Appel terminé: $callId');
+      debugPrint('[CallKit] Call ended: $callId');
     } catch (e) {
-      debugPrint('[CallKit] Erreur endCall: $e');
+      debugPrint('[CallKit] Error endCall: $e');
     }
   }
 
-  /// Terminer tous les appels en cours (utile en cas de désync)
+  /// End all active calls
   static Future<void> endAllCalls() async {
     try {
       await FlutterCallkitIncoming.endAllCalls();
-      debugPrint('[CallKit] Tous les appels terminés.');
+      debugPrint('[CallKit] All calls ended.');
     } catch (e) {
-      debugPrint('[CallKit] Erreur endAllCalls: $e');
+      debugPrint('[CallKit] Error endAllCalls: $e');
     }
   }
 
-  /// Écouter les actions utilisateur (décrocher, raccrocher, refuser)
+  /// Listen to native CallKit events (accept, decline, end).
+  /// The [onAccepted] callback receives the call ID from the event body.
   static void listenToCallEvents({
-    VoidCallback? onAnswered,
-    VoidCallback? onDeclined,
-    VoidCallback? onEnded,
+    void Function(String callId)? onAccepted,
+    void Function(String callId)? onDeclined,
+    void Function(String callId)? onEnded,
+    void Function(String callId)? onTimeout,
   }) {
-    FlutterCallkitIncoming.onEvent.listen((event) {
+    _eventSubscription?.cancel();
+    _eventSubscription = FlutterCallkitIncoming.onEvent.listen((event) {
       if (event == null) return;
-      debugPrint('[CallKit] Événement: ${event.event}');
+      final callId = _extractCallId(event);
+      debugPrint('[CallKit] Event: ${event.event} (callId: $callId)');
+
       switch (event.event) {
         case Event.actionCallAccept:
-          onAnswered?.call();
+          if (callId != null) onAccepted?.call(callId);
           break;
         case Event.actionCallDecline:
-          onDeclined?.call();
+          if (callId != null) onDeclined?.call(callId);
           break;
         case Event.actionCallEnded:
-          onEnded?.call();
+          if (callId != null) onEnded?.call(callId);
+          break;
+        case Event.actionCallTimeout:
+          if (callId != null) onTimeout?.call(callId);
           break;
         default:
           break;
       }
     });
+  }
+
+  static String? _extractCallId(CallEvent event) {
+    try {
+      final body = event.body as Map<String, dynamic>?;
+      return body?['id'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static void dispose() {
+    _eventSubscription?.cancel();
+    _eventSubscription = null;
   }
 }

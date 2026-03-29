@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +29,10 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
          callState.status == ActiveCallStatus.ringing ||
          callState.status == ActiveCallStatus.connecting);
 
-    final showIncomingCall = callState.status == ActiveCallStatus.incomingRinging;
+    // CallKit handles native incoming call UI on iOS and Android.
+    // Only show the in-app overlay on platforms where CallKit is unavailable.
+    final showIncomingCall = callState.status == ActiveCallStatus.incomingRinging &&
+        !(Platform.isIOS || Platform.isAndroid);
 
     return Stack(
       children: [

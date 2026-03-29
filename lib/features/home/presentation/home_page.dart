@@ -21,7 +21,6 @@ import '../../../core/utils/dynamic_island_toast.dart';
 import 'notifications_page.dart';
 import '../../training/presentation/training_page.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
-import 'package:etoile_bleue_mobile/core/providers/incoming_call_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'incident_camera_page.dart';
 import 'widgets/goodsam_sheet.dart';
@@ -94,10 +93,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    // Start listening for incoming calls from the dashboard
-    Future.microtask(() {
-      ref.read(incomingCallListenerProvider);
-    });
   }
 
   Future<void> _initCustomMarker() async {

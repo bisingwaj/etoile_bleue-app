@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 
@@ -133,14 +134,20 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   }
 
   Future<void> answerIncomingCall() async {
-    if (state.channelName == null || state.callHistoryId == null) return;
+    if (state.channelName == null || state.callHistoryId == null) {
+      debugPrint('[CallState] answerIncomingCall aborted: channelName=${state.channelName}, callHistoryId=${state.callHistoryId}');
+      return;
+    }
+    debugPrint('[CallState] answerIncomingCall: transitioning to connecting');
     state = state.copyWith(status: ActiveCallStatus.connecting);
     try {
       await _service.answerIncomingCall(
         state.channelName!,
         state.callHistoryId!,
       );
-    } catch (e) {
+      debugPrint('[CallState] answerIncomingCall: service call succeeded');
+    } catch (e, stack) {
+      debugPrint('[CallState] answerIncomingCall FAILED: $e\n$stack');
       state = const ActiveCallState(status: ActiveCallStatus.ended);
       rethrow;
     }

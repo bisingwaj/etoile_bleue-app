@@ -1,11 +1,11 @@
-/// emergency_call_service_v2.dart — Service d'appels SOS corrigé
-/// IMPORTANT: Utilise channel_name de call_history pour garantir
-/// le même canal Agora entre mobile et dashboard
-
+import 'dart:io' show Platform;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
+import 'package:etoile_bleue_mobile/core/services/call_foreground_service.dart';
 
 const String agoraAppId = 'e2e0e5a6ef0d4ce3b2ab9efad48d62cf';
 
@@ -96,22 +96,41 @@ class EmergencyCallService {
       options: const ChannelMediaOptions(
         clientRoleType: ClientRoleType.clientRoleBroadcaster,
         channelProfile: ChannelProfileType.channelProfileCommunication,
+        publishMicrophoneTrack: true,
+        autoSubscribeAudio: true,
       ),
     );
+
+    // 6. Report to native call UI & start foreground service
+    CallKitService.startOutgoingCall(
+      callId: _currentCallId!,
+      callerName: callerName,
+    );
+    _startForegroundService(channelName);
 
     return _currentCallId;
   }
 
   /// Initialise le moteur Agora RTC
   Future<void> _initAgoraEngine() async {
+    debugPrint('[Agora] Creating RTC engine...');
     _engine = createAgoraRtcEngine();
     await _engine!.initialize(const RtcEngineContext(
       appId: agoraAppId,
       channelProfile: ChannelProfileType.channelProfileCommunication,
     ));
+    debugPrint('[Agora] Engine initialized');
+
+    // On iOS, CallKit manages the audio session. Tell Agora to keep it
+    // instead of resetting it, otherwise the audio will be silent.
+    if (Platform.isIOS) {
+      await _engine!.setParameters('{"che.audio.keep.audiosession": true}');
+      debugPrint('[Agora] iOS: set keep.audiosession = true');
+    }
 
     _engine!.registerEventHandler(RtcEngineEventHandler(
       onJoinChannelSuccess: (connection, elapsed) {
+        debugPrint('[Agora] onJoinChannelSuccess: channel=${connection.channelId}, elapsed=$elapsed');
         onJoinChanged?.call(true);
         try { _engine?.setEnableSpeakerphone(true); } catch (_) {}
         if (_currentCallId != null) {
@@ -122,21 +141,26 @@ class EmergencyCallService {
         }
       },
       onUserJoined: (connection, remoteUid, elapsed) {
+        debugPrint('[Agora] onUserJoined: uid=$remoteUid');
         onRemoteUserJoined?.call(remoteUid);
       },
       onUserOffline: (connection, remoteUid, reason) {
+        debugPrint('[Agora] onUserOffline: uid=$remoteUid, reason=$reason');
         onRemoteUserLeft?.call(remoteUid);
-        // Si l'opérateur quitte, on termine l'appel
         if (reason == UserOfflineReasonType.userOfflineQuit) {
           hangUp();
         }
       },
       onConnectionLost: (connection) {
-        // Reconnexion automatique gérée par Agora
+        debugPrint('[Agora] onConnectionLost');
+      },
+      onError: (err, msg) {
+        debugPrint('[Agora] ERROR: $err — $msg');
       },
     ));
 
     await _engine!.enableAudio();
+    debugPrint('[Agora] Audio enabled');
   }
 
   /// Mute/Unmute le micro
@@ -165,13 +189,14 @@ class EmergencyCallService {
 
   /// Raccrocher — met à jour call_history ET libère les ressources
   Future<void> hangUp() async {
-    // ⚠️ CRITIQUE: Mettre à jour le statut dans la DB pour que le dashboard le détecte
-    if (_currentCallId != null) {
+    final callIdToEnd = _currentCallId;
+
+    if (callIdToEnd != null) {
       await _supabase.from('call_history').update({
         'status': 'completed',
         'ended_at': DateTime.now().toUtc().toIso8601String(),
         'ended_by': 'citizen',
-      }).eq('id', _currentCallId!);
+      }).eq('id', callIdToEnd);
     }
 
     await _engine?.leaveChannel();
@@ -181,6 +206,12 @@ class EmergencyCallService {
     _currentCallId = null;
     _isMuted = false;
     _isVideoOn = false;
+
+    // End native call UI and stop foreground service
+    if (callIdToEnd != null) {
+      CallKitService.endCall(callIdToEnd);
+    }
+    _stopForegroundService();
 
     onJoinChanged?.call(false);
     onCallEnded?.call();
@@ -195,20 +226,30 @@ class EmergencyCallService {
 
   /// Répondre à un appel entrant du dashboard
   Future<void> answerIncomingCall(String channelName, String callHistoryId) async {
-    await [Permission.microphone, Permission.camera].request();
+    debugPrint('[AnswerCall] Starting: channel=$channelName, callId=$callHistoryId');
+
+    debugPrint('[AnswerCall] Requesting permissions...');
+    final perms = await [Permission.microphone, Permission.camera].request();
+    debugPrint('[AnswerCall] Permissions: mic=${perms[Permission.microphone]}, cam=${perms[Permission.camera]}');
 
     _currentChannelName = channelName;
     _currentCallId = callHistoryId;
 
+    debugPrint('[AnswerCall] Fetching Agora token...');
     final tokenRes = await _supabase.functions.invoke('agora-token', body: {
       'channelName': channelName,
       'uid': 0,
       'role': 'publisher',
       'expireTime': 3600,
     });
+    debugPrint('[AnswerCall] Token response status: ${tokenRes.status}');
     final token = tokenRes.data['token'] as String;
+    debugPrint('[AnswerCall] Token received (${token.length} chars)');
 
+    debugPrint('[AnswerCall] Initializing Agora engine...');
     await _initAgoraEngine();
+
+    debugPrint('[AnswerCall] Joining channel $channelName...');
     await _engine!.joinChannel(
       token: token,
       channelId: channelName,
@@ -216,13 +257,20 @@ class EmergencyCallService {
       options: const ChannelMediaOptions(
         clientRoleType: ClientRoleType.clientRoleBroadcaster,
         channelProfile: ChannelProfileType.channelProfileCommunication,
+        publishMicrophoneTrack: true,
+        autoSubscribeAudio: true,
       ),
     );
+    debugPrint('[AnswerCall] joinChannel call returned');
 
+    _startForegroundService(channelName);
+
+    debugPrint('[AnswerCall] Updating call_history to active...');
     await _supabase.from('call_history').update({
       'status': 'active',
       'answered_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', callHistoryId);
+    debugPrint('[AnswerCall] Complete');
   }
 
   /// Rejeter un appel entrant du dashboard
@@ -232,6 +280,20 @@ class EmergencyCallService {
       'ended_at': DateTime.now().toUtc().toIso8601String(),
       'ended_by': 'citizen',
     }).eq('id', callHistoryId);
+
+    CallKitService.endCall(callHistoryId);
+  }
+
+  void _startForegroundService(String channelName) {
+    CallForegroundService.start(channelId: channelName, role: 'Citizen').catchError((e) {
+      debugPrint('[EmergencyCallService] Foreground service start error: $e');
+    });
+  }
+
+  void _stopForegroundService() {
+    CallForegroundService.stop().catchError((e) {
+      debugPrint('[EmergencyCallService] Foreground service stop error: $e');
+    });
   }
 
   void dispose() {
