@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
+import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 
 /// Splash Screen — ÉTOILE BLEU
 /// Design 100% fidèle à la maquette Splashscreen-1.png :
@@ -62,24 +63,21 @@ class _SplashPageState extends State<SplashPage>
         return;
       }
 
-      // User is authenticated. Check if they completed their profile.
       try {
-        final doc = await Supabase.instance.client
-            .from('users')
+        final profile = await Supabase.instance.client
+            .from('users_directory')
             .select()
-            .eq('id', currentUser.id)
+            .eq('auth_user_id', currentUser.id)
             .maybeSingle();
-        
+
         if (mounted) {
-          if (doc != null) {
+          if (profile != null && AuthNotifier.isProfileComplete(profile)) {
             context.go(AppRoutes.home);
           } else {
-            // Authenticated but no profile → send to registration.
             context.go(AppRoutes.register);
           }
         }
       } catch (_) {
-        // Offline or timeout: fail safely to /home.
         if (mounted) context.go(AppRoutes.home);
       }
     });

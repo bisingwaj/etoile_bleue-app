@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -53,6 +54,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   final _supabase = Supabase.instance.client;
 
+  /// Returns true when the profile row has real first/last name values
+  /// (i.e. the user completed the registration wizard).
+  static bool isProfileComplete(Map<String, dynamic>? profile) {
+    if (profile == null) return false;
+    final firstName = profile['first_name'] as String?;
+    final lastName = profile['last_name'] as String?;
+    return firstName != null &&
+        firstName.isNotEmpty &&
+        firstName != 'Citoyen' &&
+        lastName != null &&
+        lastName.isNotEmpty;
+  }
+
+  /// Extracts a user-facing error message from Edge Function exceptions.
+  String _extractError(Object e, String fallback) {
+    if (e is FunctionException) {
+      final details = e.details;
+      if (details is Map && details['error'] != null) {
+        return details['error'].toString();
+      }
+      if (e.reasonPhrase != null && e.reasonPhrase!.isNotEmpty) {
+        return e.reasonPhrase!;
+      }
+    }
+    final msg = e.toString().replaceAll('Exception: ', '');
+    return msg.isNotEmpty ? msg : fallback;
+  }
+
   Future<void> _checkExistingSession() async {
     final session = _supabase.auth.currentSession;
     if (session != null) {
@@ -64,8 +93,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .maybeSingle();
 
       if (profile != null) {
+        final complete = isProfileComplete(profile);
         state = state.copyWith(
-          isAuthenticated: true,
+          isAuthenticated: complete,
+          isNewUser: !complete,
           user: profile,
         );
         await _supabase
@@ -89,20 +120,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
 
     try {
-      final res = await _supabase.functions.invoke(
+      await _supabase.functions.invoke(
         'twilio-verify',
         body: {'action': 'send', 'phone': phoneNumber},
       );
 
-      if (res.status != 200) {
-        final error = res.data is Map ? res.data['error'] : 'Erreur inconnue';
-        state = state.copyWith(isLoading: false, error: error.toString());
-        return;
-      }
-
       state = state.copyWith(isLoading: false, otpSent: true);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Erreur: $e');
+      debugPrint('[AuthProvider] sendOtp error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: _extractError(e, 'Impossible d\'envoyer le code'),
+      );
     }
   }
 
@@ -125,35 +154,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
         },
       );
 
-      if (res.status != 200) {
-        final error = res.data is Map ? res.data['error'] : 'Code invalide';
-        state = state.copyWith(isLoading: false, error: error.toString());
-        return false;
-      }
-
       final data = res.data as Map<String, dynamic>;
       final session = data['session'] as Map<String, dynamic>?;
 
-      if (session == null || session['access_token'] == null) {
+      if (session == null || session['refresh_token'] == null) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Session invalide',
+          error: 'Session invalide (refresh token manquant)',
         );
         return false;
       }
 
-      await _supabase.auth.setSession(session['access_token']);
+      await _supabase.auth.setSession(session['refresh_token']);
+
+      final isNew = data['is_new_user'] == true;
+      final userMap = data['user'] as Map<String, dynamic>?;
+      final needsRegistration = isNew || !isProfileComplete(userMap);
 
       state = state.copyWith(
         isLoading: false,
-        isAuthenticated: true,
-        isNewUser: data['is_new_user'] == true,
-        user: data['user'] as Map<String, dynamic>?,
+        isAuthenticated: !needsRegistration,
+        isNewUser: needsRegistration,
+        user: userMap,
       );
 
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Code invalide');
+      debugPrint('[AuthProvider] verifyOtp error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: _extractError(e, 'Code invalide ou expiré'),
+      );
       return false;
     }
   }
@@ -181,12 +212,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         body: body,
       );
 
-      if (res.status != 200) {
-        final error = res.data is Map ? res.data['error'] : 'Erreur';
-        state = state.copyWith(isLoading: false, error: error.toString());
-        return false;
-      }
-
       final data = res.data as Map<String, dynamic>;
       state = state.copyWith(
         isLoading: false,
@@ -196,7 +221,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Erreur: $e');
+      debugPrint('[AuthProvider] completeProfile error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: _extractError(e, 'Erreur lors de la finalisation du profil'),
+      );
       return false;
     }
   }

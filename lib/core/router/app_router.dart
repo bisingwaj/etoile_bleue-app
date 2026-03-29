@@ -9,6 +9,7 @@ import 'package:etoile_bleue_mobile/features/auth/presentation/login_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/presentation/otp_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/presentation/register_page.dart';
 import 'package:etoile_bleue_mobile/features/calls/presentation/emergency_call_screen.dart';
+import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 
 abstract class AppRoutes {
   static const splash = '/';
@@ -37,7 +38,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isStrictAuthScreen = loc == AppRoutes.login || loc == AppRoutes.otp;
 
       if (user != null && isStrictAuthScreen) {
-        return AppRoutes.home;
+        final authState = ref.read(authProvider);
+        return authState.isNewUser ? AppRoutes.register : AppRoutes.home;
       }
       return null;
     },
