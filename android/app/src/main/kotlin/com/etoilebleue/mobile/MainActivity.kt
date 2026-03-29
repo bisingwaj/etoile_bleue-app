@@ -1,4 +1,4 @@
-package com.example.etoile_bleue_mobile
+package com.etoilebleue.mobile
 
 import io.flutter.embedding.android.FlutterActivity
 
