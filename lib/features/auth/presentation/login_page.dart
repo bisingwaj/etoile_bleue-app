@@ -17,35 +17,46 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final TextEditingController _phoneController = TextEditingController();
 
-  void _verifyPhone() async {
+  void _verifyPhone() {
     if (_phoneController.text.length < 9) return;
-    
     final phone = '+243${_phoneController.text}';
-    await ref.read(authProvider.notifier).sendOtp(phone);
-    
-    if (mounted) {
-      final authState = ref.read(authProvider);
-      
-      if (authState.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(authState.error!)));
-      } else if (authState.isAuthenticated) {
-        // Auto-vérification Android réussie
-        if (authState.isNewUser) {
-          context.go('/register');
-        } else {
-          context.go('/home'); 
-        }
-      } else if (authState.verificationId != null) {
-        // Envoi classique d'un code SMS -> page OTP
-        context.push('/otp', extra: phone);
-      }
-    }
+    // Ne pas await verifyPhoneNumber : le Future se termine avant les callbacks
+    // Firebase (codeSent / verificationFailed). La navigation est gérée par ref.listen.
+    ref.read(authProvider.notifier).sendOtp(phone);
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    
+
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (!mounted) return;
+
+      if (next.error != null && next.error != previous?.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.error!)),
+        );
+      }
+
+      if (next.isAuthenticated) {
+        if (next.isNewUser) {
+          context.go('/register');
+        } else {
+          context.go('/home');
+        }
+        return;
+      }
+
+      final verificationArrived = next.verificationId != null &&
+          next.verificationId != previous?.verificationId;
+      if (verificationArrived) {
+        final route = ModalRoute.of(context);
+        if (route != null && !route.isCurrent) return;
+        final phone = '+243${_phoneController.text}';
+        context.push('/otp', extra: phone);
+      }
+    });
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(

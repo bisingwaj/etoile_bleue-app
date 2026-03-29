@@ -32,13 +32,15 @@ class AuthState {
     String? error,
     String? verificationId,
     Map<String, dynamic>? user,
+    bool resetVerificationId = false,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isNewUser: isNewUser ?? this.isNewUser,
       error: error,
-      verificationId: verificationId ?? this.verificationId,
+      verificationId:
+          resetVerificationId ? null : (verificationId ?? this.verificationId),
       user: user ?? this.user,
     );
   }
@@ -83,7 +85,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Étape 1 : Envoyer le SMS OTP via Firebase
   Future<void> sendOtp(String phoneNumber) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      resetVerificationId: true,
+    );
 
     try {
       await _firebaseAuth.verifyPhoneNumber(
@@ -174,12 +180,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return false;
       }
 
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final session = data['session'] as Map<String, dynamic>?;
+      final refreshToken = session?['refresh_token'] as String?;
+      if (refreshToken == null || refreshToken.isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Session invalide (refresh manquant)',
+        );
+        return false;
+      }
 
-      // Initialiser la session Supabase
-      await _supabase.auth.setSession(
-        data['session']['access_token'],
-      );
+      // GoTrue setSession attend le refresh_token, pas l'access_token.
+      await _supabase.auth.setSession(refreshToken);
 
       state = state.copyWith(
         isLoading: false,
