@@ -2,6 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Étoile Bleue utilise votre position pour localiser les secours les plus proches et transmettre vos coordonnées en cas d'urgence.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Étoile Bleue utilise votre position en arrière-plan pour suivre les interventions de secours en temps réel.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Étoile Bleue utilise la caméra pour signaler des incidents avec des photos ou vidéos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Étoile Bleue utilise le microphone pour les appels d'urgence et les messages vocaux.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Étoile Bleue accède à votre galerie pour joindre des photos aux signalements d'incidents.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
