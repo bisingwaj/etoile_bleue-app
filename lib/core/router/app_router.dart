@@ -39,6 +39,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (user != null && isStrictAuthScreen) {
         final authState = ref.read(authProvider);
+        if (!authState.bootstrapped) return null;
         return authState.isNewUser ? AppRoutes.register : AppRoutes.home;
       }
       return null;

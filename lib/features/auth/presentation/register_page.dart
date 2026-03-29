@@ -15,7 +15,8 @@ class RegisterPage extends ConsumerStatefulWidget {
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
   final PageController _pageController = PageController();
-  
+  bool _isSubmittingProfile = false;
+
   final _fnCtrl = TextEditingController();
   final _lnCtrl = TextEditingController();
   final _yearCtrl = TextEditingController();
@@ -28,13 +29,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ref.read(registrationProvider.notifier).nextStep();
       _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
-      final success = await ref.read(authProvider.notifier).completeProfile(
-        firstName: state.firstName,
-        lastName: state.lastName,
-        language: state.language.isNotEmpty ? state.language : null,
-        birthYear: int.tryParse(state.birthYear),
-      );
-      if (mounted) {
+      setState(() => _isSubmittingProfile = true);
+      try {
+        final success = await ref.read(authProvider.notifier).completeProfile(
+          firstName: state.firstName.trim(),
+          lastName: state.lastName.trim(),
+          language: state.language.isNotEmpty ? state.language : null,
+          birthYear: int.tryParse(state.birthYear),
+        );
+        if (!mounted) return;
         if (!success) {
           final error = ref.read(authProvider).error;
           if (error != null) {
@@ -42,8 +45,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               SnackBar(content: Text(error), backgroundColor: Colors.redAccent),
             );
           }
+          return;
         }
         context.go('/home');
+      } finally {
+        if (mounted) setState(() => _isSubmittingProfile = false);
       }
     }
   }
@@ -54,7 +60,33 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ref.read(registrationProvider.notifier).previousStep();
       _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
-      context.pop();
+      _showSignOutDialog();
+    }
+  }
+
+  Future<void> _showSignOutDialog() async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Utiliser un autre numéro ?'),
+        content: const Text('Vous serez déconnecté et pourrez vous reconnecter avec un autre numéro de téléphone.'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Annuler'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Déconnexion'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await ref.read(authProvider.notifier).signOut();
+      if (mounted) context.go('/login');
     }
   }
 
@@ -205,6 +237,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
 
   Widget _buildContinueButton(bool isValid) {
+    final authLoading = ref.watch(authProvider).isLoading;
+    final busy = _isSubmittingProfile || authLoading;
     return Padding(
       padding: const EdgeInsets.only(bottom: 24.0),
       child: SizedBox(
@@ -212,13 +246,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         height: 60,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: isValid ? AppColors.blue : Colors.grey[300],
+            backgroundColor: isValid && !busy ? AppColors.blue : Colors.grey[300],
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 0,
           ),
-          onPressed: isValid ? _nextStep : null,
-          child: Text('auth.continue_btn'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 18, fontWeight: FontWeight.bold)),
+          onPressed: (isValid && !busy) ? _nextStep : null,
+          child: busy
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CupertinoActivityIndicator(color: Colors.white),
+                )
+              : Text('auth.continue_btn'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 18, fontWeight: FontWeight.bold)),
         ),
       ),
     );

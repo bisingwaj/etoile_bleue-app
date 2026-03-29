@@ -77,8 +77,9 @@ class _SplashPageState extends State<SplashPage>
             context.go(AppRoutes.register);
           }
         }
-      } catch (_) {
-        if (mounted) context.go(AppRoutes.home);
+      } catch (e) {
+        debugPrint('[Splash] profile fetch error: $e');
+        if (mounted) context.go(AppRoutes.login);
       }
     });
   }

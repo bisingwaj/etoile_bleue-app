@@ -11,6 +11,7 @@ class AuthState {
   final bool isAuthenticated;
   final bool isNewUser;
   final bool otpSent;
+  final bool bootstrapped;
   final String? phone;
   final String? error;
   final Map<String, dynamic>? user;
@@ -20,6 +21,7 @@ class AuthState {
     this.isAuthenticated = false,
     this.isNewUser = false,
     this.otpSent = false,
+    this.bootstrapped = false,
     this.phone,
     this.error,
     this.user,
@@ -30,6 +32,7 @@ class AuthState {
     bool? isAuthenticated,
     bool? isNewUser,
     bool? otpSent,
+    bool? bootstrapped,
     String? phone,
     String? error,
     Map<String, dynamic>? user,
@@ -40,6 +43,7 @@ class AuthState {
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isNewUser: isNewUser ?? this.isNewUser,
       otpSent: otpSent ?? this.otpSent,
+      bootstrapped: bootstrapped ?? this.bootstrapped,
       phone: phone ?? this.phone,
       error: clearError ? null : (error ?? this.error),
       user: user ?? this.user,
@@ -58,13 +62,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// (i.e. the user completed the registration wizard).
   static bool isProfileComplete(Map<String, dynamic>? profile) {
     if (profile == null) return false;
-    final firstName = profile['first_name'] as String?;
-    final lastName = profile['last_name'] as String?;
-    return firstName != null &&
-        firstName.isNotEmpty &&
+    final firstName = profile['first_name']?.toString().trim() ?? '';
+    final lastName = profile['last_name']?.toString().trim() ?? '';
+    return firstName.isNotEmpty &&
         firstName != 'Citoyen' &&
-        lastName != null &&
         lastName.isNotEmpty;
+  }
+
+  /// Normalizes invoke() JSON body to a String-keyed map (avoids cast crashes).
+  static Map<String, dynamic>? _asJsonMap(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return null;
   }
 
   /// Extracts a user-facing error message from Edge Function exceptions.
@@ -83,31 +93,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _checkExistingSession() async {
-    final session = _supabase.auth.currentSession;
-    if (session != null) {
-      final userId = session.user.id;
-      final profile = await _supabase
-          .from('users_directory')
-          .select()
-          .eq('auth_user_id', userId)
-          .maybeSingle();
-
-      if (profile != null) {
-        final complete = isProfileComplete(profile);
-        state = state.copyWith(
-          isAuthenticated: complete,
-          isNewUser: !complete,
-          user: profile,
-        );
-        await _supabase
+    try {
+      final session = _supabase.auth.currentSession;
+      if (session != null) {
+        final userId = session.user.id;
+        final profile = await _supabase
             .from('users_directory')
-            .update({
-              'status': 'online',
-              'last_seen_at': DateTime.now().toIso8601String(),
-            })
-            .eq('auth_user_id', userId);
+            .select()
+            .eq('auth_user_id', userId)
+            .maybeSingle();
+
+        if (profile != null) {
+          final complete = isProfileComplete(profile);
+          state = state.copyWith(
+            isAuthenticated: complete,
+            isNewUser: !complete,
+            user: profile,
+            bootstrapped: true,
+          );
+          try {
+            await _supabase
+                .from('users_directory')
+                .update({
+                  'status': 'online',
+                  'last_seen_at': DateTime.now().toIso8601String(),
+                })
+                .eq('auth_user_id', userId);
+          } catch (e) {
+            debugPrint('[AuthProvider] status update failed (non-fatal): $e');
+          }
+          return;
+        }
       }
+    } catch (e) {
+      debugPrint('[AuthProvider] _checkExistingSession error: $e');
     }
+    state = state.copyWith(bootstrapped: true);
   }
 
   /// Step 1: Send SMS OTP via Twilio Verify
@@ -154,8 +175,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         },
       );
 
-      final data = res.data as Map<String, dynamic>;
-      final session = data['session'] as Map<String, dynamic>?;
+      final data = _asJsonMap(res.data);
+      if (data == null) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Réponse serveur invalide',
+        );
+        return false;
+      }
+      final session = _asJsonMap(data['session']);
 
       if (session == null || session['refresh_token'] == null) {
         state = state.copyWith(
@@ -168,7 +196,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _supabase.auth.setSession(session['refresh_token']);
 
       final isNew = data['is_new_user'] == true;
-      final userMap = data['user'] as Map<String, dynamic>?;
+      final userMap = _asJsonMap(data['user']);
       final needsRegistration = isNew || !isProfileComplete(userMap);
 
       state = state.copyWith(
@@ -212,12 +240,48 @@ class AuthNotifier extends StateNotifier<AuthState> {
         body: body,
       );
 
-      final data = res.data as Map<String, dynamic>;
+      final data = _asJsonMap(res.data);
+      if (data == null) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Réponse serveur invalide',
+        );
+        return false;
+      }
+
+      if (data['success'] == false) {
+        final msg = data['error']?.toString() ?? 'Échec de la mise à jour du profil';
+        state = state.copyWith(
+          isLoading: false,
+          error: msg,
+        );
+        return false;
+      }
+
+      Map<String, dynamic>? userMap = _asJsonMap(data['user']);
+      final uid = _supabase.auth.currentUser?.id;
+      if (userMap == null && uid != null) {
+        userMap = await _supabase
+            .from('users_directory')
+            .select()
+            .eq('auth_user_id', uid)
+            .maybeSingle();
+      }
+
+      final complete = isProfileComplete(userMap);
       state = state.copyWith(
         isLoading: false,
-        isNewUser: false,
-        user: data['user'] as Map<String, dynamic>?,
+        isNewUser: !complete,
+        isAuthenticated: complete,
+        user: userMap,
       );
+
+      if (!complete) {
+        state = state.copyWith(
+          error: 'Profil non mis à jour. Réessayez.',
+        );
+        return false;
+      }
 
       return true;
     } catch (e) {

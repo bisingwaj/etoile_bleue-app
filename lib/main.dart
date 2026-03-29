@@ -92,7 +92,7 @@ class EtoileBleuApp extends ConsumerWidget {
       supportedLocales: context.supportedLocales,
       locale: context.locale,
       builder: (context, child) {
-        return EmergencyCallOverlay(child: child!);
+        return EmergencyCallOverlay(child: child ?? const SizedBox.shrink());
       },
     );
   }
