@@ -41,6 +41,7 @@ class CallKitService {
         android: const AndroidParams(
           isCustomNotification: true,
           isShowLogo: false,
+          isShowFullLockedScreen: true,
           ringtonePath: 'system_ringtone_default',
           backgroundColor: '#0D1421',
           actionColor: '#4CAF50',

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
@@ -48,6 +49,7 @@ final incomingCallListenerProvider = Provider<void>((ref) {
 
             if (channelName != null && callId != null) {
               debugPrint('[IncomingCall] Incoming call detected: channel=$channelName, caller=$name');
+              HapticFeedback.heavyImpact();
 
               ref.read(callStateProvider.notifier).setIncomingCall(
                 channelName: channelName,

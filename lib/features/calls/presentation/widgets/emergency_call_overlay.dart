@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
@@ -18,6 +20,26 @@ class EmergencyCallOverlay extends ConsumerStatefulWidget {
 
 class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
   Offset _pipOffset = const Offset(20, 100);
+  Timer? _vibrationTimer;
+
+  void _startVibration() {
+    _vibrationTimer?.cancel();
+    HapticFeedback.heavyImpact();
+    _vibrationTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      HapticFeedback.heavyImpact();
+    });
+  }
+
+  void _stopVibration() {
+    _vibrationTimer?.cancel();
+    _vibrationTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopVibration();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +56,12 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
     // Only show the in-app overlay on platforms where CallKit is unavailable.
     final showIncomingCall = callState.status == ActiveCallStatus.incomingRinging &&
         !(Platform.isIOS || Platform.isAndroid);
+
+    if (showIncomingCall && _vibrationTimer == null) {
+      _startVibration();
+    } else if (!showIncomingCall && _vibrationTimer != null) {
+      _stopVibration();
+    }
 
     return Stack(
       children: [

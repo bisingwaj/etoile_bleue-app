@@ -105,7 +105,10 @@ void _setupCallKitListener(ProviderContainer container) {
     },
     onTimeout: (callId) {
       debugPrint('[main] CallKit timeout: $callId');
-      container.read(callStateProvider.notifier).rejectIncomingCall();
+      final state = container.read(callStateProvider);
+      if (state.status == ActiveCallStatus.incomingRinging) {
+        container.read(callStateProvider.notifier).rejectIncomingCall();
+      }
     },
   );
 }

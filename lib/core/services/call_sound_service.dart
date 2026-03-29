@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// Generates and plays in-memory WAV call tones (ringback, connected, ended).
 class CallSoundService {
@@ -58,7 +59,11 @@ class CallSoundService {
   }
 
   /// Two descending beeps when the call ends.
+  /// Delayed slightly to let CallKit release the audio session on iOS.
   Future<void> playEnded() async {
+    HapticFeedback.heavyImpact();
+    await Future.delayed(const Duration(milliseconds: 800));
+
     final player = AudioPlayer();
     await player.setVolume(0.4);
     final wav1 = _generateToneWav(frequency: 880, durationMs: 200);
@@ -68,7 +73,7 @@ class CallSoundService {
       await Future.delayed(const Duration(milliseconds: 250));
       await player.play(BytesSource(wav2));
     } catch (e) {
-      debugPrint('[CallSound] Ended play error: $e');
+      debugPrint('[CallSound] Ended play error (non-fatal): $e');
     }
     Future.delayed(const Duration(seconds: 1), () => player.dispose());
   }
