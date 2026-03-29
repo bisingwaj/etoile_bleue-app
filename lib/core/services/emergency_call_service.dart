@@ -1,3 +1,4 @@
+import 'dart:convert' show jsonEncode;
 import 'dart:io' show Platform;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
@@ -113,6 +114,15 @@ class EmergencyCallService {
 
   /// Initialise le moteur Agora RTC
   Future<void> _initAgoraEngine() async {
+    if (_engine != null) {
+      debugPrint('[Agora] Releasing stale engine before re-init');
+      try {
+        await _engine!.leaveChannel();
+      } catch (_) {}
+      await _engine!.release();
+      _engine = null;
+    }
+
     debugPrint('[Agora] Creating RTC engine...');
     _engine = createAgoraRtcEngine();
     await _engine!.initialize(const RtcEngineContext(
@@ -187,6 +197,11 @@ class EmergencyCallService {
     await _engine?.setEnableSpeakerphone(_isSpeakerOn);
   }
 
+  /// Bascule caméra avant/arrière
+  Future<void> switchCamera() async {
+    await _engine?.switchCamera();
+  }
+
   /// Raccrocher — met à jour call_history ET libère les ressources
   Future<void> hangUp() async {
     final callIdToEnd = _currentCallId;
@@ -206,11 +221,13 @@ class EmergencyCallService {
     _currentCallId = null;
     _isMuted = false;
     _isVideoOn = false;
+    _isSpeakerOn = true;
 
     // End native call UI and stop foreground service
     if (callIdToEnd != null) {
       CallKitService.endCall(callIdToEnd);
     }
+    CallKitService.endAllCalls();
     _stopForegroundService();
 
     onJoinChanged?.call(false);
@@ -315,15 +332,12 @@ class EmergencyCallService {
     await startSOSCall(callerName: name, callerPhone: phone);
   }
 
-  /// UI Backward compatibility
   Future<void> updateTriageData(String channelId, Map<String, dynamic> data) async {
-    // Si la colonne n'existe pas ou pour simplifier, on peut juste logger ou stocker dans update
-    // Par exemple, mettre à jour la description de l'incident :
     final callRes = await _supabase.from('call_history').select('incident_id').eq('channel_name', channelId).maybeSingle();
     if (callRes != null && callRes['incident_id'] != null) {
       final incidentId = callRes['incident_id'];
       await _supabase.from('incidents').update({
-        'description': data.toString(), 
+        'description': jsonEncode(data),
       }).eq('id', incidentId);
     }
   }

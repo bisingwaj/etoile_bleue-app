@@ -27,7 +27,8 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
     final showMinimizedOverlay = isMinimized &&
         (callState.status == ActiveCallStatus.active ||
          callState.status == ActiveCallStatus.ringing ||
-         callState.status == ActiveCallStatus.connecting);
+         callState.status == ActiveCallStatus.connecting ||
+         callState.status == ActiveCallStatus.onHold);
 
     // CallKit handles native incoming call UI on iOS and Android.
     // Only show the in-app overlay on platforms where CallKit is unavailable.

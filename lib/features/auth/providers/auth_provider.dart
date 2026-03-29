@@ -96,7 +96,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final session = _supabase.auth.currentSession;
       if (session != null) {
-        final userId = session.user.id;
+        // Force-refresh so the access token is always fresh on startup,
+        // even if the app was closed for hours/days.
+        try {
+          await _supabase.auth.refreshSession();
+          debugPrint('[AuthProvider] Session refreshed successfully');
+        } catch (e) {
+          debugPrint('[AuthProvider] Token refresh failed, signing out: $e');
+          await _supabase.auth.signOut();
+          state = state.copyWith(bootstrapped: true);
+          return;
+        }
+
+        final userId = _supabase.auth.currentUser!.id;
         final profile = await _supabase
             .from('users_directory')
             .select()

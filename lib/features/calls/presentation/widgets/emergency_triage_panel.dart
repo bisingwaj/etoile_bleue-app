@@ -21,6 +21,7 @@ class _EmergencyTriagePanelState extends ConsumerState<EmergencyTriagePanel> {
 
     setState(() {
       _triageData[key] = value;
+      _triageData['${key}_at'] = DateTime.now().toUtc().toIso8601String();
       _step++;
     });
 

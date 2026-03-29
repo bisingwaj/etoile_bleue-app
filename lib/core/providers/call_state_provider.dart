@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
+import 'package:etoile_bleue_mobile/core/services/call_sound_service.dart';
 
 enum ActiveCallStatus {
   idle,
@@ -9,6 +10,7 @@ enum ActiveCallStatus {
   active,
   ended,
   incomingRinging,
+  onHold,
 }
 
 class ActiveCallState {
@@ -66,11 +68,13 @@ class ActiveCallState {
   bool get isInCall =>
       status == ActiveCallStatus.connecting ||
       status == ActiveCallStatus.ringing ||
-      status == ActiveCallStatus.active;
+      status == ActiveCallStatus.active ||
+      status == ActiveCallStatus.onHold;
 }
 
 class CallStateNotifier extends StateNotifier<ActiveCallState> {
   final EmergencyCallService _service;
+  final CallSoundService _sounds = CallSoundService();
 
   CallStateNotifier(this._service) : super(const ActiveCallState()) {
     _wireCallbacks();
@@ -80,10 +84,13 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
     _service.onJoinChanged = (joined) {
       if (joined) {
         state = state.copyWith(status: ActiveCallStatus.ringing);
+        _sounds.startRingback();
       }
     };
 
     _service.onRemoteUserJoined = (uid) {
+      _sounds.stopRingback();
+      _sounds.playConnected();
       state = state.copyWith(
         status: ActiveCallStatus.active,
         remoteUid: uid,
@@ -92,12 +99,14 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
 
     _service.onRemoteUserLeft = (uid) {
       state = state.copyWith(
-        status: ActiveCallStatus.ringing,
+        status: ActiveCallStatus.onHold,
         clearRemoteUid: true,
       );
     };
 
     _service.onCallEnded = () {
+      _sounds.stopRingback();
+      _sounds.playEnded();
       state = const ActiveCallState(status: ActiveCallStatus.ended);
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
@@ -160,6 +169,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   }
 
   Future<void> hangUp() async {
+    _sounds.stopRingback();
     await _service.hangUp();
   }
 
@@ -176,6 +186,10 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   Future<void> toggleSpeaker() async {
     await _service.toggleSpeaker();
     state = state.copyWith(isSpeakerOn: _service.isSpeakerOn);
+  }
+
+  Future<void> switchCamera() async {
+    await _service.switchCamera();
   }
 }
 

@@ -10,6 +10,8 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/providers/emergency_contacts_provider.dart';
 import 'package:country_flags/country_flags.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:go_router/go_router.dart';
+import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 import 'package:etoile_bleue_mobile/features/profile/data/profile_repository.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -188,7 +190,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     _buildCardGroup([
                       _buildListTile(context, icon: CupertinoIcons.globe, color: AppColors.blue, title: 'profile.change_lang'.tr(), onTap: () => _openSheet(context, const _LanguageSheet())),
                       _buildListTile(context, icon: CupertinoIcons.settings, color: Colors.grey[700]!, title: 'profile.system_settings'.tr(), onTap: () {}),
-                      _buildListTile(context, icon: CupertinoIcons.square_arrow_right, color: AppColors.red, title: 'profile.logout'.tr(), isLast: true, onTap: () {}),
+                      _buildListTile(context, icon: CupertinoIcons.square_arrow_right, color: AppColors.red, title: 'profile.logout'.tr(), isLast: true, onTap: () async {
+                        await ref.read(authProvider.notifier).signOut();
+                        if (mounted) {
+                          GoRouter.of(context).go('/login');
+                        }
+                      }),
                     ]),
                     
                     const SizedBox(height: 40),

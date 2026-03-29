@@ -60,7 +60,7 @@ class CallKitService {
           audioSessionPreferredSampleRate: 44100.0,
           audioSessionPreferredIOBufferDuration: 0.005,
           supportsDTMF: false,
-          supportsHolding: false,
+          supportsHolding: true,
           supportsGrouping: false,
           supportsUngrouping: false,
           ringtonePath: 'system_ringtone_default',
