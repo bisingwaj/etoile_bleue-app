@@ -1,0 +1,285 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'incident_detail_page.dart';
+
+final callHistoryProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return Stream.value([]);
+  return Supabase.instance.client
+      .from('incidents')
+      .stream(primaryKey: ['id'])
+      .eq('user_id', uid)
+      .order('created_at', ascending: false)
+      .limit(50);
+});
+
+class HistoryPage extends ConsumerStatefulWidget {
+  const HistoryPage({super.key});
+
+  @override
+  ConsumerState<HistoryPage> createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends ConsumerState<HistoryPage> {
+  String _currentFilter = 'Tous';
+
+  /// Formater le timestamp (ISO String) en texte lisible
+  String _formatDate(dynamic ts) {
+    if (ts == null) return '—';
+    DateTime date;
+    if (ts is String) {
+      date = DateTime.tryParse(ts) ?? DateTime.now();
+    } else {
+      return '—';
+    }
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours}h';
+    if (diff.inDays == 1) return 'Hier';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  /// Formater la durée d'un appel en secondes (depuis strings ISO)
+  String _formatDuration(dynamic start, dynamic end) {
+    if (start == null || end == null) return '';
+    try {
+      final s = DateTime.parse(start.toString());
+      final e = DateTime.parse(end.toString());
+      final dur = e.difference(s);
+      if (dur.inSeconds < 60) return '${dur.inSeconds}s';
+      return '${dur.inMinutes}min ${dur.inSeconds % 60}s';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  void _showFilterMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.only(top: 16, bottom: 40, left: 24, right: 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(child: Container(width: 48, height: 5,
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)))),
+                const SizedBox(height: 24),
+                Text('history.filter_history'.tr(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
+                const SizedBox(height: 20),
+                ...['Tous', 'ringing', 'active', 'ended'].map((str) {
+                  final isSelected = _currentFilter == str;
+                  IconData icon;
+                  Color color;
+                  String label;
+                  switch (str) {
+                    case 'ringing': icon = CupertinoIcons.waveform_path_ecg; color = AppColors.red; label = 'SOS émis'; break;
+                    case 'active': icon = CupertinoIcons.phone_fill; color = Colors.green; label = 'En cours'; break;
+                    case 'ended': icon = CupertinoIcons.checkmark_circle_fill; color = AppColors.blue; label = 'Terminé'; break;
+                    default: icon = CupertinoIcons.list_bullet; color = Colors.grey[800]!; label = 'Tous';
+                  }
+                  return GestureDetector(
+                    onTap: () { setState(() => _currentFilter = str); Navigator.pop(ctx); },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: isSelected ? color.withValues(alpha: 0.1) : Colors.grey[50],
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: isSelected ? color.withValues(alpha: 0.3) : Colors.transparent),
+                      ),
+                      child: Row(children: [
+                        Icon(icon, color: isSelected ? color : Colors.grey[500], size: 22),
+                        const SizedBox(width: 16),
+                        Text(label, style: TextStyle(fontSize: 16, fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600, color: isSelected ? color : Colors.grey[700])),
+                        const Spacer(),
+                        if (isSelected) Icon(CupertinoIcons.checkmark_alt, color: color, size: 20),
+                      ]),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final historyAsync = ref.watch(callHistoryProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        toolbarHeight: 70,
+        title: Padding(
+          padding: const EdgeInsets.only(top: 10.0),
+          child: Text('history.title'.tr(), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, fontFamily: 'Marianne', color: AppColors.navyDeep, letterSpacing: -1.0)),
+        ),
+        centerTitle: false,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0, top: 10.0),
+            child: GestureDetector(
+              onTap: () => _showFilterMenu(context),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))]),
+                child: Row(children: [Icon(CupertinoIcons.slider_horizontal_3, size: 22, color: _currentFilter == 'Tous' ? Colors.black87 : AppColors.blue)]),
+              ),
+            ),
+          )
+        ],
+      ),
+      body: historyAsync.when(
+        loading: () => const Center(child: CupertinoActivityIndicator()),
+        error: (e, _) => Center(child: Text('Erreur: $e')),
+        data: (allCalls) {
+          // Filtrage par statut
+          final filtered = _currentFilter == 'Tous'
+              ? allCalls
+              : allCalls.where((c) => c['status'] == _currentFilter).toList();
+
+          // Stats calculées depuis les vraies données
+          final sosCount = allCalls.where((c) => c['status'] != null).length;
+          final endedCount = allCalls.where((c) => c['status'] == 'ended').length;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.only(top: 16, bottom: 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ─── Stats ────────────────────────────────────────
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text("history.citizen_engagement".tr(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[600]))),
+                const SizedBox(height: 12),
+                SizedBox(height: 110, child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _buildStatCard(title: 'history.alerts_issued'.tr(), value: '$sosCount', icon: CupertinoIcons.waveform_path_ecg, color: AppColors.red),
+                    const SizedBox(width: 12),
+                    _buildStatCard(title: 'Appels terminés', value: '$endedCount', icon: CupertinoIcons.checkmark_circle_fill, color: AppColors.blue),
+                    const SizedBox(width: 12),
+                    _buildStatCard(title: 'history.badges_earned'.tr(), value: '3', icon: CupertinoIcons.rosette, color: Colors.orangeAccent),
+                  ],
+                )),
+                const SizedBox(height: 32),
+
+                // ─── Timeline ─────────────────────────────────────
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Text("history.event_history".tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
+                    Text("history.see_all".tr(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.blue)),
+                  ])),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))]),
+                    child: Column(children: filtered.isEmpty
+                        ? [Padding(padding: const EdgeInsets.all(32.0), child: Center(child: Text('Aucun événement', style: const TextStyle(fontFamily: 'Marianne', color: Colors.grey))))]
+                        : filtered.asMap().entries.map((entry) {
+                            final i = entry.key;
+                            final c = entry.value;
+                            final status = c['status'] as String? ?? 'unknown';
+                            final icon = status == 'ended' || status == 'resolved' ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.waveform_path_ecg;
+                            final color = status == 'ended' || status == 'resolved' ? AppColors.blue : AppColors.red;
+                            final duration = _formatDuration(c['created_at'], c['ended_at']);
+                            return _buildHistoryTile(
+                              title: c['title'] ?? 'Incident',
+                              subtitle: status == 'ended' || status == 'resolved' ? 'Terminé${duration.isNotEmpty ? " ($duration)" : ""}' : 'Statut: $status',
+                              date: _formatDate(c['created_at']),
+                              icon: icon, color: color,
+                              isLast: i == filtered.length - 1,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                    builder: (context) => IncidentDetailPage(
+                                      incidentId: c['id'].toString(),
+                                      initialData: c,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }).toList()),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatCard({required String title, required String value, required IconData icon, required Color color}) {
+    return Container(
+      width: 140, padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: color.withValues(alpha: 0.1))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 20)),
+          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
+        ]),
+        Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[700])),
+      ]),
+    );
+  }
+
+  Widget _buildHistoryTile({required String title, required String subtitle, required String date, required IconData icon, required Color color, required bool isLast, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.transparent, // Pour activer le tap sur toute la surface
+          border: isLast ? null : Border(bottom: BorderSide(color: Colors.grey[100]!)),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: color, size: 24)),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87), overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 8),
+              Text(date, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[500])),
+            ]),
+            const SizedBox(height: 4),
+            Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+          ])),
+          const SizedBox(width: 8),
+          const Icon(CupertinoIcons.chevron_right, color: Colors.grey, size: 16),
+        ]),
+      ),
+    );
+  }
+}

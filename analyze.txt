@@ -1,0 +1,75 @@
+Analyzing etoile_bleue_mobile...                                
+
+   info • Dangling library doc comment • lib/core/providers/rescuer_gps_provider.dart:1:1 • dangling_library_doc_comments
+warning • Unused import: 'package:flutter/cupertino.dart' • lib/core/router/app_router.dart:1:8 • unused_import
+   info • Dangling library doc comment • lib/core/services/emergency_call_service.dart:1:1 • dangling_library_doc_comments
+warning • Unused import: 'package:etoile_bleue_mobile/core/services/callkit_service.dart' • lib/core/services/fcm_service.dart:3:8 • unused_import
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/core/widgets/dynamic_island_notification.dart:43:45 • deprecated_member_use
+   info • Use interpolation to compose strings and values • lib/features/auth/presentation/otp_page.dart:145:36 • prefer_interpolation_to_compose_strings
+warning • Unused import: 'package:country_flags/country_flags.dart' • lib/features/auth/presentation/register_page.dart:5:8 • unused_import
+warning • Unused import: '../providers/auth_provider.dart' • lib/features/auth/presentation/register_page.dart:9:8 • unused_import
+warning • The value of the field '_phoneCtrl' isn't used • lib/features/auth/presentation/register_page.dart:24:9 • unused_field
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/directory/presentation/directory_page.dart:332:51 • deprecated_member_use
+   info • Unnecessary use of multiple underscores • lib/features/directory/presentation/directory_page.dart:391:29 • unnecessary_underscores
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/directory/presentation/directory_page.dart:408:70 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/directory/presentation/directory_page.dart:411:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/directory/presentation/directory_page.dart:424:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/directory/presentation/directory_page.dart:445:39 • deprecated_member_use
+   info • 'fromBytes' is deprecated and shouldn't be used. Use BitmapDescriptor.bytes method instead • lib/features/home/presentation/home_page.dart:115:52 • deprecated_member_use
+   info • The private field _currentSOSCategory could be 'final' • lib/features/home/presentation/home_page.dart:126:10 • prefer_final_fields
+   info • Don't use 'BuildContext's across async gaps • lib/features/home/presentation/home_page.dart:192:19 • use_build_context_synchronously
+  error • Undefined name 'FirebaseAuth' • lib/features/home/presentation/home_page.dart:1006:18 • undefined_identifier
+  error • Undefined name 'FirebaseFirestore' • lib/features/home/presentation/home_page.dart:1009:9 • undefined_identifier
+  error • The method 'GeoPoint' isn't defined for the type '_HomePageState' • lib/features/home/presentation/home_page.dart:1010:27 • undefined_method
+  error • Undefined name 'FieldValue' • lib/features/home/presentation/home_page.dart:1011:33 • undefined_identifier
+  error • The method 'SetOptions' isn't defined for the type '_HomePageState' • lib/features/home/presentation/home_page.dart:1012:12 • undefined_method
+   info • Unnecessary use of multiple underscores • lib/features/home/presentation/home_page.dart:1222:28 • unnecessary_underscores
+   info • 'setMapStyle' is deprecated and shouldn't be used. Use GoogleMap.style instead • lib/features/home/presentation/home_page.dart:1283:45 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/home/presentation/home_page.dart:1384:42 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/home/presentation/home_page.dart:1401:36 • deprecated_member_use
+  error • Undefined name '_dispatchSub' • lib/features/home/presentation/home_page.dart:1874:5 • undefined_identifier
+  error • Undefined name '_unitSub' • lib/features/home/presentation/home_page.dart:1875:5 • undefined_identifier
+   info • Don't use 'BuildContext's across async gaps • lib/features/home/presentation/incident_camera_page.dart:164:36 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/features/home/presentation/incident_camera_page.dart:184:36 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/features/home/presentation/incident_camera_page.dart:200:36 • use_build_context_synchronously
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/home/presentation/widgets/goodsam_sheet.dart:113:115 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/home/presentation/widgets/incident_sheet.dart:482:138 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/home/presentation/widgets/sos_vocal_sheet.dart:321:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/features/home/presentation/widgets/sos_vocal_sheet.dart:406:83 • deprecated_member_use
+warning • The '!' will have no effect because the receiver can't be null • lib/features/incidents/data/incident_repository.dart:67:35 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/incidents/data/incident_repository.dart:143:31 • unnecessary_non_null_assertion
+   info • Dangling library doc comment • lib/features/messaging/messaging_provider.dart:1:1 • dangling_library_doc_comments
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:25:33 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:35:33 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:48:31 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:58:31 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:68:31 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:78:31 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:94:31 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:106:31 • unnecessary_non_null_assertion
+   info • Use the null-aware marker '?' rather than a null check via an 'if' • lib/features/profile/data/profile_repository.dart:120:7 • use_null_aware_elements
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:122:31 • unnecessary_non_null_assertion
+warning • The '!' will have no effect because the receiver can't be null • lib/features/profile/data/profile_repository.dart:144:78 • unnecessary_non_null_assertion
+   info • The imported package 'cloud_firestore' isn't a dependency of the importing package • lib/features/profile/presentation/profile_page.dart:2:8 • depend_on_referenced_packages
+  error • Target of URI doesn't exist: 'package:cloud_firestore/cloud_firestore.dart' • lib/features/profile/presentation/profile_page.dart:2:8 • uri_does_not_exist
+   info • The local variable '_profileImage' starts with an underscore • lib/features/profile/presentation/profile_page.dart:64:11 • no_leading_underscores_for_local_identifiers
+   info • Unnecessary use of multiple underscores • lib/features/profile/presentation/profile_page.dart:118:44 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores • lib/features/profile/presentation/profile_page.dart:123:44 • unnecessary_underscores
+  error • The name 'Timestamp' isn't a type, so it can't be used in an 'as' expression • lib/features/profile/presentation/profile_page.dart:129:55 • cast_to_non_type
+   info • Unnecessary use of multiple underscores • lib/features/profile/presentation/profile_page.dart:134:44 • unnecessary_underscores
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/features/profile/presentation/profile_page.dart:326:44 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/features/profile/presentation/profile_page.dart:450:50 • use_build_context_synchronously
+  error • The method 'addEmergencyContact' isn't defined for the type 'ProfileRepository' • lib/features/profile/presentation/profile_page.dart:492:49 • undefined_method
+  error • The method 'deleteEmergencyContact' isn't defined for the type 'ProfileRepository' • lib/features/profile/presentation/profile_page.dart:503:47 • undefined_method
+   info • The argument type 'int' isn't related to 'String' • lib/features/profile/presentation/profile_page.dart:534:42 • collection_methods_unrelated_type
+  error • The method '[]' can't be unconditionally invoked because the receiver can be 'null' • lib/features/profile/presentation/profile_page.dart:540:38 • unchecked_use_of_nullable_value
+  error • The argument type 'String' can't be assigned to the parameter type 'int'.  • lib/features/profile/presentation/profile_page.dart:540:39 • argument_type_not_assignable
+warning • Dead code • lib/features/profile/presentation/profile_page.dart:540:47 • dead_code
+warning • The left operand can't be null, so the right operand is never executed • lib/features/profile/presentation/profile_page.dart:540:50 • dead_null_aware_expression
+  error • The method '[]' can't be unconditionally invoked because the receiver can be 'null' • lib/features/profile/presentation/profile_page.dart:541:41 • unchecked_use_of_nullable_value
+  error • The argument type 'String' can't be assigned to the parameter type 'int'.  • lib/features/profile/presentation/profile_page.dart:541:42 • argument_type_not_assignable
+warning • The left operand can't be null, so the right operand is never executed • lib/features/profile/presentation/profile_page.dart:541:54 • dead_null_aware_expression
+  error • The method '[]' can't be unconditionally invoked because the receiver can be 'null' • lib/features/profile/presentation/profile_page.dart:544:60 • unchecked_use_of_nullable_value
+  error • The argument type 'String' can't be assigned to the parameter type 'int'.  • lib/features/profile/presentation/profile_page.dart:544:61 • argument_type_not_assignable
+warning • The asset directory 'assets/animations/' doesn't exist • pubspec.yaml:100:7 • asset_directory_does_not_exist
+

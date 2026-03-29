@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "109162143836",
+    "project_id": "etoilebleue2-9f074",
+    "storage_bucket": "etoilebleue2-9f074.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:109162143836:android:806f880cc1ad0795b8c699",
+        "android_client_info": {
+          "package_name": "com.etoilebleue.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzzVtc8Anxa0SJX4f0UtwwfkR7vLeWWxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

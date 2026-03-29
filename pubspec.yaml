@@ -1,0 +1,118 @@
+name: etoile_bleue_mobile
+description: "Application d'urgence vitale du Ministère de la Santé — République Démocratique du Congo"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Navigation
+  go_router: ^14.6.3
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Animations
+  lottie: ^3.3.1
+
+  # Localisation & Maps
+  geolocator: ^13.0.2
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+  # Network
+  dio: ^5.7.0
+  connectivity_plus: ^7.0.0
+
+  # Storage
+  shared_preferences: ^2.3.3
+  flutter_secure_storage: ^9.2.4
+
+  # Notifications
+  flutter_local_notifications: ^17.2.4
+
+  # RTC & Permissions
+  agora_rtc_engine: ^6.3.2
+  permission_handler: ^11.3.1
+  
+  # Localisation & Maps
+
+  # UI
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.2.4
+  flutter_tts: ^4.2.5
+  url_launcher: ^6.3.2
+  google_maps_flutter: ^2.16.0
+  http: ^1.6.0
+  audioplayers: ^6.6.0
+  shimmer: ^3.0.0
+  geocoding: ^4.0.0
+  quick_actions: ^1.1.0
+  record: ^6.2.0
+  audio_waveforms: ^2.0.2
+  path_provider: ^2.1.5
+  image_picker: ^1.2.1
+  flutter_animate: ^4.5.2
+  video_compress: ^3.1.4
+  flutter_image_compress: ^2.4.0
+  video_player: ^2.11.1
+  camera: ^0.12.0+1
+  country_flags: ^4.1.2
+  pinput: ^6.0.2
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+  easy_localization: ^3.0.8
+  freezed_annotation: ^3.1.0
+  flutter_dotenv: ^6.0.0
+  crypto: ^3.0.7
+  flutter_foreground_task: ^9.2.1
+  flutter_callkit_incoming: ^3.0.0
+  supabase_flutter: ^2.12.2
+  firebase_core: ^3.9.0
+  firebase_auth: ^5.3.4
+  cloud_functions: ^5.2.0
+  dotenv: ^4.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  riverpod_generator: ^2.6.2
+  build_runner: ^2.4.13
+  freezed: ^3.1.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/translations/
+    - assets/images/
+    - assets/images/onboarding/
+    - assets/json/
+    - assets/audio/
+
+
+  fonts:
+    - family: Marianne
+      fonts:
+        - asset: assets/fonts/Marianne/Marianne-Thin.woff
+          weight: 100
+        - asset: assets/fonts/Marianne/Marianne-Light.woff
+          weight: 300
+        - asset: assets/fonts/Marianne/Marianne-Regular.woff
+          weight: 400
+        - asset: assets/fonts/Marianne/Marianne-Medium.woff
+          weight: 500
+        - asset: assets/fonts/Marianne/Marianne-Bold.woff
+          weight: 700
+        - asset: assets/fonts/Marianne/Marianne-ExtraBold.woff
+          weight: 800
