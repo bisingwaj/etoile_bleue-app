@@ -1,27 +1,26 @@
-import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart' as firebase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ══════════════════════════════════════════════════════════════
-// AUTH PROVIDER — Firebase SMS OTP → Supabase Session
+// AUTH PROVIDER — Twilio Verify OTP → Supabase Session
 // ══════════════════════════════════════════════════════════════
 
 class AuthState {
   final bool isLoading;
   final bool isAuthenticated;
   final bool isNewUser;
+  final bool otpSent;
+  final String? phone;
   final String? error;
-  final String? verificationId;
   final Map<String, dynamic>? user;
 
   const AuthState({
     this.isLoading = false,
     this.isAuthenticated = false,
     this.isNewUser = false,
+    this.otpSent = false,
+    this.phone,
     this.error,
-    this.verificationId,
     this.user,
   });
 
@@ -29,18 +28,19 @@ class AuthState {
     bool? isLoading,
     bool? isAuthenticated,
     bool? isNewUser,
+    bool? otpSent,
+    String? phone,
     String? error,
-    String? verificationId,
     Map<String, dynamic>? user,
-    bool resetVerificationId = false,
+    bool clearError = false,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isNewUser: isNewUser ?? this.isNewUser,
-      error: error,
-      verificationId:
-          resetVerificationId ? null : (verificationId ?? this.verificationId),
+      otpSent: otpSent ?? this.otpSent,
+      phone: phone ?? this.phone,
+      error: clearError ? null : (error ?? this.error),
       user: user ?? this.user,
     );
   }
@@ -51,14 +51,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _checkExistingSession();
   }
 
-  final _firebaseAuth = firebase.FirebaseAuth.instance;
   final _supabase = Supabase.instance.client;
 
-  // URL de l'Edge Function firebase-auth
-  String get _edgeFunctionUrl =>
-      '${const String.fromEnvironment('SUPABASE_URL', defaultValue: 'https://npucuhlvoalcbwdfedae.supabase.co')}/functions/v1/firebase-auth';
-
-  /// Vérifie s'il y a une session Supabase existante
   Future<void> _checkExistingSession() async {
     final session = _supabase.auth.currentSession;
     if (session != null) {
@@ -74,143 +68,141 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isAuthenticated: true,
           user: profile,
         );
-        // Mettre à jour le statut
         await _supabase
             .from('users_directory')
-            .update({'status': 'online', 'last_seen_at': DateTime.now().toIso8601String()})
+            .update({
+              'status': 'online',
+              'last_seen_at': DateTime.now().toIso8601String(),
+            })
             .eq('auth_user_id', userId);
       }
     }
   }
 
-  /// Étape 1 : Envoyer le SMS OTP via Firebase
+  /// Step 1: Send SMS OTP via Twilio Verify
   Future<void> sendOtp(String phoneNumber) async {
     state = state.copyWith(
       isLoading: true,
-      error: null,
-      resetVerificationId: true,
+      clearError: true,
+      otpSent: false,
+      phone: phoneNumber,
     );
 
     try {
-      await _firebaseAuth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        timeout: const Duration(seconds: 60),
-        verificationCompleted: (credential) async {
-          // Auto-vérification Android
-          await _signInWithCredential(credential);
-        },
-        verificationFailed: (e) {
-          String msg = 'Erreur de vérification';
-          if (e.code == 'invalid-phone-number') {
-            msg = 'Numéro de téléphone invalide';
-          } else if (e.code == 'too-many-requests') {
-            msg = 'Trop de tentatives. Réessayez plus tard';
-          }
-          state = state.copyWith(isLoading: false, error: msg);
-        },
-        codeSent: (verificationId, resendToken) {
-          state = state.copyWith(
-            isLoading: false,
-            verificationId: verificationId,
-          );
-        },
-        codeAutoRetrievalTimeout: (_) {},
+      final res = await _supabase.functions.invoke(
+        'twilio-verify',
+        body: {'action': 'send', 'phone': phoneNumber},
       );
+
+      if (res.status != 200) {
+        final error = res.data is Map ? res.data['error'] : 'Erreur inconnue';
+        state = state.copyWith(isLoading: false, error: error.toString());
+        return;
+      }
+
+      state = state.copyWith(isLoading: false, otpSent: true);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Erreur: $e');
     }
   }
 
-  /// Étape 2 : Vérifier le code OTP
-  Future<bool> verifyOtp(String smsCode, {String? fullName}) async {
-    if (state.verificationId == null) {
+  /// Step 2: Verify OTP code and establish Supabase session
+  Future<bool> verifyOtp(String code) async {
+    if (state.phone == null) {
       state = state.copyWith(error: 'Aucune vérification en cours');
       return false;
     }
 
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      final credential = firebase.PhoneAuthProvider.credential(
-        verificationId: state.verificationId!,
-        smsCode: smsCode,
+      final res = await _supabase.functions.invoke(
+        'twilio-verify',
+        body: {
+          'action': 'verify',
+          'phone': state.phone!,
+          'code': code,
+        },
       );
-      return await _signInWithCredential(credential, fullName: fullName);
-    } catch (e) {
-      String msg = 'Code invalide';
-      if (e is firebase.FirebaseAuthException && e.code == 'invalid-verification-code') {
-        msg = 'Le code saisi est incorrect';
-      }
-      state = state.copyWith(isLoading: false, error: msg);
-      return false;
-    }
-  }
 
-  /// Signe avec Firebase puis échange le token contre une session Supabase
-  Future<bool> _signInWithCredential(
-    firebase.PhoneAuthCredential credential, {
-    String? fullName,
-  }) async {
-    try {
-      final result = await _firebaseAuth.signInWithCredential(credential);
-      final idToken = await result.user?.getIdToken();
-
-      if (idToken == null) {
-        state = state.copyWith(isLoading: false, error: 'Impossible d\'obtenir le token');
+      if (res.status != 200) {
+        final error = res.data is Map ? res.data['error'] : 'Code invalide';
+        state = state.copyWith(isLoading: false, error: error.toString());
         return false;
       }
 
-      // Appeler l'Edge Function pour obtenir la session Supabase
-      final response = await http.post(
-        Uri.parse(_edgeFunctionUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'firebaseToken': idToken,
-          'phone': result.user?.phoneNumber,
-          'fullName': fullName,
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        final err = jsonDecode(response.body);
-        state = state.copyWith(
-          isLoading: false,
-          error: err['error'] ?? 'Erreur serveur',
-        );
-        return false;
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = res.data as Map<String, dynamic>;
       final session = data['session'] as Map<String, dynamic>?;
-      final refreshToken = session?['refresh_token'] as String?;
-      if (refreshToken == null || refreshToken.isEmpty) {
+
+      if (session == null || session['access_token'] == null) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Session invalide (refresh manquant)',
+          error: 'Session invalide',
         );
         return false;
       }
 
-      // GoTrue setSession attend le refresh_token, pas l'access_token.
-      await _supabase.auth.setSession(refreshToken);
+      await _supabase.auth.setSession(session['access_token']);
 
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
-        isNewUser: data['is_new_user'] ?? false,
-        user: data['user'],
+        isNewUser: data['is_new_user'] == true,
+        user: data['user'] as Map<String, dynamic>?,
       );
 
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Erreur de connexion: $e');
+      state = state.copyWith(isLoading: false, error: 'Code invalide');
       return false;
     }
   }
 
-  /// Déconnexion
+  /// Step 3: Complete profile for new users via Edge Function
+  Future<bool> completeProfile({
+    required String firstName,
+    required String lastName,
+    String? language,
+    int? birthYear,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    try {
+      final body = <String, dynamic>{
+        'full_name': '$firstName $lastName',
+        'first_name': firstName,
+        'last_name': lastName,
+      };
+      if (language != null) body['language'] = language;
+      if (birthYear != null) body['date_of_birth'] = '$birthYear-01-01';
+
+      final res = await _supabase.functions.invoke(
+        'complete-profile',
+        body: body,
+      );
+
+      if (res.status != 200) {
+        final error = res.data is Map ? res.data['error'] : 'Erreur';
+        state = state.copyWith(isLoading: false, error: error.toString());
+        return false;
+      }
+
+      final data = res.data as Map<String, dynamic>;
+      state = state.copyWith(
+        isLoading: false,
+        isNewUser: false,
+        user: data['user'] as Map<String, dynamic>?,
+      );
+
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: 'Erreur: $e');
+      return false;
+    }
+  }
+
+  /// Sign out
   Future<void> signOut() async {
-    // Mettre hors ligne
     final userId = _supabase.auth.currentUser?.id;
     if (userId != null) {
       await _supabase
@@ -219,7 +211,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .eq('auth_user_id', userId);
     }
 
-    await _firebaseAuth.signOut();
     await _supabase.auth.signOut();
 
     state = const AuthState();

@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "skills": {
+    "flutter-adding-home-screen-widgets": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "63269a90f565bc2e4956be9fd4368caffe269c6cda7f543503994f1bf1d297a1"
+    },
+    "flutter-animating-apps": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "fcec8d5e69f914e94ad8ac999b42793fd616af044665feb4af5daa21ca7988d7"
+    },
+    "flutter-architecting-apps": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "ac8212aa825c75d468c216ffada34302d0ab6e8ffc8e99d789848aba4acd30ed"
+    },
+    "flutter-building-forms": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "4f1881cab15932c34fed9d7e4bc9f2d23364f2c9f64837306d145f0ab80d026b"
+    },
+    "flutter-building-layouts": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "f25c57e933fa78f5e26057be20b8a2edbd9783c654be03198a7cb6c5c2432d12"
+    },
+    "flutter-building-plugins": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "19cd63fbf955c95cb4dbdbf801241deb680d6fd3ae247d425c683f8b9661b9eb"
+    },
+    "flutter-caching-data": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "bc9d63c2000ea783643e36ec5f56151d93407ef3b8758a352e164b139a4d97c3"
+    },
+    "flutter-managing-state": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "7a0f1741895403c42db43d66b535099ce1c0c06126765b1bd5d649f96b16d0bd"
+    },
+    "flutter-reducing-app-size": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "76c9c03c5a086de17bf1b3e41becd6695bdca42562ef351fa1de8d2bddd2b096"
+    },
+    "flutter-working-with-databases": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "202626bef016eb0b31aa6ef99d5ba2af8b0722d94a19d0a628a8dc627aa373cd"
+    }
+  }
+}

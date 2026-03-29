@@ -20,8 +20,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   void _verifyPhone() {
     if (_phoneController.text.length < 9) return;
     final phone = '+243${_phoneController.text}';
-    // Ne pas await verifyPhoneNumber : le Future se termine avant les callbacks
-    // Firebase (codeSent / verificationFailed). La navigation est gérée par ref.listen.
     ref.read(authProvider.notifier).sendOtp(phone);
   }
 
@@ -47,9 +45,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         return;
       }
 
-      final verificationArrived = next.verificationId != null &&
-          next.verificationId != previous?.verificationId;
-      if (verificationArrived) {
+      if (next.otpSent && !(previous?.otpSent ?? false)) {
         final route = ModalRoute.of(context);
         if (route != null && !route.isCurrent) return;
         final phone = '+243${_phoneController.text}';

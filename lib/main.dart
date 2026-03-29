@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -26,13 +25,6 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-
-  // ✅ Initialisation de Firebase (pour OTP)
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    debugPrint("Firebase n'est pas encore configuré : \$e");
-  }
 
   // ✅ Initialisation de Supabase
   await Supabase.initialize(

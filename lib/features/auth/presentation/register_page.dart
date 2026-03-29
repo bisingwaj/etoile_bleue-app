@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/registration_provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../providers/auth_provider.dart';
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
 
@@ -22,34 +22,28 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   final List<String> _languages = ['Français', 'Anglais', 'Lingala', 'Swahili', 'Kikongo', 'Tshiluba'];
 
-  void _nextStep() {
+  Future<void> _nextStep() async {
     final state = ref.read(registrationProvider);
     if (state.currentStep < 3) {
       ref.read(registrationProvider.notifier).nextStep();
       _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
-      // Final Step -> Save Profile -> Home
-      final supabase = Supabase.instance.client;
-      final userId = supabase.auth.currentUser?.id;
-      final phone = supabase.auth.currentUser?.phone ?? state.phone;
-      if (userId != null) {
-        supabase.from('users_directory').upsert({
-          'auth_user_id': userId,
-          'phone': phone,
-          'first_name': state.firstName,
-          'last_name': state.lastName,
-          'language': state.language,
-          'birth_year': int.tryParse(state.birthYear) ?? 2000,
-          'status': 'online',
-          'last_seen_at': DateTime.now().toIso8601String(),
-          'created_at': DateTime.now().toIso8601String(),
-        }).then((_) {
-          if (mounted) context.go('/home');
-        }).catchError((e) {
-          if (mounted) context.go('/home');
-        });
-      } else {
-        if (mounted) context.go('/home');
+      final success = await ref.read(authProvider.notifier).completeProfile(
+        firstName: state.firstName,
+        lastName: state.lastName,
+        language: state.language.isNotEmpty ? state.language : null,
+        birthYear: int.tryParse(state.birthYear),
+      );
+      if (mounted) {
+        if (!success) {
+          final error = ref.read(authProvider).error;
+          if (error != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(error), backgroundColor: Colors.redAccent),
+            );
+          }
+        }
+        context.go('/home');
       }
     }
   }

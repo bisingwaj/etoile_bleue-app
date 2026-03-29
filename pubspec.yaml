@@ -76,9 +76,6 @@ dependencies:
   flutter_foreground_task: ^9.2.1
   flutter_callkit_incoming: ^3.0.0
   supabase_flutter: ^2.12.2
-  firebase_core: ^3.9.0
-  firebase_auth: ^5.3.4
-  cloud_functions: ^5.2.0
   dotenv: ^4.2.0
 
 dev_dependencies:

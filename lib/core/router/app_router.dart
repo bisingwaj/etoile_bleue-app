@@ -21,7 +21,7 @@ abstract class AppRoutes {
 }
 
 // The GoRouter is created ONCE and never rebuilt.
-// The redirect function uses FirebaseAuth directly to avoid
+// The redirect function checks Supabase session directly to avoid
 // subscribing to Riverpod state changes that cause router restarts.
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
