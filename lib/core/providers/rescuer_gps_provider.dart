@@ -13,7 +13,7 @@ class RescuerGpsNotifier extends StateNotifier<bool> {
 
   RescuerGpsNotifier(this._supabase) : super(false);
 
-  String get _userId => _supabase.auth.currentUser!.id;
+  String? get _userId => _supabase.auth.currentUser?.id;
 
   /// Démarre le suivi GPS
   Future<void> startTracking() async {
@@ -45,10 +45,12 @@ class RescuerGpsNotifier extends StateNotifier<bool> {
   void _onPosition(Position pos) => _upsertPosition(pos);
 
   Future<void> _upsertPosition(Position pos) async {
+    final uid = _userId;
+    if (uid == null) return;
     try {
       await _supabase.from('active_rescuers').upsert(
         {
-          'user_id': _userId,
+          'user_id': uid,
           'lat': pos.latitude,
           'lng': pos.longitude,
           'accuracy': pos.accuracy,
@@ -69,11 +71,13 @@ class RescuerGpsNotifier extends StateNotifier<bool> {
     _heartbeatTimer?.cancel();
     state = false;
 
+    final uid = _userId;
+    if (uid == null) return;
     try {
       await _supabase
           .from('active_rescuers')
           .delete()
-          .eq('user_id', _userId);
+          .eq('user_id', uid);
     } catch (_) {}
   }
 

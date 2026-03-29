@@ -26,7 +26,7 @@ class EmergencyCallService {
 
   EmergencyCallService(this._supabase);
 
-  String get userId => _supabase.auth.currentUser!.id;
+  String get userId => _supabase.auth.currentUser?.id ?? '';
 
   /// Initie un appel SOS — crée l'incident + call_history et rejoint le canal Agora
   Future<String?> startSOSCall({

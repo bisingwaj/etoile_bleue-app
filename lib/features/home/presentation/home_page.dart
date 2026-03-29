@@ -7,6 +7,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:ui' as ui;
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/features/directory/presentation/directory_page.dart';
@@ -935,11 +936,16 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       // 2. Affinement en arrière-plan avec Timeout (évite de bloquer sur une absence de satellite)
       try {
         Position newPos = await Geolocator.getCurrentPosition(
-          locationSettings: AndroidSettings(
-            accuracy: LocationAccuracy.high, // 'high' autorise Wi-Fi/Antennes, 'best' force GPS pur
-            timeLimit: Duration(seconds: 4),
-            forceLocationManager: true, // Bypass Google Play Services sur émulateur
-          ),
+          locationSettings: Platform.isAndroid
+              ? AndroidSettings(
+                  accuracy: LocationAccuracy.high,
+                  timeLimit: const Duration(seconds: 4),
+                  forceLocationManager: true,
+                )
+              : const LocationSettings(
+                  accuracy: LocationAccuracy.high,
+                  timeLimit: Duration(seconds: 4),
+                ),
         ).timeout(const Duration(seconds: 5), onTimeout: () {
           debugPrint("=== GPS: Dart-level timeout hit for getCurrentPosition! ===");
           throw TimeoutException("Dart-level timeout for getCurrentPosition");
@@ -967,11 +973,16 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
       debugPrint("=== GPS: Setting up getPositionStream ===");
       // 3. Listener continu pour suivre le mouvement de l'utilisateur
-      final LocationSettings locationSettings = AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-        forceLocationManager: true, // Contourne Play Services
-      );
+      final LocationSettings locationSettings = Platform.isAndroid
+          ? AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 10,
+              forceLocationManager: true,
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 10,
+            );
 
       _positionStreamSubscription = Geolocator.getPositionStream(
         locationSettings: locationSettings,

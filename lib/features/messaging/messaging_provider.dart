@@ -62,7 +62,7 @@ class MessagingNotifier extends StateNotifier<MessagingState> {
 
   MessagingNotifier(this._supabase) : super(MessagingState());
 
-  String get _userId => _supabase.auth.currentUser!.id;
+  String get _userId => _supabase.auth.currentUser?.id ?? '';
 
   /// Charge les messages pour un destinataire et s'abonne au Realtime
   Future<void> openConversation(String recipientId) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:io' show Platform;
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
@@ -126,7 +127,11 @@ class _DirectoryPageState extends State<DirectoryPage> with SingleTickerProvider
         throw Exception('Location permissions permanently denied.');
       }
 
-      _currentPosition = await Geolocator.getCurrentPosition();
+      _currentPosition = await Geolocator.getCurrentPosition(
+        locationSettings: Platform.isAndroid
+            ? AndroidSettings(accuracy: LocationAccuracy.high, forceLocationManager: true)
+            : const LocationSettings(accuracy: LocationAccuracy.high),
+      );
     } catch (e) {
       debugPrint('Geolocation error: $e');
       // Fallback position for testing (Kinshasa Gombe) if real GPS fails in emulator
