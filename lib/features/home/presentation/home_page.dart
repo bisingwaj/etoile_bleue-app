@@ -20,7 +20,8 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../../core/utils/dynamic_island_toast.dart';
 import 'notifications_page.dart';
 import '../../training/presentation/training_page.dart';
-import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
+import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/incoming_call_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'incident_camera_page.dart';
 import 'widgets/goodsam_sheet.dart';
@@ -92,6 +93,11 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    // Start listening for incoming calls from the dashboard
+    Future.microtask(() {
+      ref.read(incomingCallListenerProvider);
+    });
   }
 
   Future<void> _initCustomMarker() async {
@@ -163,7 +169,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         'type': 'medical',
         'title': 'SOS Triage Rapide',
         'description': 'Détails: $details',
-        'user_id': user?.id,
+        'citizen_id': user?.id,
         'caller_name': user?.userMetadata?['full_name'] ?? 'Citoyen Anonyme',
         'caller_phone': user?.phone ?? 'Inconnu',
         'location_lat': _currentPosition?.latitude,
@@ -656,120 +662,129 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           ),
           const SizedBox(height: 24),
           
-          // Driver Profile equivalent
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: Colors.blue[50],
-                child: const Icon(CupertinoIcons.person_3_fill, color: AppColors.blue),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('home.rescue_unit'.tr(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    Row(
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Driver Profile equivalent
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.blue[50],
+                        child: const Icon(CupertinoIcons.person_3_fill, color: AppColors.blue),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('home.rescue_unit'.tr(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Row(
+                              children: [
+                                const Icon(Icons.verified_user, color: Colors.amber, size: 14),
+                                const SizedBox(width: 4),
+                                Text('home.red_cross'.tr(), style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text('home.est_delay'.tr(), style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('7 min', style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold, fontSize: 14)),
+                        ],
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Badges Premium
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
-                        const Icon(Icons.verified_user, color: Colors.amber, size: 14),
-                        const SizedBox(width: 4),
-                        Text('home.red_cross'.tr(), style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(16)),
+                          child: Row(
+                            children: [
+                              const Icon(CupertinoIcons.location_solid, color: AppColors.blue, size: 14),
+                              const SizedBox(width: 4),
+                              Text('home.gps_vehicle'.tr(), style: const TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(16)),
+                          child: Row(
+                            children: [
+                              const Icon(CupertinoIcons.waveform_path_ecg, color: Colors.green, size: 14),
+                              const SizedBox(width: 4),
+                              Text('home.med_connection'.tr(), style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('home.est_delay'.tr(), style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  Text('7 min', style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold, fontSize: 14)),
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Trip Info equivalent (Timeline)
+                  Text('home.track_timeline'.tr(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 20),
+                  _buildTimelineStep('home.step_sos'.tr(), _currentAddress, timeStr, 'home.step_validated'.tr(), true, false),
+                  _buildTimelineStep('home.track_handled_title'.tr(), 'home.step_triage'.tr(), '--:--', 'home.step_wait'.tr(), _trackingState.index >= SosTrackingState.handled.index, false),
+                  _buildTimelineStep('home.step_en_route'.tr(), 'home.step_assigned'.tr(), '--:--', '', _trackingState.index >= SosTrackingState.onTheWay.index, false),
+                  _buildTimelineStep('home.step_arrive'.tr(), 'home.step_calm'.tr(), '--:--', 'home.step_est'.tr(), _trackingState.index >= SosTrackingState.onSite.index, true),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Animated Radar Status Box
+                  AnimatedBuilder(
+                    animation: _radarAnimationController,
+                    builder: (context, child) {
+                      final style = _getTrackingStyle();
+                      return Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [style.color.withValues(alpha: 0.1), Colors.white.withValues(alpha: 0.5)], 
+                            begin: Alignment.topCenter, 
+                            end: Alignment.bottomCenter
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: style.color.withValues(alpha: 0.2)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: style.color.withValues(alpha: 0.15 * _radarAnimationController.value),
+                              blurRadius: 30 * _radarAnimationController.value,
+                              spreadRadius: 10 * _radarAnimationController.value,
+                            )
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Text('home.sos_qualified'.tr(args: [_currentSOSCategory]), style: TextStyle(color: style.color, fontSize: 13, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 12),
+                            Text('home.current_status'.tr(), style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+                            Text(style.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black87), textAlign: TextAlign.center),
+                          ],
+                        ),
+                      );
+                    }
+                  ),
+                  const SizedBox(height: 24),
                 ],
-              )
-            ],
-          ),
-          const SizedBox(height: 16),
-          
-          // Badges Premium
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(16)),
-                  child: Row(
-                    children: [
-                      const Icon(CupertinoIcons.location_solid, color: AppColors.blue, size: 14),
-                      const SizedBox(width: 4),
-                      Text('home.gps_vehicle'.tr(), style: const TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(16)),
-                  child: Row(
-                    children: [
-                      const Icon(CupertinoIcons.waveform_path_ecg, color: Colors.green, size: 14),
-                      const SizedBox(width: 4),
-                      Text('home.med_connection'.tr(), style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-          const SizedBox(height: 32),
-          
-          // Trip Info equivalent (Timeline)
-          Text('home.track_timeline'.tr(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 20),
-          _buildTimelineStep('home.step_sos'.tr(), _currentAddress, timeStr, 'home.step_validated'.tr(), true, false),
-          _buildTimelineStep('home.track_handled_title'.tr(), 'home.step_triage'.tr(), '--:--', 'home.step_wait'.tr(), _trackingState.index >= SosTrackingState.handled.index, false),
-          _buildTimelineStep('home.step_en_route'.tr(), 'home.step_assigned'.tr(), '--:--', '', _trackingState.index >= SosTrackingState.onTheWay.index, false),
-          _buildTimelineStep('home.step_arrive'.tr(), 'home.step_calm'.tr(), '--:--', 'home.step_est'.tr(), _trackingState.index >= SosTrackingState.onSite.index, true),
-          
-          const Spacer(),
-          
-          // Animated Radar Status Box
-          AnimatedBuilder(
-            animation: _radarAnimationController,
-            builder: (context, child) {
-              final style = _getTrackingStyle();
-              return Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [style.color.withValues(alpha: 0.1), Colors.white.withValues(alpha: 0.5)], 
-                    begin: Alignment.topCenter, 
-                    end: Alignment.bottomCenter
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: style.color.withValues(alpha: 0.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: style.color.withValues(alpha: 0.15 * _radarAnimationController.value),
-                      blurRadius: 30 * _radarAnimationController.value,
-                      spreadRadius: 10 * _radarAnimationController.value,
-                    )
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Text('home.sos_qualified'.tr(args: [_currentSOSCategory]), style: TextStyle(color: style.color, fontSize: 13, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Text('home.current_status'.tr(), style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Text(style.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black87), textAlign: TextAlign.center),
-                  ],
-                ),
-              );
-            }
-          ),
-          const Spacer(),
           
           // Actions: SMS Offline, Red Call Button & Hold-to-Cancel
           GestureDetector(
@@ -1567,11 +1582,17 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   Future<void> _startEmergencyCall() async {
     HapticFeedback.heavyImpact();
-    // 1. Démarrer le service
-    await ref.read(emergencyCallServiceProvider).startEmergencyCall();
-    // 2. Naviguer vers l'écran (avec GoRouter)
-    if (mounted) {
-      context.push('/call/active');
+    try {
+      await ref.read(callStateProvider.notifier).startSosCall();
+      if (mounted) {
+        context.push('/call/active');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
     }
   }
 

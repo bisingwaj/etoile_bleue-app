@@ -12,7 +12,7 @@ final callHistoryProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   return Supabase.instance.client
       .from('incidents')
       .stream(primaryKey: ['id'])
-      .eq('user_id', uid)
+      .eq('citizen_id', uid)
       .order('created_at', ascending: false)
       .limit(50);
 });

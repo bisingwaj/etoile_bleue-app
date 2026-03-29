@@ -113,7 +113,7 @@ class EmergencyCallService {
     _engine!.registerEventHandler(RtcEngineEventHandler(
       onJoinChannelSuccess: (connection, elapsed) {
         onJoinChanged?.call(true);
-        // Mettre à jour le statut de l'appel
+        try { _engine?.setEnableSpeakerphone(true); } catch (_) {}
         if (_currentCallId != null) {
           _supabase.from('call_history').update({
             'status': 'active',
@@ -137,7 +137,6 @@ class EmergencyCallService {
     ));
 
     await _engine!.enableAudio();
-    await _engine!.setEnableSpeakerphone(true);
   }
 
   /// Mute/Unmute le micro
@@ -191,6 +190,49 @@ class EmergencyCallService {
   bool get isVideoOn => _isVideoOn;
   bool get isSpeakerOn => _isSpeakerOn;
   String? get currentChannelName => _currentChannelName;
+  String? get currentCallId => _currentCallId;
+  RtcEngine? get engine => _engine;
+
+  /// Répondre à un appel entrant du dashboard
+  Future<void> answerIncomingCall(String channelName, String callHistoryId) async {
+    await [Permission.microphone, Permission.camera].request();
+
+    _currentChannelName = channelName;
+    _currentCallId = callHistoryId;
+
+    final tokenRes = await _supabase.functions.invoke('agora-token', body: {
+      'channelName': channelName,
+      'uid': 0,
+      'role': 'publisher',
+      'expireTime': 3600,
+    });
+    final token = tokenRes.data['token'] as String;
+
+    await _initAgoraEngine();
+    await _engine!.joinChannel(
+      token: token,
+      channelId: channelName,
+      uid: 0,
+      options: const ChannelMediaOptions(
+        clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ),
+    );
+
+    await _supabase.from('call_history').update({
+      'status': 'active',
+      'answered_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', callHistoryId);
+  }
+
+  /// Rejeter un appel entrant du dashboard
+  Future<void> rejectIncomingCall(String callHistoryId) async {
+    await _supabase.from('call_history').update({
+      'status': 'missed',
+      'ended_at': DateTime.now().toUtc().toIso8601String(),
+      'ended_by': 'citizen',
+    }).eq('id', callHistoryId);
+  }
 
   void dispose() {
     _engine?.release();

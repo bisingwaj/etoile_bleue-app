@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/features/calls/presentation/emergency_call_screen.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/services/location_service.dart';
-import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
+import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 
 class SosVocalSheet extends ConsumerStatefulWidget {
   final VoidCallback onSent;
@@ -153,16 +153,22 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
   }
 
   Future<void> _startLiveCall() async {
-    // Appel du service pour initialiser Agora et Supabase
-    await ref.read(emergencyCallServiceProvider).startEmergencyCall();
-
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      CupertinoPageRoute(
-        builder: (context) => const EmergencyCallScreen(),
-      ),
-    );
+    try {
+      await ref.read(callStateProvider.notifier).startSosCall();
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        CupertinoPageRoute(
+          builder: (context) => const EmergencyCallScreen(),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
+    }
   }
 
   void _showCallChoiceDialog() {

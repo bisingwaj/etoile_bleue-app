@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:etoile_bleue_mobile/core/providers/agora_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 
 class EmergencyTriagePanel extends ConsumerStatefulWidget {
@@ -17,15 +17,16 @@ class _EmergencyTriagePanelState extends ConsumerState<EmergencyTriagePanel> {
   final Map<String, dynamic> _triageData = {};
 
   void _nextStep(String key, dynamic value) async {
-    final session = ref.read(callSessionProvider);
+    final callState = ref.read(callStateProvider);
 
     setState(() {
       _triageData[key] = value;
       _step++;
     });
 
-    if (session.channelId.isNotEmpty) {
-      await ref.read(emergencyCallServiceProvider).updateTriageData(session.channelId, _triageData);
+    final channelName = callState.channelName;
+    if (channelName != null && channelName.isNotEmpty) {
+      await ref.read(emergencyCallServiceProvider).updateTriageData(channelName, _triageData);
     }
   }
 

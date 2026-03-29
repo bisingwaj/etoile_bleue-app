@@ -3,8 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:go_router/go_router.dart';
-import 'package:etoile_bleue_mobile/core/providers/agora_provider.dart';
-import 'package:etoile_bleue_mobile/features/calls/domain/entities/call_session.dart';
+import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'widgets/emergency_triage_panel.dart';
 
@@ -18,41 +17,37 @@ class EmergencyCallScreen extends ConsumerStatefulWidget {
 class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(callSessionProvider);
-    final networkQ = ref.watch(networkQualityProvider);
+    final callState = ref.watch(callStateProvider);
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        // On Back press, minimize to PIP instead of closing
         ref.read(isCallMinimizedProvider.notifier).state = true;
         context.pop();
       },
       child: Scaffold(
-        backgroundColor: Colors.black, // Sleek dark mode
+        backgroundColor: Colors.black,
         body: SafeArea(
           child: Stack(
             children: [
-              // Main Visual (Video or Audio Pulsing Avatar)
-              if (session.isVideoEnabled)
-                _buildVideoGrid(session)
+              if (callState.isVideoOn)
+                _buildVideoGrid(callState)
               else
-                _buildAudioVisualizer(session),
+                _buildAudioVisualizer(callState),
 
-              // Header (Minimize Button & Connection Status)
-              _buildHeader(session, networkQ),
+              _buildHeader(callState),
 
-              // Triage Panel (Pushed up if not minimized)
-              const Positioned(
-                left: 16,
-                right: 16,
-                bottom: 120, // Above controls
-                child: EmergencyTriagePanel(),
-              ),
+              if (callState.status == ActiveCallStatus.active ||
+                  callState.status == ActiveCallStatus.ringing)
+                const Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 120,
+                  child: EmergencyTriagePanel(),
+                ),
 
-              // Bottom Controls
-              _buildBottomControls(session),
+              _buildBottomControls(callState),
             ],
           ),
         ),
@@ -60,17 +55,18 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
     );
   }
 
-  Widget _buildVideoGrid(CallSession session) {
-    final rtcEngine = ref.read(agoraClientProvider).engine;
+  Widget _buildVideoGrid(ActiveCallState callState) {
+    final rtcEngine = ref.read(emergencyCallServiceProvider).engine;
+    if (rtcEngine == null) return _buildAudioVisualizer(callState);
+
     return Stack(
       children: [
-        // Full screen remote video or waiting screen
-        if (session.remoteUid != null)
+        if (callState.remoteUid != null)
           AgoraVideoView(
              controller: VideoViewController.remote(
                rtcEngine: rtcEngine,
-               canvas: VideoCanvas(uid: session.remoteUid!),
-               connection: RtcConnection(channelId: session.channelId),
+               canvas: VideoCanvas(uid: callState.remoteUid!),
+               connection: RtcConnection(channelId: callState.channelName),
              ),
           )
         else
@@ -84,9 +80,8 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
                 ],
              ),
           ),
-          
-        // Local PIP Video
-        if (session.remoteUid != null)
+
+        if (callState.remoteUid != null)
           Positioned(
              right: 16,
              top: 80,
@@ -110,7 +105,7 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
     );
   }
 
-  Widget _buildAudioVisualizer(CallSession session) {
+  Widget _buildAudioVisualizer(ActiveCallState callState) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -125,7 +120,9 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
           ),
           const SizedBox(height: 32),
           Text(
-            session.status == CallStatus.active ? 'Appel d\'urgence Actif' : 'Appel en cours...',
+            callState.status == ActiveCallStatus.active
+                ? 'Appel d\'urgence Actif'
+                : 'Appel en cours...',
             style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
           ),
         ],
@@ -133,7 +130,8 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
     );
   }
 
-  Widget _buildHeader(CallSession session, int networkQuality) {
+  Widget _buildHeader(ActiveCallState callState) {
+    final isActive = callState.status == ActiveCallStatus.active;
     return Positioned(
       top: 16,
       left: 16,
@@ -164,54 +162,37 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
              child: Row(
                children: [
                  Icon(
-                    session.status == CallStatus.active ? CupertinoIcons.circle_fill : CupertinoIcons.circle,
-                    color: session.status == CallStatus.active ? Colors.green : Colors.orange,
+                    isActive ? CupertinoIcons.circle_fill : CupertinoIcons.circle,
+                    color: isActive ? Colors.green : Colors.orange,
                     size: 12,
                  ),
                  const SizedBox(width: 8),
                  Text(
-                   session.status == CallStatus.active ? 'Connecté' : 'Connexion...',
+                   isActive ? 'Connecté' : 'Connexion...',
                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                  ),
                ],
              ),
            ),
-           _buildNetworkIndicator(networkQuality),
+           Container(
+             padding: const EdgeInsets.all(12),
+             decoration: BoxDecoration(
+               color: Colors.white.withValues(alpha: 0.1),
+               shape: BoxShape.circle,
+             ),
+             child: Icon(
+               isActive ? CupertinoIcons.wifi : CupertinoIcons.wifi,
+               color: isActive ? Colors.green : Colors.grey,
+               size: 20,
+             ),
+           ),
         ],
       ),
     );
   }
 
-  Widget _buildNetworkIndicator(int quality) {
-    IconData icon;
-    Color color;
-
-    // 0=Unknown, 1=Excellent, 2=Good, 3=Poor, 4=Bad, 5=VeryBad, 6=Down
-    if (quality == 1 || quality == 2) {
-      icon = CupertinoIcons.wifi;
-      color = Colors.green;
-    } else if (quality == 3 || quality == 4) {
-      icon = CupertinoIcons.wifi_exclamationmark;
-      color = Colors.orange;
-    } else if (quality >= 5) {
-      icon = CupertinoIcons.wifi_slash;
-      color = Colors.red;
-    } else {
-      icon = CupertinoIcons.wifi;
-      color = Colors.grey; // Unknown or not connected yet
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-
-  Widget _buildBottomControls(CallSession session) {
+  Widget _buildBottomControls(ActiveCallState callState) {
+    final notifier = ref.read(callStateProvider.notifier);
     return Positioned(
       bottom: 24,
       left: 24,
@@ -227,26 +208,26 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildControlButton(
-              icon: session.isAudioEnabled ? CupertinoIcons.mic_fill : CupertinoIcons.mic_slash_fill,
-              isActive: session.isAudioEnabled,
-              onTap: () => ref.read(callSessionProvider.notifier).toggleAudio(),
+              icon: callState.isMuted ? CupertinoIcons.mic_slash_fill : CupertinoIcons.mic_fill,
+              isActive: !callState.isMuted,
+              onTap: () => notifier.toggleMute(),
             ),
             _buildControlButton(
-              icon: session.isVideoEnabled ? CupertinoIcons.video_camera_solid : CupertinoIcons.video_camera,
-              isActive: session.isVideoEnabled,
-              onTap: () => ref.read(callSessionProvider.notifier).toggleVideo(),
+              icon: callState.isVideoOn ? CupertinoIcons.video_camera_solid : CupertinoIcons.video_camera,
+              isActive: callState.isVideoOn,
+              onTap: () => notifier.toggleVideo(),
             ),
             _buildControlButton(
-              icon: session.isSpeakerEnabled ? CupertinoIcons.speaker_3_fill : CupertinoIcons.speaker_1_fill,
-              isActive: session.isSpeakerEnabled,
-              onTap: () => ref.read(callSessionProvider.notifier).toggleSpeaker(),
+              icon: callState.isSpeakerOn ? CupertinoIcons.speaker_3_fill : CupertinoIcons.speaker_1_fill,
+              isActive: callState.isSpeakerOn,
+              onTap: () => notifier.toggleSpeaker(),
             ),
             _buildControlButton(
               icon: CupertinoIcons.phone_down_fill,
               isActive: true,
               color: Colors.red,
               onTap: () async {
-                await ref.read(emergencyCallServiceProvider).endEmergencyCall();
+                await notifier.hangUp();
                 if (mounted) context.pop();
               },
             ),
