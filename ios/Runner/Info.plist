@@ -12,6 +12,8 @@
 	<string>Étoile Bleue utilise le microphone pour les appels d'urgence et les messages vocaux.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Étoile Bleue accède à votre galerie pour joindre des photos aux signalements d'incidents.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Étoile Bleue enregistre des photos et vidéos dans votre galerie pour documenter les incidents.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -64,7 +64,7 @@ class IncidentRepository {
       final profile = await _db
           .from('users_directory')
           .select('first_name, last_name, phone')
-          .eq('auth_user_id', _uid!)
+          .eq('auth_user_id', _uid)
           .maybeSingle();
       if (profile != null) {
         callerName = '${profile['first_name']} ${profile['last_name']}'.trim();
@@ -140,7 +140,7 @@ class IncidentRepository {
     return _db
         .from('incidents')
         .stream(primaryKey: ['id'])
-        .eq('citizen_id', _uid!)
+        .eq('citizen_id', _uid)
         .order('created_at', ascending: false)
         .limit(20);
   }

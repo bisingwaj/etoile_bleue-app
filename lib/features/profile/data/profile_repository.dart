@@ -22,7 +22,7 @@ class ProfileRepository {
     return _db
         .from('users_directory')
         .stream(primaryKey: ['id'])
-        .eq('auth_user_id', _uid!)
+        .eq('auth_user_id', _uid)
         .map((list) => list.isNotEmpty ? list.first : null);
   }
 
@@ -32,7 +32,7 @@ class ProfileRepository {
     final result = await _db
         .from('users_directory')
         .select()
-        .eq('auth_user_id', _uid!)
+        .eq('auth_user_id', _uid)
         .maybeSingle();
     return result;
   }
@@ -45,7 +45,7 @@ class ProfileRepository {
     await _db.from('users_directory').update({
       'blood_type': bloodType,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('auth_user_id', _uid!);
+    }).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Groupe sanguin mis à jour: $bloodType');
   }
 
@@ -55,7 +55,7 @@ class ProfileRepository {
     await _db.from('users_directory').update({
       'allergies': allergies,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('auth_user_id', _uid!);
+    }).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Allergies mises à jour: $allergies');
   }
 
@@ -65,7 +65,7 @@ class ProfileRepository {
     await _db.from('users_directory').update({
       'medical_history': history,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('auth_user_id', _uid!);
+    }).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Antécédents mis à jour: $history');
   }
 
@@ -75,7 +75,7 @@ class ProfileRepository {
     await _db.from('users_directory').update({
       'medications': medications,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('auth_user_id', _uid!);
+    }).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Médicaments mis à jour: $medications');
   }
 
@@ -91,7 +91,7 @@ class ProfileRepository {
       'emergency_contact_name': name,
       'emergency_contact_phone': phone,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('auth_user_id', _uid!);
+    }).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Contact urgence: $name ($phone)');
   }
 
@@ -103,7 +103,7 @@ class ProfileRepository {
     await _db.from('users_directory').update({
       'available': isAvailable,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('auth_user_id', _uid!);
+    }).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Disponibilité: $isAvailable');
   }
 
@@ -119,7 +119,7 @@ class ProfileRepository {
       'zone': zone,
       if (vehicleId != null) 'vehicle_id': vehicleId,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('auth_user_id', _uid!);
+    }).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Infos opérationnelles mises à jour');
   }
 
@@ -141,7 +141,7 @@ class ProfileRepository {
     if (address != null) updates['address'] = address;
     if (photoUrl != null) updates['photo_url'] = photoUrl;
 
-    await _db.from('users_directory').update(updates).eq('auth_user_id', _uid!);
+    await _db.from('users_directory').update(updates).eq('auth_user_id', _uid);
     debugPrint('[ProfileRepository] Profil mis à jour');
   }
 }

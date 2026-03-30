@@ -39,6 +39,10 @@ class CallForegroundService {
     if (!await FlutterForegroundTask.isRunningService) {
       final result = await FlutterForegroundTask.startService(
         serviceId: 256,
+        serviceTypes: [
+          ForegroundServiceTypes.microphone,
+          ForegroundServiceTypes.phoneCall,
+        ],
         notificationTitle: _titleForRole(role),
         notificationText: 'Canal actif : $channelId',
         notificationIcon: null,
