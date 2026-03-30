@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
@@ -21,6 +22,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: ".env");
+
+  // Configuration Firebase pour FCM
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('[Firebase] Erreur init (google-services.json manquant?) : $e');
+  }
+
+  // Requête des permissions pour recevoir les appels en premier plan/arrière plan (Android 13+)
+  await CallKitService.requestPermissions();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,

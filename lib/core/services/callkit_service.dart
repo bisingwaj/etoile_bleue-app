@@ -8,6 +8,21 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 class CallKitService {
   static StreamSubscription? _eventSubscription;
 
+  /// Demande les permissions nécessaires pour Android 13/14+
+  static Future<void> requestPermissions() async {
+    try {
+      await FlutterCallkitIncoming.requestNotificationPermission({
+        "rationaleMessagePermission":
+            "L'autorisation de notification est requise pour recevoir les appels d'urgence.",
+        "postNotificationMessageRequired":
+            "L'autorisation de notification est requise pour recevoir les appels d'urgence.",
+      });
+      debugPrint('[CallKit] Permissions requested successfully');
+    } catch (e) {
+      debugPrint('[CallKit] Error requesting permissions: $e');
+    }
+  }
+
   /// Show native incoming call screen
   static Future<void> showIncomingCall({
     required String callId,
