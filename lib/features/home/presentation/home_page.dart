@@ -22,6 +22,7 @@ import 'notifications_page.dart';
 import '../../training/presentation/training_page.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 import 'incident_camera_page.dart';
 import 'widgets/goodsam_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +30,7 @@ import '../../../core/providers/profile_provider.dart';
 import '../../../core/providers/user_provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:etoile_bleue_mobile/core/providers/notifications_provider.dart';
 
 enum TrackingSheetState { collapsed, search, sos, found }
 
@@ -50,22 +52,25 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   Position? _currentPosition;
   String _currentAddress = "Recherche position...";
   
-  bool _isTracking = false;
-  bool _isTrackerMinimized = false;
-  bool _isLocationGranted = false; // Pour rafraichir le point bleu correctement
-  bool _isIslandExpanded = false;
-  SosTrackingState _trackingState = SosTrackingState.processing;
-  Timer? _stateSimulationTimer;
+  bool _isLocationGranted = false;
+  bool _isSosTriggered = false;
   StreamSubscription<Position>? _positionStreamSubscription;
   int _currentIndex = 0;
   final AudioPlayer _sosAudioPlayer = AudioPlayer();
   final GlobalKey<DirectoryPageState> _directoryKey = GlobalKey<DirectoryPageState>();
-  
-  String? _activeIncidentId;
+
+  // Tracking-related state (legacy, still used by some UI components)
+  Timer? _stateSimulationTimer;
+  bool _isTracking = false;
+  bool _isTrackerMinimized = false;
+  bool _isIslandExpanded = false;
+  SosTrackingState _trackingState = SosTrackingState.processing;
+  int _ambulanceEtaMinutes = 8;
+  LatLng? _ambulancePos;
+  String _unitCallsign = '';
+  String _currentSOSCategory = '';
   RealtimeChannel? _dispatchSub;
   RealtimeChannel? _unitSub;
-  LatLng? _ambulancePos;
-  String _unitCallsign = 'Intervention';
   
   // Exemple de position par défaut : Kinshasa Gombe
   static const LatLng _center = LatLng(-4.316, 15.311);
@@ -80,11 +85,12 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
     _sosAnimationController = AnimationController(
        vsync: this,
-       duration: const Duration(milliseconds: 1500),
+       duration: const Duration(milliseconds: 1200),
     )..addStatusListener((status) {
-       if (status == AnimationStatus.completed) {
-         HapticFeedback.vibrate();
-         _showTriageSheet(); // 1. Ouvre le Triage d'abord
+       if (status == AnimationStatus.completed && !_isSosTriggered) {
+         HapticFeedback.heavyImpact();
+         _sosAnimationController.reset();
+         _triggerEmergencyCall();
        }
     });
 
@@ -92,6 +98,35 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.listen<AsyncValue<List<Map<String, dynamic>>>>(notificationsProvider, (prev, next) {
+        final prevCount = prev?.valueOrNull?.length ?? 0;
+        final nextList = next.valueOrNull ?? [];
+        if (nextList.length > prevCount && prevCount > 0) {
+          final latest = nextList.first;
+          final title = latest['title']?.toString() ?? 'Nouvelle notification';
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(CupertinoIcons.bell_fill, color: Colors.white, size: 18),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                ),
+                backgroundColor: AppColors.blue,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                duration: const Duration(seconds: 4),
+                margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+              ),
+            );
+          }
+        }
+      });
+    });
 
   }
 
@@ -126,205 +161,36 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     if (mounted) setState(() {});
   }
 
-  String _currentSOSCategory = '';
-  int _ambulanceEtaMinutes = 12;
-
-  void _showTriageSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      enableDrag: false,
-      isDismissible: false,
-      builder: (context) => _TriageSheetWidget(
-        onCancel: () {
-          Navigator.pop(context);
-          _sosAnimationController.reset();
-        },
-        onConfirm: (category) { // Modèle 2 : Retourne le type
-          _confirmEmergency(category);
-        },
-      ),
-    );
-  }
-
-  void _confirmEmergency(String details) async {
-    setState(() {
-      _isTracking = true;
-      _isTrackerMinimized = false;
-      _trackingState = SosTrackingState.processing;
-    });
-
-    final user = Supabase.instance.client.auth.currentUser;
-    
-    try {
-      final refId = 'INC-${DateTime.now().millisecondsSinceEpoch}';
-      final response = await Supabase.instance.client.from('incidents').insert({
-        'reference': refId,
-        'type': 'medical',
-        'title': 'SOS Triage Rapide',
-        'description': 'Détails: $details',
-        'citizen_id': user?.id,
-        'caller_name': user?.userMetadata?['full_name'] ?? 'Citoyen Anonyme',
-        'caller_phone': user?.phone ?? 'Inconnu',
-        'location_lat': _currentPosition?.latitude,
-        'location_lng': _currentPosition?.longitude,
-        'location_address': 'Coordonnées GPS directes',
-        'commune': 'Inconnue',
-        'ville': 'Kinshasa',
-        'province': 'Kinshasa',
-        'priority': 'critical',
-        'status': 'new',
-      }).select().single();
-      
-      _activeIncidentId = response['id'];
-      _listenToIncidentDispatch();
-      
-      debugPrint('[SOS Triage] ✅ Sent to Supabase: $details');
-    } catch (e) {
-      debugPrint('[SOS Triage] ❌ Error sending to Supabase: $e');
-    }
-
-    _stateSimulationTimer?.cancel();
-    _stateSimulationTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _trackingState == SosTrackingState.processing) {
-        setState(() => _trackingState = SosTrackingState.handled); // Attente de l'opérateur
-      }
-    });
-
-    Navigator.pop(context); // close Triage
-  }
-
-  void _listenToIncidentDispatch() {
-    if (_activeIncidentId == null) return;
-    
-    _dispatchSub = Supabase.instance.client
-        .channel('public:dispatches:\$_activeIncidentId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'dispatches',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'incident_id',
-            value: _activeIncidentId,
-          ),
-          callback: (payload) {
-            final dispatch = payload.newRecord;
-            if (dispatch['status'] == 'dispatched') {
-              if (mounted) {
-                setState(() => _trackingState = SosTrackingState.onTheWay);
-              }
-              _listenToUnit(dispatch['unit_id']);
-            } else if (dispatch['status'] == 'arrived') {
-              if (mounted) {
-                setState(() => _trackingState = SosTrackingState.onSite);
-              }
-            }
-          },
-        )
-        .subscribe();
-  }
-
-  void _listenToUnit(String unitId) {
-    _unitSub?.unsubscribe();
-    
-    Supabase.instance.client.from('units').select().eq('id', unitId).single().then((unit) {
-      if (mounted) {
-        setState(() {
-          _unitCallsign = unit['callsign'] ?? 'Véhicule d\'intervention';
-          if (unit['location_lat'] != null && unit['location_lng'] != null) {
-            _ambulancePos = LatLng(unit['location_lat'], unit['location_lng']);
-            _updateDistanceAndEta();
-          }
-        });
-      }
-    });
-
-    _unitSub = Supabase.instance.client
-        .channel('public:units:\$unitId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'units',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: unitId,
-          ),
-          callback: (payload) {
-            final unit = payload.newRecord;
-            if (mounted && unit['location_lat'] != null && unit['location_lng'] != null) {
-              setState(() {
-                _ambulancePos = LatLng(unit['location_lat'], unit['location_lng']);
-                 _updateDistanceAndEta();
-              });
-            }
-          },
-        )
-        .subscribe();
-  }
-
-  void _updateDistanceAndEta() {
-    if (_currentPosition == null || _ambulancePos == null) return;
-    final distanceInMeters = Geolocator.distanceBetween(
-      _currentPosition!.latitude, _currentPosition!.longitude,
-      _ambulancePos!.latitude, _ambulancePos!.longitude,
-    );
-    // Vitesse moyenne estimée 40 km/h = ~11.1 m/s en ville
-    final etaSeconds = distanceInMeters / 11.1;
-    setState(() {
-      _ambulanceEtaMinutes = (etaSeconds / 60).ceil();
-    });
-  }
-
   void _showCancelSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      enableDrag: true,
-      builder: (context) {
+      builder: (ctx) {
         return Container(
-          padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 40),
+          padding: const EdgeInsets.all(24),
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 48,
-                    height: 6,
-                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text('home.cancel_title'.tr(), textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
-                const SizedBox(height: 24),
-                Column(
-                  children: [
-                    _buildCancelTuile('home.cancel_fake_alert'.tr(), CupertinoIcons.clear_thick, () => _confirmCancel(context)),
-                    const SizedBox(height: 12),
-                    _buildCancelTuile('home.cancel_resolved'.tr(), CupertinoIcons.checkmark_seal_fill, () => _confirmCancel(context)),
-                    const SizedBox(height: 12),
-                    _buildCancelTuile('home.cancel_non_vital'.tr(), CupertinoIcons.info_circle_fill, () => _confirmCancel(context)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('home.back_to_tracker'.tr(), style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 14)),
-                ),
-              ],
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Annuler l\'alerte ?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+              const SizedBox(height: 24),
+              _buildCancelTuile('Fausse alerte', CupertinoIcons.xmark_circle_fill, () => _confirmCancel(ctx)),
+              const SizedBox(height: 12),
+              _buildCancelTuile('Alerte non vitale', CupertinoIcons.info_circle_fill, () => _confirmCancel(ctx)),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Retour au suivi', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+            ],
           ),
         );
-      }
+      },
     );
   }
 
@@ -879,6 +745,8 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   @override
   void dispose() {
+    _stateSimulationTimer?.cancel();
+    _vibrationTimer?.cancel();
     _dispatchSub?.unsubscribe();
     _unitSub?.unsubscribe();
     _positionStreamSubscription?.cancel();
@@ -895,10 +763,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     LocationPermission permission;
 
     debugPrint("=== GPS: Checking isLocationServiceEnabled ===");
-    serviceEnabled = await Geolocator.isLocationServiceEnabled().timeout(const Duration(seconds: 2), onTimeout: () {
-      debugPrint("=== GPS: isLocationServiceEnabled Timeout! ===");
-      return false;
-    });
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
     debugPrint("=== GPS: serviceEnabled: $serviceEnabled ===");
     
     if (!serviceEnabled) {
@@ -907,10 +772,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     }
 
     debugPrint("=== GPS: Checking checkPermission ===");
-    permission = await Geolocator.checkPermission().timeout(const Duration(seconds: 2), onTimeout: () {
-      debugPrint("=== GPS: checkPermission Timeout! ===");
-      return LocationPermission.denied;
-    });
+    permission = await Geolocator.checkPermission();
     debugPrint("=== GPS: checkPermission: $permission ===");
     
     if (permission == LocationPermission.denied) {
@@ -1052,14 +914,30 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         List<Placemark> placemarks = await nativeFuture;
         if (placemarks.isNotEmpty && mounted) {
           Placemark place = placemarks[0];
-          String street = place.street ?? place.thoroughfare ?? ''; 
+          // Prioriser le 'name' qui contient souvent "N° Nom de la rue"
+          String name = place.name ?? '';
+          String street = place.thoroughfare ?? place.street ?? ''; 
           String district = place.subLocality ?? place.subAdministrativeArea ?? ''; 
           String city = place.locality ?? ''; 
           
           List<String> parts = [];
-          if (street.isNotEmpty) parts.add(street);
-          if (district.isNotEmpty && district != street && district != city) parts.add(district);
-          if (city.isNotEmpty && city != street) parts.add(city);
+          
+          // Si le 'name' contient la rue ou ressemble à une adresse précise, on l'utilise
+          if (name.isNotEmpty && !name.contains('+') && name.length > 2) {
+            parts.add(name);
+            if (street.isNotEmpty && !name.contains(street) && !street.contains(name)) {
+              parts.add(street);
+            }
+          } else if (street.isNotEmpty) {
+            parts.add(street);
+          }
+
+          if (district.isNotEmpty && !parts.contains(district) && district != city) {
+            parts.add(district);
+          }
+          if (city.isNotEmpty && !parts.contains(city)) {
+            parts.add(city);
+          }
           
           String address = parts.join(', ');
           if (address.isNotEmpty) {
@@ -1077,7 +955,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         if (response.statusCode == 200 && mounted) {
           final data = json.decode(response.body);
           if (data['features'] != null && (data['features'] as List).isNotEmpty) {
-             setState(() => _currentAddress = data['features'][0]['place_name'] ?? 'Position trouvée');
+             final features = data['features'] as List;
+             // Chercher le texte court d'abord (nom de la rue) au lieu de l'adresse complète (place_name) trop longue
+             String placeName = features[0]['text'] ?? features[0]['place_name'] ?? 'Position trouvée';
+             setState(() => _currentAddress = placeName);
           }
         }
       } catch (_) {}
@@ -1103,39 +984,18 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildAppBar(),
-                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 24), // Added to give more space and reduce map height
+                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 24),
                     if (!_isTracking || _isTrackerMinimized) _buildGreeting(),
                     if (!_isTracking || _isTrackerMinimized) const SizedBox(height: AppSpacing.sm),
                     _buildMapSection(),
-                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 130), // Increased to push map/SOS up
+                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 130),
                     if (!_isTracking || _isTrackerMinimized) _buildQuickActions(),
-                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 32), // Increased to lift Quick Actions
+                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 32),
                   ],
                 ),
               ),
               
-              // Dynamic Island
-              if (_isTracking && _isTrackerMinimized)
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 10,
-                  left: 0,
-                  right: 0,
-                  child: _buildDynamicIslandTracker()
-                      .animate()
-                      .slideY(begin: -2.0, end: 0, duration: 500.ms, curve: Curves.elasticOut)
-                      .fadeIn(),
-                ),
-
-              // Full Tracker BottomSheet Inline
-              if (_isTracking && !_isTrackerMinimized)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: _buildSOSTrackerSheetInline()
-                      .animate()
-                      .slideY(begin: 1.0, end: 0, duration: 400.ms, curve: Curves.easeOut),
-                ),
+              // Dynamic Island removed, logic moved to overlay.
             ],
           ),
           // Index 1: Annuaire
@@ -1170,10 +1030,40 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           // Right action icons
           Row(
             children: [
-              _buildCircleIcon(
-                CupertinoIcons.bell,
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()));
+              Consumer(
+                builder: (context, ref, _) {
+                  final unreadCount = ref.watch(unreadNotificationsCountProvider);
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _buildCircleIcon(
+                        CupertinoIcons.bell,
+                        onTap: () {
+                          context.push(AppRoutes.notifications);
+                        },
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: AppColors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                            child: Center(
+                              child: Text(
+                                unreadCount > 9 ? '9+' : '$unreadCount',
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
                 },
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -1548,25 +1438,27 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildActionCard(
-                'Appel\nUrgence',
-                CupertinoIcons.phone_fill,
-                const Color(0xFFEBF6FA), // Light blue
-                const Color(0xFF00306F), // Dark navy blue text
-                () => _startEmergencyCall(),
-              ),
-              _buildActionCard(
                 'home.report'.tr(),
                 CupertinoIcons.camera_fill,
-                const Color(0xFFEBF8EE), // Light green
-                const Color(0xFF004D1B), // Dark green
+                const Color(0xFFEBF8EE),
+                const Color(0xFF004D1B),
                 () => _showIncidentSheet(),
               ),
               _buildActionCard(
                 'home.goodsam'.tr(),
                 CupertinoIcons.heart_fill,
-                const Color(0xFFFCEAE9), // Light pink
-                const Color(0xFF8B1212), // Dark red
+                const Color(0xFFFCEAE9),
+                const Color(0xFF8B1212),
                 () => _showGoodSamSheet(),
+              ),
+              _buildActionCard(
+                'Suivi\nSOS',
+                CupertinoIcons.heart_circle_fill,
+                const Color(0xFFF0F4FF),
+                const Color(0xFF003580),
+                () {
+                  context.push('/active_tracking');
+                },
               ),
             ],
           ),
@@ -1577,17 +1469,54 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   Future<void> _startEmergencyCall() async {
     HapticFeedback.heavyImpact();
+    if (_isSosTriggered) return;
+    setState(() => _isSosTriggered = true);
     try {
-      await ref.read(callStateProvider.notifier).startSosCall();
+      await ref.read(callStateProvider.notifier).startSosCall(
+        lat: _currentPosition?.latitude,
+        lng: _currentPosition?.longitude,
+      );
+      if (mounted) context.go('/call/active');
+    } catch (e) {
       if (mounted) {
-        context.push('/call/active');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSosTriggered = false);
+    }
+  }
+
+  /// Déclenché par le bouton SOS après maintien complet (1.2 s).
+  Future<void> _triggerEmergencyCall() async {
+    if (_isSosTriggered) return;
+    setState(() => _isSosTriggered = true);
+    try {
+      await ref.read(callStateProvider.notifier).startSosCall(
+        lat: _currentPosition?.latitude,
+        lng: _currentPosition?.longitude,
+      );
+      
+      if (!mounted) return;
+      
+      final callState = ref.read(callStateProvider);
+      if (callState.status == ActiveCallStatus.blocked) {
+        context.go('/blocked', extra: {
+          'expires_at': callState.blockedExpiresAt,
+          'reason': callState.blockedReason,
+        });
+      } else {
+        context.go('/call/active');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
+          SnackBar(content: Text('Erreur SOS: $e'), backgroundColor: Colors.red),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isSosTriggered = false);
     }
   }
 

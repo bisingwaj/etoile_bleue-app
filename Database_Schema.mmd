@@ -1,0 +1,416 @@
+erDiagram
+    users_directory {
+        uuid id PK
+        uuid auth_user_id
+        user_role role
+        text first_name
+        text last_name
+        text email
+        text phone
+        text grade
+        text matricule
+        text type
+        text specialization
+        text status
+        text pin_code
+        text agent_login_id
+        text address
+        text id_number
+        text photo_url
+        text active_call_id
+        text zone
+        text vehicle_id
+        text blood_type
+        text language
+        text emergency_contact_name
+        text emergency_contact_phone
+        text fcm_token
+        text notes
+        text[] specialties
+        text[] allergies
+        text[] medical_history
+        text[] medications
+        date date_of_birth
+        boolean available
+        boolean is_on_call
+        boolean must_change_password
+        boolean credentials_sent
+        integer call_count
+        uuid assigned_unit_id
+        timestamptz last_seen_at
+        timestamptz last_call_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    incidents {
+        uuid id PK
+        text reference
+        text type
+        text title
+        text description
+        text caller_name
+        text caller_phone
+        text location_address
+        text commune
+        text ville
+        text province
+        text ended_by
+        text notes
+        text device_model
+        text battery_level
+        text network_state
+        text recommended_actions
+        text recommended_facility
+        text media_type
+        text[] media_urls
+        incident_priority priority
+        incident_status status
+        double location_lat
+        double location_lng
+        double caller_realtime_lat
+        double caller_realtime_lng
+        uuid assigned_operator_id
+        uuid citizen_id
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz resolved_at
+        timestamptz archived_at
+        timestamptz incident_at
+        timestamptz caller_realtime_updated_at
+    }
+
+    call_history {
+        uuid id PK
+        text channel_name
+        text caller_name
+        text caller_phone
+        text commune
+        text ville
+        text province
+        text role
+        text ended_by
+        text agora_token
+        text notes
+        call_type call_type
+        call_status status
+        uuid incident_id
+        uuid operator_id
+        uuid citizen_id
+        boolean has_video
+        integer agora_uid
+        integer duration_seconds
+        double caller_lat
+        double caller_lng
+        jsonb location
+        jsonb triage_data
+        timestamptz started_at
+        timestamptz answered_at
+        timestamptz ended_at
+        timestamptz created_at
+    }
+
+    call_queue {
+        uuid id PK
+        text channel_name
+        text caller_name
+        text caller_phone
+        text priority
+        text category
+        text status
+        text notes
+        uuid call_id
+        uuid incident_id
+        uuid assigned_operator_id
+        integer estimated_wait_seconds
+        double caller_lat
+        double caller_lng
+        timestamptz created_at
+        timestamptz assigned_at
+        timestamptz answered_at
+        timestamptz completed_at
+        timestamptz abandoned_at
+    }
+
+    call_transfers {
+        uuid id PK
+        uuid from_operator_id
+        uuid to_operator_id
+        uuid incident_id
+        text call_id
+        text call_type
+        text channel_name
+        text status
+        text transfer_notes
+        jsonb context_data
+        timestamptz created_at
+        timestamptz accepted_at
+        timestamptz rejected_at
+    }
+
+    call_recordings {
+        uuid id PK
+        uuid call_id
+        uuid incident_id
+        uuid recorded_by
+        text file_url
+        text file_type
+        text agora_resource_id
+        text agora_sid
+        text channel_name
+        integer duration_seconds
+        bigint file_size_bytes
+        timestamptz created_at
+    }
+
+    call_transcriptions {
+        uuid id PK
+        text call_id
+        text speaker
+        text content
+        text language
+        text operator_name
+        uuid incident_id
+        uuid operator_id
+        boolean is_final
+        bigint timestamp_ms
+        timestamptz created_at
+    }
+
+    units {
+        uuid id PK
+        text callsign
+        text type
+        text agent_name
+        text network
+        text app_version
+        text tablet_id
+        text vehicle_type
+        text vehicle_plate
+        text[] personnel
+        unit_status status
+        double location_lat
+        double location_lng
+        integer heading
+        integer battery
+        timestamptz last_location_update
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    health_structures {
+        uuid id PK
+        text name
+        text type
+        text address
+        text phone
+        text operating_hours
+        text contact_person
+        text[] specialties
+        text[] equipment
+        double lat
+        double lng
+        integer capacity
+        integer available_beds
+        integer rating
+        boolean is_open
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    active_rescuers {
+        uuid id PK
+        uuid user_id
+        double lat
+        double lng
+        double accuracy
+        double heading
+        double speed
+        integer battery
+        text status
+        timestamptz updated_at
+    }
+
+    dispatches {
+        uuid id PK
+        uuid incident_id
+        uuid unit_id
+        uuid dispatched_by
+        uuid rescuer_id
+        text status
+        text notes
+        timestamptz dispatched_at
+        timestamptz arrived_at
+        timestamptz completed_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    messages {
+        uuid id PK
+        uuid sender_id
+        text recipient_id
+        text recipient_type
+        text content
+        text type
+        text audio_url
+        text intervention_id
+        integer audio_duration
+        timestamptz read_at
+        timestamptz created_at
+    }
+
+    notifications {
+        uuid id PK
+        uuid user_id
+        text title
+        text message
+        text type
+        boolean is_read
+        timestamptz created_at
+    }
+
+    signalements {
+        uuid id PK
+        text reference
+        text category
+        text title
+        text description
+        text citizen_name
+        text citizen_phone
+        text province
+        text ville
+        text commune
+        text structure_name
+        text priority
+        text status
+        text assigned_to
+        uuid structure_id
+        double lat
+        double lng
+        boolean is_anonymous
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    signalement_notes {
+        uuid id PK
+        uuid signalement_id
+        text author
+        text text
+        timestamptz created_at
+    }
+
+    signalement_media {
+        uuid id PK
+        uuid signalement_id
+        text type
+        text url
+        text thumbnail
+        text filename
+        integer duration
+        timestamptz created_at
+    }
+
+    blocked_users {
+        uuid id PK
+        uuid citizen_id
+        uuid blocked_by
+        uuid call_id
+        uuid incident_id
+        text reason
+        text notes
+        integer duration_hours
+        boolean is_active
+        timestamptz blocked_at
+        timestamptz expires_at
+        timestamptz created_at
+    }
+
+    sos_questions {
+        uuid id PK
+        text question_key
+        text question_text
+        text question_type
+        text category
+        text template
+        text parent_question_key
+        jsonb options
+        jsonb show_if_answer
+        jsonb translations
+        integer display_order
+        boolean is_active
+        boolean is_required
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    sos_questions_audit {
+        uuid id PK
+        uuid question_id
+        uuid changed_by
+        text action
+        jsonb old_value
+        jsonb new_value
+        timestamptz changed_at
+    }
+
+    sos_responses {
+        uuid id PK
+        uuid incident_id
+        uuid call_id
+        uuid citizen_id
+        text question_key
+        text question_text
+        text answer
+        text gravity_level
+        integer gravity_score
+        jsonb answers
+        timestamptz answered_at
+        timestamptz created_at
+    }
+
+    operator_calls {
+        uuid id PK
+        uuid caller_profile_id
+        uuid callee_profile_id
+        text channel_name
+        text call_type
+        text status
+        text caller_name
+        timestamptz started_at
+        timestamptz answered_at
+        timestamptz ended_at
+        timestamptz created_at
+    }
+
+    rate_limits {
+        uuid id PK
+        text key
+        integer count
+        timestamptz window_start
+        timestamptz expires_at
+        timestamptz created_at
+    }
+
+    incidents ||--o{ call_history : "incident_id"
+    incidents ||--o{ call_queue : "incident_id"
+    incidents ||--o{ call_transfers : "incident_id"
+    incidents ||--o{ call_recordings : "incident_id"
+    incidents ||--o{ call_transcriptions : "incident_id"
+    incidents ||--o{ dispatches : "incident_id"
+    incidents ||--o{ sos_responses : "incident_id"
+    users_directory ||--o{ call_history : "operator_id"
+    users_directory ||--o{ call_queue : "assigned_operator_id"
+    users_directory ||--o{ call_transfers : "from/to_operator_id"
+    users_directory ||--o{ operator_calls : "caller/callee_profile_id"
+    users_directory ||--o{ notifications : "user_id"
+    users_directory ||--o{ blocked_users : "citizen_id / blocked_by"
+    users_directory ||--o{ active_rescuers : "user_id"
+    users_directory ||--o{ messages : "sender_id"
+    units ||--o{ dispatches : "unit_id"
+    signalements ||--o{ signalement_notes : "signalement_id"
+    signalements ||--o{ signalement_media : "signalement_id"
+    signalements }o--o| health_structures : "structure_id"
+    sos_questions ||--o{ sos_questions_audit : "question_id"
+    sos_questions ||--o{ sos_responses : "question_key"

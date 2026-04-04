@@ -9,10 +9,10 @@ import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 
-/// Splash Screen — ÉTOILE BLEU
+/// Splash Screen — ÉTOILE BLEUE
 /// Design 100% fidèle à la maquette Splashscreen-1.png :
 /// Fond blanc, bandeau SVG officiel (bandoncouleur.svg), 
-/// titre ÉTOILE BLEU. en Marianne ultra-bold,
+/// titre ÉTOILE BLEUE en Marianne ultra-bold,
 /// et pied de page contextualisé.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -25,6 +25,7 @@ class _SplashPageState extends State<SplashPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
+  Timer? _navTimer;
 
   @override
   void initState() {
@@ -46,7 +47,7 @@ class _SplashPageState extends State<SplashPage>
 
 
     // Navigation dynamique après 3s
-    Timer(const Duration(milliseconds: 3000), () async {
+    _navTimer = Timer(const Duration(milliseconds: 3000), () async {
       final prefs = await SharedPreferences.getInstance();
       final hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
 
@@ -86,6 +87,7 @@ class _SplashPageState extends State<SplashPage>
 
   @override
   void dispose() {
+    _navTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -120,9 +122,9 @@ class _SplashPageState extends State<SplashPage>
 
                       const SizedBox(height: AppSpacing.lg),
 
-                      // Titre ÉTOILE BLEU.
+                      // Titre ÉTOILE BLEUE
                       Text(
-                        'ÉTOILE\nBLEU.',
+                        'ÉTOILE\nBLEUE',
                         style: AppTextStyles.displayHero.copyWith(
                           fontFamily: 'Marianne',
                           fontSize: 64, // Ajusté pour mobile proportionnellement

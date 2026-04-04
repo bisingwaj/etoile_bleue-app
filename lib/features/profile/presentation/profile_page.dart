@@ -179,22 +179,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
                     const SizedBox(height: 24),
                     _buildSectionHeader('profile.security_emergencies'.tr()),
-                    _buildCardGroup([
-                      _buildListTile(context, icon: CupertinoIcons.person_2_fill, color: AppColors.navy, title: 'profile.trusted_contacts'.tr(), subtitle: 'profile.configured_contacts'.tr(), onTap: () => _openSheet(context, const _ContactsSheet())),
-                      _buildListTile(context, icon: CupertinoIcons.phone_fill, color: Colors.green, title: 'profile.phone_number'.tr(), subtitle: '+243 81 234 5678', onTap: () => _openSheet(context, const _PhoneEditSheet())),
-                      _buildListTile(context, icon: CupertinoIcons.shield_lefthalf_fill, color: Colors.purple, title: 'profile.distress_pin'.tr(), subtitle: 'profile.disabled'.tr(), isLast: true, onTap: () {}),
-                    ]),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final phone = ref.watch(userProvider).value?['phone'] as String? ?? '+243 ...';
+                        return _buildCardGroup([
+                          _buildListTile(context, icon: CupertinoIcons.person_2_fill, color: AppColors.navy, title: 'profile.trusted_contacts'.tr(), subtitle: 'profile.configured_contacts'.tr(), onTap: () => _openSheet(context, const _ContactsSheet())),
+                          _buildListTile(context, icon: CupertinoIcons.phone_fill, color: Colors.green, title: 'profile.phone_number'.tr(), subtitle: phone, isLast: true, onTap: () => _openSheet(context, const _PhoneEditSheet())),
+                        ]);
+                      },
+                    ),
 
                     const SizedBox(height: 24),
                     _buildSectionHeader('profile.account'.tr()),
                     _buildCardGroup([
                       _buildListTile(context, icon: CupertinoIcons.globe, color: AppColors.blue, title: 'profile.change_lang'.tr(), onTap: () => _openSheet(context, const _LanguageSheet())),
                       _buildListTile(context, icon: CupertinoIcons.settings, color: Colors.grey[700]!, title: 'profile.system_settings'.tr(), onTap: () {}),
-                      _buildListTile(context, icon: CupertinoIcons.square_arrow_right, color: AppColors.red, title: 'profile.logout'.tr(), isLast: true, onTap: () async {
-                        await ref.read(authProvider.notifier).signOut();
-                        if (mounted) {
-                          GoRouter.of(context).go('/login');
-                        }
+                      _buildListTile(context, icon: CupertinoIcons.square_arrow_right, color: AppColors.red, title: 'profile.logout'.tr(), isLast: true, onTap: () {
+                        GoRouter.of(context).go('/logout');
                       }),
                     ]),
                     
@@ -675,50 +676,137 @@ class _ContactsSheetState extends ConsumerState<_ContactsSheet> {
 // ==========================================
 // 4. PHONE NUMBER & OTP SHEET
 // ==========================================
-class _PhoneEditSheet extends StatefulWidget {
+class _PhoneEditSheet extends ConsumerStatefulWidget {
   const _PhoneEditSheet();
 
   @override
-  State<_PhoneEditSheet> createState() => _PhoneEditSheetState();
+  ConsumerState<_PhoneEditSheet> createState() => _PhoneEditSheetState();
 }
 
-class _PhoneEditSheetState extends State<_PhoneEditSheet> {
-  int _step = 1; // 1: Number, 2: OTP
+class _PhoneEditSheetState extends ConsumerState<_PhoneEditSheet> {
+  int _step = 1;
   final TextEditingController _phoneCtrl = TextEditingController();
   final TextEditingController _otpCtrl = TextEditingController();
   final FocusNode _otpFocusNode = FocusNode();
+  bool _isSending = false;
+  bool _isVerifying = false;
+  String? _error;
+  int _countdown = 0;
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    _otpCtrl.dispose();
+    _otpFocusNode.dispose();
+    super.dispose();
+  }
+
+  String get _fullPhone => '+243${_phoneCtrl.text.trim()}';
+
+  void _startTimer() {
+    setState(() => _countdown = 60);
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      setState(() => _countdown--);
+      return _countdown > 0 && mounted;
+    });
+  }
+
+  Future<void> _sendOtp() async {
+    if (_phoneCtrl.text.trim().length < 9 || _isSending) return;
+    setState(() { _isSending = true; _error = null; });
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'twilio-verify',
+        body: {'action': 'send', 'phone': _fullPhone},
+      );
+      if (!mounted) return;
+      setState(() { _step = 2; _isSending = false; });
+      _startTimer();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) _otpFocusNode.requestFocus();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _isSending = false; _error = 'Impossible d\'envoyer le code. Vérifiez le numéro.'; });
+    }
+  }
+
+  Future<void> _verifyAndUpdate() async {
+    if (_otpCtrl.text.length < 6 || _isVerifying) return;
+    setState(() { _isVerifying = true; _error = null; });
+    try {
+      final verifyRes = await Supabase.instance.client.functions.invoke(
+        'twilio-verify',
+        body: {'action': 'verify', 'phone': _fullPhone, 'code': _otpCtrl.text},
+      );
+      final data = verifyRes.data as Map<String, dynamic>?;
+      if (data == null || data['session'] == null) {
+        throw Exception('Verification failed');
+      }
+
+      // Update phone in users_directory
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        await Supabase.instance.client
+            .from('users_directory')
+            .update({'phone': _fullPhone, 'updated_at': DateTime.now().toIso8601String()})
+            .eq('auth_user_id', userId);
+
+        // Update auth phone via Edge Function
+        try {
+          await Supabase.instance.client.functions.invoke(
+            'update-phone',
+            body: {'new_phone': _fullPhone},
+          );
+        } catch (_) {
+          // Non-fatal: profile DB is updated even if auth.users phone fails
+        }
+
+        // Send confirmation notification
+        await Supabase.instance.client.from('notifications').insert({
+          'user_id': userId,
+          'title': 'Numéro mis à jour',
+          'message': 'Votre numéro de téléphone a été changé en $_fullPhone.',
+          'type': 'system',
+        });
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Numéro de téléphone mis à jour avec succès'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _isVerifying = false; _error = 'Code invalide ou expiré. Réessayez.'; });
+    }
+  }
 
   Widget _buildStep1() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('profile.new_number'.tr(), style: TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
+        Text('profile.new_number'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
         const SizedBox(height: 8),
         Text('profile.sms_verification'.tr(), style: TextStyle(color: Colors.grey[600], fontSize: 15, fontFamily: 'Marianne')),
         const SizedBox(height: 32),
         Container(
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(16),
-          ),
+          decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16)),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                decoration: BoxDecoration(
-                  border: Border(right: BorderSide(color: Colors.grey[300]!)),
-                ),
+                decoration: BoxDecoration(border: Border(right: BorderSide(color: Colors.grey[300]!))),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: SizedBox(
-                        width: 22, height: 16,
-                        child: CountryFlag.fromCountryCode('CD'),
-                      ),
-                    ),
+                    ClipRRect(borderRadius: BorderRadius.circular(2), child: SizedBox(width: 22, height: 16, child: CountryFlag.fromCountryCode('CD'))),
                     const SizedBox(width: 8),
                     const Text('+243', style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.navyDeep)),
                   ],
@@ -728,32 +816,25 @@ class _PhoneEditSheetState extends State<_PhoneEditSheet> {
                 child: TextField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.number,
-                  maxLength: 9, // Exactly 9 digits required
+                  maxLength: 9,
                   style: const TextStyle(fontFamily: 'Marianne', fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2.0),
-                  decoration: const InputDecoration(
-                    hintText: '81 000 00 00',
-                    counterText: '',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  ),
+                  decoration: const InputDecoration(hintText: '81 000 00 00', counterText: '', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16)),
                 ),
               ),
             ],
           ),
         ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13, fontFamily: 'Marianne')),
+        ],
         const SizedBox(height: 32),
         ElevatedButton(
-          onPressed: () {
-            if (_phoneCtrl.text.trim().length >= 9) {
-              setState(() => _step = 2);
-              Future.delayed(const Duration(milliseconds: 100), () => _otpFocusNode.requestFocus());
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.blue, padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0,
-          ),
-          child: Text('profile.send_code_btn'.tr(), style: TextStyle(fontFamily: 'Marianne', color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+          onPressed: _isSending ? null : _sendOtp,
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.blue, padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0),
+          child: _isSending
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text('profile.send_code_btn'.tr(), style: const TextStyle(fontFamily: 'Marianne', color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
         ),
       ],
     );
@@ -764,12 +845,10 @@ class _PhoneEditSheetState extends State<_PhoneEditSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('profile.glance_sms'.tr(), style: TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
+        Text('profile.glance_sms'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
         const SizedBox(height: 8),
-        Text('Entrez le code à 4 chiffres envoyé au +243 ${_phoneCtrl.text}', style: TextStyle(color: Colors.grey[600], fontSize: 15, fontFamily: 'Marianne')),
+        Text('Entrez le code à 6 chiffres envoyé au $_fullPhone', style: TextStyle(color: Colors.grey[600], fontSize: 15, fontFamily: 'Marianne')),
         const SizedBox(height: 32),
-        
-        // Interactive OTP Input overlay
         GestureDetector(
           onTap: () => FocusScope.of(context).requestFocus(_otpFocusNode),
           child: SizedBox(
@@ -778,23 +857,15 @@ class _PhoneEditSheetState extends State<_PhoneEditSheet> {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(4, (index) {
+                  children: List.generate(6, (index) {
                     final text = _otpCtrl.text;
                     final char = index < text.length ? text[index] : '';
                     final isCurrent = index == text.length;
-
                     return Container(
-                      width: 60, height: 70,
+                      width: 48, height: 70,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: isCurrent ? AppColors.blue : Colors.transparent, width: 2),
-                      ),
-                      child: Text(
-                        char.isNotEmpty ? char : (isCurrent ? '|' : ''), 
-                        style: TextStyle(fontSize: 24, color: isCurrent && char.isEmpty ? AppColors.blue : Colors.black, fontWeight: FontWeight.bold)
-                      ),
+                      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16), border: Border.all(color: isCurrent ? AppColors.blue : Colors.transparent, width: 2)),
+                      child: Text(char.isNotEmpty ? char : (isCurrent ? '|' : ''), style: TextStyle(fontSize: 24, color: isCurrent && char.isEmpty ? AppColors.blue : Colors.black, fontWeight: FontWeight.bold)),
                     );
                   }),
                 ),
@@ -804,7 +875,7 @@ class _PhoneEditSheetState extends State<_PhoneEditSheet> {
                     controller: _otpCtrl,
                     focusNode: _otpFocusNode,
                     keyboardType: TextInputType.number,
-                    maxLength: 4,
+                    maxLength: 6,
                     onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(counterText: '', border: InputBorder.none),
                   ),
@@ -813,26 +884,34 @@ class _PhoneEditSheetState extends State<_PhoneEditSheet> {
             ),
           ),
         ),
-        
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13, fontFamily: 'Marianne')),
+        ],
         const SizedBox(height: 32),
         ElevatedButton(
-          onPressed: () {
-            if (_otpCtrl.text.length == 4) {
-               Navigator.pop(context); // Simulate SUCCESS
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.navyDeep, padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0,
-          ),
-          child: Text('profile.verify_btn'.tr(), style: TextStyle(fontFamily: 'Marianne', color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+          onPressed: _isVerifying ? null : _verifyAndUpdate,
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.navyDeep, padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0),
+          child: _isVerifying
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text('profile.verify_btn'.tr(), style: const TextStyle(fontFamily: 'Marianne', color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
         ),
         const SizedBox(height: 16),
-        Center(
-          child: GestureDetector(
-            onTap: () => setState(() => _step = 1),
-            child: Text('profile.edit_number'.tr(), style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14)),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            GestureDetector(
+              onTap: () => setState(() { _step = 1; _otpCtrl.clear(); _error = null; }),
+              child: Text('profile.edit_number'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14)),
+            ),
+            if (_countdown > 0)
+              Text('${_countdown}s', style: TextStyle(fontFamily: 'Marianne', color: Colors.grey[400], fontSize: 14))
+            else
+              GestureDetector(
+                onTap: _sendOtp,
+                child: const Text('Renvoyer le code', style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: AppColors.blue, fontSize: 14)),
+              ),
+          ],
         ),
       ],
     );

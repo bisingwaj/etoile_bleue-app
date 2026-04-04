@@ -69,12 +69,7 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
 
         if (showIncomingCall) _buildIncomingCallOverlay(callState),
 
-        if (showMinimizedOverlay) ...[
-          if (callState.isVideoOn)
-            _buildVideoPip(callState)
-          else
-            _buildAudioDynamicIsland(callState),
-        ],
+        if (showMinimizedOverlay) _buildAudioDynamicIsland(callState),
       ],
     );
   }
@@ -175,57 +170,22 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
     );
   }
 
-  Widget _buildVideoPip(ActiveCallState callState) {
-    final rtcEngine = ref.read(emergencyCallServiceProvider).engine;
-    if (rtcEngine == null) return const SizedBox.shrink();
-
-    return Positioned(
-      left: _pipOffset.dx,
-      top: _pipOffset.dy,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          setState(() {
-            _pipOffset += details.delta;
-          });
-        },
-        onTap: _restoreCall,
-        child: Material(
-          color: Colors.transparent,
-          elevation: 10,
-          shadowColor: Colors.black45,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            width: 120,
-            height: 160,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.redAccent, width: 2),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                AgoraVideoView(
-                  controller: VideoViewController(
-                    rtcEngine: rtcEngine,
-                    canvas: const VideoCanvas(uid: 0),
-                  ),
-                ),
-                const Positioned(
-                  bottom: 8,
-                  right: 8,
-                  child: Icon(CupertinoIcons.arrow_up_left_arrow_down_right, color: Colors.white, size: 20),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildAudioDynamicIsland(ActiveCallState callState) {
-    final isActive = callState.status == ActiveCallStatus.active;
+    final status = callState.status;
+    final isActive = status == ActiveCallStatus.active;
+    final isHold = status == ActiveCallStatus.onHold;
+    
+    String title = 'Connexion...';
+    Color color = Colors.orange;
+    
+    if (isActive) {
+      title = 'Appel en cours';
+      color = Colors.green;
+    } else if (isHold) {
+      title = 'En attente...';
+      color = Colors.redAccent;
+    }
+
     return Positioned(
       top: MediaQuery.of(context).padding.top + 10,
       left: 20,
@@ -250,14 +210,12 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isActive
-                            ? Colors.green.withValues(alpha: 0.2)
-                            : Colors.orange.withValues(alpha: 0.2),
+                        color: color.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         CupertinoIcons.phone_fill,
-                        color: isActive ? Colors.green : Colors.orange,
+                        color: color,
                         size: 16,
                       ),
                     ),
@@ -267,7 +225,7 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          isActive ? 'Appel en cours' : 'Connexion...',
+                          title,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         Text(
@@ -319,7 +277,10 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
 
   void _restoreCall() {
     ref.read(isCallMinimizedProvider.notifier).state = false;
-    GoRouter.of(context).push('/call/active');
+    final String currentRoute = GoRouterState.of(context).matchedLocation;
+    if (currentRoute != '/call/active') {
+      GoRouter.of(context).go('/call/active');
+    }
   }
 }
 

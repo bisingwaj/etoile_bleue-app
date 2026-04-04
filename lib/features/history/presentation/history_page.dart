@@ -81,14 +81,14 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                 const SizedBox(height: 24),
                 Text('history.filter_history'.tr(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
                 const SizedBox(height: 20),
-                ...['Tous', 'ringing', 'active', 'ended'].map((str) {
+                ...['Tous', 'new', 'dispatched', 'ended'].map((str) {
                   final isSelected = _currentFilter == str;
                   IconData icon;
                   Color color;
                   String label;
                   switch (str) {
-                    case 'ringing': icon = CupertinoIcons.waveform_path_ecg; color = AppColors.red; label = 'SOS émis'; break;
-                    case 'active': icon = CupertinoIcons.phone_fill; color = Colors.green; label = 'En cours'; break;
+                    case 'new': icon = CupertinoIcons.waveform_path_ecg; color = AppColors.red; label = 'En attente'; break;
+                    case 'dispatched': icon = CupertinoIcons.car_detailed; color = Colors.green; label = 'En cours'; break;
                     case 'ended': icon = CupertinoIcons.checkmark_circle_fill; color = AppColors.blue; label = 'Terminé'; break;
                     default: icon = CupertinoIcons.list_bullet; color = Colors.grey[800]!; label = 'Tous';
                   }
@@ -132,9 +132,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         toolbarHeight: 70,
-        title: Padding(
-          padding: const EdgeInsets.only(top: 10.0),
-          child: Text('history.title'.tr(), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, fontFamily: 'Marianne', color: AppColors.navyDeep, letterSpacing: -1.0)),
+        title: const Padding(
+          padding: EdgeInsets.only(top: 10.0),
+          child: Text('Historique', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, fontFamily: 'Marianne', color: AppColors.navyDeep, letterSpacing: -1.0)),
         ),
         centerTitle: false,
         actions: [
@@ -156,14 +156,25 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         loading: () => const Center(child: CupertinoActivityIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),
         data: (allCalls) {
-          // Filtrage par statut
+          // Filtrage par groupe de statut
           final filtered = _currentFilter == 'Tous'
               ? allCalls
-              : allCalls.where((c) => c['status'] == _currentFilter).toList();
+              : allCalls.where((c) {
+                  final s = c['status'] as String? ?? '';
+                  switch (_currentFilter) {
+                    case 'new': return s == 'new' || s == 'pending';
+                    case 'dispatched': return s == 'dispatched' || s == 'en_route' || s == 'arrived' || s == 'investigating';
+                    case 'ended': return s == 'ended' || s == 'resolved' || s == 'archived';
+                    default: return true;
+                  }
+                }).toList();
 
           // Stats calculées depuis les vraies données
-          final sosCount = allCalls.where((c) => c['status'] != null).length;
-          final endedCount = allCalls.where((c) => c['status'] == 'ended').length;
+          final sosCount = allCalls.length;
+          final endedCount = allCalls.where((c) {
+            final s = c['status'] as String? ?? '';
+            return s == 'ended' || s == 'resolved' || s == 'archived';
+          }).length;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.only(top: 16, bottom: 40),

@@ -1,13 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:etoile_bleue_mobile/core/providers/notifications_provider.dart';
 
-class NotificationsPage extends StatelessWidget {
+class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
 
   @override
+  ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends ConsumerState<NotificationsPage> {
+  @override
+  void initState() {
+    super.initState();
+    _markAllAsRead();
+  }
+
+  Future<void> _markAllAsRead() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      await Supabase.instance.client
+          .from('notifications')
+          .update({'is_read': true})
+          .eq('user_id', uid)
+          .eq('is_read', false);
+    } catch (e) {
+      debugPrint('[Notifications] Failed to mark as read: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final notificationsAsync = ref.watch(notificationsProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -18,58 +48,87 @@ class NotificationsPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('notifications.title'.tr(),
-          style: TextStyle(color: AppColors.navyDeep, fontWeight: FontWeight.bold, fontFamily: 'Marianne'),
+          style: const TextStyle(color: AppColors.navyDeep, fontWeight: FontWeight.bold, fontFamily: 'Marianne'),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        children: [
-          _buildSectionHeader('notifications.news'.tr()),
-          _buildNotificationCard(
-            title: 'notifications.tip_title'.tr(),
-            body: 'notifications.tip_body'.tr(),
-            time: 'notifications.time_2h'.tr(),
-            icon: CupertinoIcons.flame_fill,
-            iconColor: Colors.orange,
-            isUnread: true,
-          ),
-          _buildNotificationCard(
-            title: 'notifications.traffic_title'.tr(),
-            body: 'notifications.traffic_body'.tr(),
-            time: 'notifications.time_yesterday'.tr(),
-            icon: CupertinoIcons.car_detailed,
-            iconColor: Colors.redAccent,
-            isUnread: false,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _buildSectionHeader('notifications.courses'.tr()),
-          _buildNotificationCard(
-            title: 'notifications.course_title'.tr(),
-            body: 'notifications.course_body'.tr(),
-            time: 'notifications.time_3d'.tr(),
-            icon: CupertinoIcons.book_fill,
-            iconColor: AppColors.blue,
-            isUnread: false,
-            isCourse: true,
-          ),
-        ],
+      body: notificationsAsync.when(
+        loading: () => const Center(child: CupertinoActivityIndicator()),
+        error: (error, _) => Center(child: Text('Erreur de chargement des notifications\n$error')),
+        data: (notifications) {
+          if (notifications.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.bell_slash, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text('Aucune notification', style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              final title = notification['title'] ?? 'Notification';
+              final message = notification['message'] ?? '';
+              final type = notification['type'] ?? 'info';
+              final isRead = notification['is_read'] ?? false;
+              
+              DateTime? createdAt;
+              if (notification['created_at'] != null) {
+                createdAt = DateTime.tryParse(notification['created_at'].toString());
+              }
+              final timeStr = _formatDate(createdAt);
+
+              IconData icon;
+              Color iconColor;
+
+              switch (type) {
+                case 'alert':
+                  icon = CupertinoIcons.exclamationmark_triangle_fill;
+                  iconColor = Colors.redAccent;
+                  break;
+                case 'system':
+                  icon = CupertinoIcons.gear_alt_fill;
+                  iconColor = Colors.grey;
+                  break;
+                case 'course':
+                  icon = CupertinoIcons.book_fill;
+                  iconColor = AppColors.blue;
+                  break;
+                default:
+                  icon = CupertinoIcons.bell_fill;
+                  iconColor = Colors.orange;
+              }
+
+              return _buildNotificationCard(
+                title: title,
+                body: message,
+                time: timeStr,
+                icon: icon,
+                iconColor: iconColor,
+                isUnread: !isRead,
+                isCourse: type == 'course',
+              );
+            },
+          );
+        },
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md, top: AppSpacing.sm),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: AppColors.navyDeep,
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
-          fontFamily: 'Marianne',
-        ),
-      ),
-    );
+  String _formatDate(DateTime? date) {
+    if (date == null) return '--:--';
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours}h';
+    if (diff.inDays == 1) return 'Hier';
+    return '${date.day.toString().padLeft(2,'0')}/${date.month.toString().padLeft(2,'0')}';
   }
 
   Widget _buildNotificationCard({
@@ -136,7 +195,7 @@ class NotificationsPage extends StatelessWidget {
                       color: AppColors.blue,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text('notifications.start_course'.tr(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    child: Text('notifications.start_course'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                   )
                 ]
               ],

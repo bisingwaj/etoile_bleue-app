@@ -8,7 +8,13 @@ import 'package:etoile_bleue_mobile/features/auth/presentation/login_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/presentation/otp_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/presentation/register_page.dart';
 import 'package:etoile_bleue_mobile/features/calls/presentation/emergency_call_screen.dart';
+import 'package:etoile_bleue_mobile/features/history/presentation/incident_detail_page.dart';
+import 'package:etoile_bleue_mobile/features/history/presentation/active_tracking_page.dart';
+import 'package:etoile_bleue_mobile/features/home/presentation/notifications_page.dart';
+import 'package:etoile_bleue_mobile/features/auth/presentation/logout_screen.dart';
+import 'package:etoile_bleue_mobile/features/calls/presentation/blocked_screen.dart';
 import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 
 abstract class AppRoutes {
   static const splash = '/';
@@ -18,6 +24,11 @@ abstract class AppRoutes {
   static const login = '/login';
   static const otp = '/otp';
   static const callActive = '/call/active';
+  static const incidentDetail = '/incident/:id';
+  static const activeTracking = '/active_tracking';
+  static const notifications = '/notifications';
+  static const logout = '/logout';
+  static const blocked = '/blocked';
 }
 
 // The GoRouter is created ONCE and never rebuilt.
@@ -77,7 +88,59 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.callActive,
         name: 'call_active',
+        redirect: (context, state) {
+          final callState = ref.read(callStateProvider);
+          if (!callState.isInCall && callState.status != ActiveCallStatus.connecting) {
+            return AppRoutes.home;
+          }
+          return null;
+        },
         builder: (context, state) => const EmergencyCallScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.incidentDetail,
+        name: 'incident_detail',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          // extra may carry pre-fetched data (e.g. from HistoryPage)
+          final initialData =
+              state.extra is Map<String, dynamic>
+                  ? state.extra as Map<String, dynamic>
+                  : <String, dynamic>{'id': id};
+          return IncidentDetailPage(
+            incidentId: id,
+            initialData: initialData,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.activeTracking,
+        name: 'active_tracking',
+        builder: (context, state) => const ActiveTrackingPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.notifications,
+        name: 'notifications',
+        builder: (context, state) => const NotificationsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.logout,
+        name: 'logout',
+        builder: (context, state) => const LogoutScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.blocked,
+        name: 'blocked',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          final expiresAtStr = extra['expires_at'] as String?;
+          final expiresAt = expiresAtStr != null 
+              ? DateTime.tryParse(expiresAtStr) ?? DateTime.now() 
+              : DateTime.now();
+          final reason = extra['reason'] as String? ?? '';
+          
+          return BlockedScreen(expiresAt: expiresAt, reason: reason);
+        },
       ),
     ],
   );

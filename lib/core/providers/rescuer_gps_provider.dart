@@ -17,6 +17,9 @@ class RescuerGpsNotifier extends StateNotifier<bool> {
 
   /// Démarre le suivi GPS
   Future<void> startTracking() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
     final permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {

@@ -1,20 +1,54 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// ✅ CORRIGÉ: Utilise 'users_directory' au lieu de 'users'
-/// Le champ de liaison est 'auth_user_id' (pas 'id' directement)
+/// Fetches user profile once, then listens for Realtime UPDATE events.
+/// Avoids .stream() which opens an unfiltered Postgres replication slot per client.
 final userProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) return Stream.value(null);
 
-  if (user == null) {
-    return Stream.value(null);
+  final supabase = Supabase.instance.client;
+  final controller = StreamController<Map<String, dynamic>?>();
+
+  Future<void> fetchProfile() async {
+    try {
+      final rows = await supabase
+          .from('users_directory')
+          .select()
+          .eq('auth_user_id', user.id)
+          .limit(1);
+      controller.add(rows.isNotEmpty ? Map<String, dynamic>.from(rows.first) : null);
+    } catch (e) {
+      controller.addError(e);
+    }
   }
 
-  // ✅ Table correcte: users_directory
-  // ✅ Filtre correct: auth_user_id = user.id (pas id = user.id)
-  return Supabase.instance.client
-      .from('users_directory')
-      .stream(primaryKey: ['id'])
-      .eq('auth_user_id', user.id)
-      .map((list) => list.isNotEmpty ? list.first : null);
+  fetchProfile();
+
+  final channel = supabase
+      .channel('user-profile-${user.id}-${DateTime.now().millisecondsSinceEpoch}')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'users_directory',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'auth_user_id',
+          value: user.id,
+        ),
+        callback: (payload) {
+          if (payload.newRecord.isNotEmpty) {
+            controller.add(Map<String, dynamic>.from(payload.newRecord));
+          }
+        },
+      )
+      .subscribe();
+
+  ref.onDispose(() {
+    channel.unsubscribe();
+    controller.close();
+  });
+
+  return controller.stream;
 });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -91,6 +92,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    _fnCtrl.dispose();
+    _lnCtrl.dispose();
+    _yearCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(registrationProvider);
 
@@ -133,9 +143,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildLanguageStep(state),
-                  _buildInputStep('register.firstname_title'.tr(), 'register.firstname_label'.tr(), _fnCtrl, (v) => ref.read(registrationProvider.notifier).setFirstName(v), state.firstName.isNotEmpty),
-                  _buildInputStep('register.lastname_title'.tr(), 'register.lastname_label'.tr(), _lnCtrl, (v) => ref.read(registrationProvider.notifier).setLastName(v), state.lastName.isNotEmpty),
-                  _buildInputStep('register.birth_title'.tr(), 'register.birth_hint'.tr(), _yearCtrl, (v) => ref.read(registrationProvider.notifier).setBirthYear(v), state.birthYear.length == 4, keyboardType: TextInputType.number),
+                  _buildInputStep('register.firstname_title'.tr(), 'register.firstname_label'.tr(), _fnCtrl, (v) => ref.read(registrationProvider.notifier).setFirstName(v), state.firstName.isNotEmpty, textCapitalization: TextCapitalization.words),
+                  _buildInputStep('register.lastname_title'.tr(), 'register.lastname_label'.tr(), _lnCtrl, (v) => ref.read(registrationProvider.notifier).setLastName(v), state.lastName.isNotEmpty, textCapitalization: TextCapitalization.words),
+                  _buildInputStep('register.birth_title'.tr(), 'register.birth_hint'.tr(), _yearCtrl, (v) => ref.read(registrationProvider.notifier).setBirthYear(v), state.birthYear.length == 4, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)]),
                 ],
               ),
             ),
@@ -205,7 +215,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     );
   }
 
-  Widget _buildInputStep(String title, String hint, TextEditingController ctrl, Function(String) onChanged, bool isValid, {TextInputType keyboardType = TextInputType.text}) {
+  static String _capitalizeWords(String s) {
+    if (s.isEmpty) return s;
+    return s.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1);
+    }).join(' ');
+  }
+
+  Widget _buildInputStep(
+    String title, String hint, TextEditingController ctrl,
+    Function(String) onChanged, bool isValid,
+    {TextInputType keyboardType = TextInputType.text,
+     TextCapitalization textCapitalization = TextCapitalization.none,
+     List<TextInputFormatter>? inputFormatters}
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
@@ -219,10 +243,25 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             child: TextField(
               controller: ctrl,
               keyboardType: keyboardType,
+              textCapitalization: textCapitalization,
+              inputFormatters: inputFormatters,
               style: const TextStyle(fontFamily: 'Marianne', fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.navyDeep),
-              decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: Colors.black12), border: InputBorder.none),
+              decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: Colors.black12), border: InputBorder.none, counterText: ''),
               onChanged: (v) {
-                onChanged(v);
+                if (textCapitalization == TextCapitalization.words) {
+                  final capitalized = _capitalizeWords(v);
+                  if (capitalized != v) {
+                    ctrl.value = ctrl.value.copyWith(
+                      text: capitalized,
+                      selection: TextSelection.collapsed(offset: capitalized.length),
+                    );
+                    onChanged(capitalized);
+                  } else {
+                    onChanged(v);
+                  }
+                } else {
+                  onChanged(v);
+                }
                 setState(() {});
               },
             ),

@@ -98,6 +98,7 @@ class LocationService {
           await _supabase.from('incidents').update({
             'caller_realtime_lat': position.latitude,
             'caller_realtime_lng': position.longitude,
+            'caller_realtime_updated_at': DateTime.now().toUtc().toIso8601String(),
           }).eq('reference', incidentReference);
         } catch (e) {
           debugPrint('[LocationService] Erreur mise à jour GPS citoyen: $e');

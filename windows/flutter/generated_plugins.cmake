@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   agora_rtc_engine
   app_links
   audioplayers_windows
+  battery_plus
   connectivity_plus
   file_selector_windows
   firebase_core

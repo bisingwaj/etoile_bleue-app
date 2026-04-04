@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:etoile_bleue_mobile/core/services/call_sound_service.dart';
+import 'package:etoile_bleue_mobile/core/services/cloud_recording_service.dart';
+import 'package:etoile_bleue_mobile/core/services/location_service.dart';
 
 enum ActiveCallStatus {
   idle,
@@ -11,6 +15,7 @@ enum ActiveCallStatus {
   ended,
   incomingRinging,
   onHold,
+  blocked,
 }
 
 class ActiveCallState {
@@ -18,22 +23,28 @@ class ActiveCallState {
   final bool isMuted;
   final bool isVideoOn;
   final bool isSpeakerOn;
+  final bool isRecording;
   final String? channelName;
   final String? callHistoryId;
   final String? incidentId;
   final String? callerName;
   final int? remoteUid;
+  final String? blockedExpiresAt;
+  final String? blockedReason;
 
   const ActiveCallState({
     this.status = ActiveCallStatus.idle,
     this.isMuted = false,
     this.isVideoOn = false,
     this.isSpeakerOn = true,
+    this.isRecording = false,
     this.channelName,
     this.callHistoryId,
     this.incidentId,
     this.callerName,
     this.remoteUid,
+    this.blockedExpiresAt,
+    this.blockedReason,
   });
 
   ActiveCallState copyWith({
@@ -41,6 +52,7 @@ class ActiveCallState {
     bool? isMuted,
     bool? isVideoOn,
     bool? isSpeakerOn,
+    bool? isRecording,
     String? channelName,
     String? callHistoryId,
     String? incidentId,
@@ -51,17 +63,22 @@ class ActiveCallState {
     bool clearCallHistoryId = false,
     bool clearIncidentId = false,
     bool clearCallerName = false,
+    String? blockedExpiresAt,
+    String? blockedReason,
   }) {
     return ActiveCallState(
       status: status ?? this.status,
       isMuted: isMuted ?? this.isMuted,
       isVideoOn: isVideoOn ?? this.isVideoOn,
       isSpeakerOn: isSpeakerOn ?? this.isSpeakerOn,
+      isRecording: isRecording ?? this.isRecording,
       channelName: clearChannelName ? null : (channelName ?? this.channelName),
       callHistoryId: clearCallHistoryId ? null : (callHistoryId ?? this.callHistoryId),
       incidentId: clearIncidentId ? null : (incidentId ?? this.incidentId),
       callerName: clearCallerName ? null : (callerName ?? this.callerName),
       remoteUid: clearRemoteUid ? null : (remoteUid ?? this.remoteUid),
+      blockedExpiresAt: blockedExpiresAt ?? this.blockedExpiresAt,
+      blockedReason: blockedReason ?? this.blockedReason,
     );
   }
 
@@ -69,14 +86,19 @@ class ActiveCallState {
       status == ActiveCallStatus.connecting ||
       status == ActiveCallStatus.ringing ||
       status == ActiveCallStatus.active ||
-      status == ActiveCallStatus.onHold;
+      status == ActiveCallStatus.onHold ||
+      status == ActiveCallStatus.incomingRinging;
 }
 
 class CallStateNotifier extends StateNotifier<ActiveCallState> {
   final EmergencyCallService _service;
+  final CloudRecordingService _recording;
+  final LocationService _location;
   final CallSoundService _sounds = CallSoundService();
+  Timer? _endedResetTimer;
+  RealtimeChannel? _callStatusChannel;
 
-  CallStateNotifier(this._service) : super(const ActiveCallState()) {
+  CallStateNotifier(this._service, this._recording, this._location) : super(const ActiveCallState()) {
     _wireCallbacks();
   }
 
@@ -95,6 +117,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
         status: ActiveCallStatus.active,
         remoteUid: uid,
       );
+      _tryStartRecording();
     };
 
     _service.onRemoteUserLeft = (uid) {
@@ -107,8 +130,12 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
     _service.onCallEnded = () {
       _sounds.stopRingback();
       _sounds.playEnded();
+      _stopCallStatusListener();
+      _tryStopRecording();
+      _location.stopCitizenTracking();
+      _endedResetTimer?.cancel();
       state = const ActiveCallState(status: ActiveCallStatus.ended);
-      Future.delayed(const Duration(seconds: 2), () {
+      _endedResetTimer = Timer(const Duration(seconds: 2), () {
         if (mounted) {
           state = const ActiveCallState();
         }
@@ -116,37 +143,96 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
     };
   }
 
-  Future<void> startSosCall() async {
+  Future<void> startSosCall({double? lat, double? lng}) async {
+    if (state.isInCall || state.status == ActiveCallStatus.connecting) {
+      debugPrint('[CallState] startSosCall ignored: already in call or connecting');
+      return;
+    }
+    _endedResetTimer?.cancel();
     state = state.copyWith(status: ActiveCallStatus.connecting);
+    
+    // 1. Check blacklist status
     try {
-      await _service.startEmergencyCall();
+      final blockStatus = await _service.checkBlocked();
+      if (blockStatus['blocked'] == true) {
+        debugPrint('[CallState] User is blocked. Not starting SOS.');
+        state = ActiveCallState(
+          status: ActiveCallStatus.blocked,
+          blockedExpiresAt: blockStatus['expires_at'] as String?,
+          blockedReason: blockStatus['reason'] as String?,
+        );
+        return;
+      }
+    } catch (e) {
+      debugPrint('[CallState] Blocked check failed, continuing... $e');
+    }
+
+    try {
+      await _service.startEmergencyCall(lat: lat, lng: lng);
       state = state.copyWith(
         channelName: _service.currentChannelName,
+        incidentId: _service.currentIncidentId,
+        callHistoryId: _service.currentCallId,
       );
+      if (_service.currentCallId != null) {
+        _listenForCallStatusChanges(_service.currentCallId!);
+      }
+      if (_service.currentChannelName != null) {
+        _location.startCitizenTracking(_service.currentChannelName!);
+      }
     } catch (e) {
       state = const ActiveCallState(status: ActiveCallStatus.ended);
       rethrow;
     }
   }
 
+  Timer? _incomingTimeoutTimer;
+
   void setIncomingCall({
     required String channelName,
     required String callHistoryId,
     String? callerName,
   }) {
+    if (state.isInCall || state.status == ActiveCallStatus.connecting) {
+      debugPrint('[CallState] setIncomingCall rejected: already in call/connecting — auto-rejecting');
+      _service.rejectIncomingCall(callHistoryId).catchError((e) {
+        debugPrint('[CallState] Auto-reject failed: $e');
+      });
+      return;
+    }
+    _endedResetTimer?.cancel();
+    _incomingTimeoutTimer?.cancel();
+    
     state = ActiveCallState(
       status: ActiveCallStatus.incomingRinging,
       channelName: channelName,
       callHistoryId: callHistoryId,
       callerName: callerName,
     );
+
+    // 45s timeout for auto-rejecting incoming call
+    _incomingTimeoutTimer = Timer(const Duration(seconds: 45), () {
+      if (mounted && state.status == ActiveCallStatus.incomingRinging) {
+        debugPrint('[CallState] Incoming call timed out after 45s. Auto-rejecting.');
+        rejectIncomingCall();
+      }
+    });
+  }
+
+  void clearIncomingCall() {
+    if (state.status == ActiveCallStatus.incomingRinging) {
+      _incomingTimeoutTimer?.cancel();
+      state = const ActiveCallState();
+    }
   }
 
   Future<void> answerIncomingCall() async {
+    _incomingTimeoutTimer?.cancel();
     if (state.channelName == null || state.callHistoryId == null) {
       debugPrint('[CallState] answerIncomingCall aborted: channelName=${state.channelName}, callHistoryId=${state.callHistoryId}');
       return;
     }
+    _endedResetTimer?.cancel();
     debugPrint('[CallState] answerIncomingCall: transitioning to connecting');
     state = state.copyWith(status: ActiveCallStatus.connecting);
     try {
@@ -154,6 +240,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
         state.channelName!,
         state.callHistoryId!,
       );
+      _listenForCallStatusChanges(state.callHistoryId!);
       debugPrint('[CallState] answerIncomingCall: service call succeeded');
     } catch (e, stack) {
       debugPrint('[CallState] answerIncomingCall FAILED: $e\n$stack');
@@ -163,6 +250,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   }
 
   Future<void> rejectIncomingCall() async {
+    _incomingTimeoutTimer?.cancel();
     if (state.callHistoryId == null) return;
     await _service.rejectIncomingCall(state.callHistoryId!);
     state = const ActiveCallState();
@@ -170,7 +258,79 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
 
   Future<void> hangUp() async {
     _sounds.stopRingback();
-    await _service.hangUp();
+    _stopCallStatusListener();
+    await _tryStopRecording();
+    _location.stopCitizenTracking();
+    try {
+      await _service.hangUp();
+    } catch (e) {
+      debugPrint('[CallState] hangUp service error: $e');
+    }
+    if (mounted && state.status != ActiveCallStatus.ended && state.status != ActiveCallStatus.idle) {
+      state = const ActiveCallState(status: ActiveCallStatus.ended);
+      _endedResetTimer?.cancel();
+      _endedResetTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) state = const ActiveCallState();
+      });
+    }
+  }
+
+  // ─── Cloud Recording helpers ──────────────────────────────────────────────
+
+  Future<void> _tryStartRecording() async {
+    final channel = state.channelName;
+    if (channel == null) return;
+    try {
+      final started = await _recording.startRecording(channelId: channel);
+      if (started && mounted) {
+        state = state.copyWith(isRecording: true);
+        debugPrint('[CallState] Cloud recording started');
+      }
+    } catch (e) {
+      debugPrint('[CallState] Cloud recording start failed (non-fatal): $e');
+    }
+  }
+
+  Future<void> _tryStopRecording() async {
+    if (!_recording.isRecording) return;
+    try {
+      await _recording.stopRecording();
+      if (mounted) state = state.copyWith(isRecording: false);
+      debugPrint('[CallState] Cloud recording stopped');
+    } catch (e) {
+      debugPrint('[CallState] Cloud recording stop failed (non-fatal): $e');
+    }
+  }
+
+  // ─── Abandoned-call Realtime listener ─────────────────────────────────────
+
+  void _listenForCallStatusChanges(String callHistoryId) {
+    _stopCallStatusListener();
+    _callStatusChannel = Supabase.instance.client
+        .channel('call-status-$callHistoryId-${DateTime.now().millisecondsSinceEpoch}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'call_history',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: callHistoryId,
+          ),
+          callback: (payload) {
+            final newStatus = payload.newRecord['status'] as String?;
+            if (newStatus == 'abandoned') {
+              debugPrint('[CallState] Call marked abandoned by server — hanging up');
+              hangUp();
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  void _stopCallStatusListener() {
+    _callStatusChannel?.unsubscribe();
+    _callStatusChannel = null;
   }
 
   Future<void> toggleMute() async {
@@ -196,5 +356,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
 final callStateProvider =
     StateNotifierProvider<CallStateNotifier, ActiveCallState>((ref) {
   final service = ref.watch(emergencyCallServiceProvider);
-  return CallStateNotifier(service);
+  final recording = ref.watch(cloudRecordingServiceProvider);
+  final location = ref.watch(locationServiceProvider);
+  return CallStateNotifier(service, recording, location);
 });

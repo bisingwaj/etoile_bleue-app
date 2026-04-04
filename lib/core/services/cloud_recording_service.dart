@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// ✅ EC-1 : Double startRecording() — guard _isStarting empêche un double acquire
 /// ✅ EC-2 : Erreur dans stopRecording() — session réinitialisée dans le finally
 /// ✅ EC-3 : maxIdleTime Agora (30s sans participant) — détecté via watchRecordingStatus()
-/// ✅ EC-4 : Token vide en dev — enregistrement ignoré proprement (pas d'erreur silencieuse)
+/// ✅ EC-4 : Token optionnel — l'Edge Function génère son propre token si absent
 /// ✅ EC-5 : stopRecording() si recording jamais démarré — guard explicite + log
 /// ✅ EC-6 : App tuée / crash pendant recording — onCallEnded Cloud Function arrête Agora via stop
 class CloudRecordingService {
@@ -25,18 +25,11 @@ class CloudRecordingService {
   /// Démarre l'enregistrement audio pour un appel SOS.
   ///
   /// Retourne true si l'enregistrement a démarré avec succès.
-  /// Retourne false silencieusement si le token est vide (mode dev App ID Only).
+  /// Le token est optionnel : l'Edge Function génère le sien si absent.
   Future<bool> startRecording({
     required String channelId,
-    required String token,
+    String? token,
   }) async {
-    // EC-4 : En mode dev, le token est vide — Cloud Recording nécessite un token valide
-    if (token.isEmpty) {
-      debugPrint('[CloudRecordingService] Token vide (mode dev) — enregistrement désactivé.');
-      return false;
-    }
-
-    // EC-1 : Guard anti-double acquire
     if (_isStarting || _sid != null) {
       debugPrint('[CloudRecordingService] Enregistrement déjà en cours ou en démarrage.');
       return false;
@@ -50,13 +43,17 @@ class CloudRecordingService {
     }
 
     try {
+      final body = <String, dynamic>{
+        'channelId': channelId,
+        'uid': uid,
+      };
+      if (token != null && token.isNotEmpty) {
+        body['token'] = token;
+      }
+
       final result = await _supabase.functions.invoke(
         'startCloudRecording',
-        body: {
-          'channelId': channelId,
-          'uid': uid,
-          'token': token,
-        },
+        body: body,
       );
 
       final data = result.data as Map<String, dynamic>?;
@@ -65,7 +62,7 @@ class CloudRecordingService {
       _currentChannelId = channelId;
 
       final success = _resourceId != null && _sid != null;
-      debugPrint('[CloudRecordingService] \${success ? "✅ Démarré" : "❌ Échec"} — sid=\$_sid');
+      debugPrint('[CloudRecordingService] ${success ? "Démarré" : "Échec"} — sid=$_sid');
       return success;
     } catch (e) {
       debugPrint('[CloudRecordingService] Erreur démarrage: $e');

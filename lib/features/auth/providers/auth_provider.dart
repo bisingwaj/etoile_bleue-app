@@ -6,6 +6,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // AUTH PROVIDER — Twilio Verify OTP → Supabase Session
 // ══════════════════════════════════════════════════════════════
 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:etoile_bleue_mobile/core/providers/user_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/profile_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/emergency_contacts_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/rescuer_gps_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
+import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
+
 class AuthState {
   final bool isLoading;
   final bool isAuthenticated;
@@ -52,7 +61,9 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState()) {
+  final Ref ref;
+
+  AuthNotifier(this.ref) : super(const AuthState()) {
     _checkExistingSession();
   }
 
@@ -316,22 +327,54 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Sign out
+  /// Sign out complètement — raccroche tout appel actif avant la déconnexion
   Future<void> signOut() async {
+    // 1. Terminate any active call (Agora + CallKit + foreground service)
+    try {
+      final callState = ref.read(callStateProvider);
+      if (callState.isInCall || callState.status == ActiveCallStatus.connecting) {
+        await ref.read(callStateProvider.notifier).hangUp();
+      }
+    } catch (e) {
+      debugPrint('[AuthProvider] hangUp during signOut failed (non-fatal): $e');
+    }
+    ref.read(isCallMinimizedProvider.notifier).state = false;
+    ref.invalidate(callStateProvider);
+
+    // 2. Update user status
     final userId = _supabase.auth.currentUser?.id;
     if (userId != null) {
-      await _supabase
-          .from('users_directory')
-          .update({'status': 'offline'})
-          .eq('auth_user_id', userId);
+      try {
+        await _supabase
+            .from('users_directory')
+            .update({'status': 'offline'})
+            .eq('auth_user_id', userId);
+      } catch (_) {}
     }
 
-    await _supabase.auth.signOut();
+    // 3. Sign out Supabase session
+    try {
+      await _supabase.auth.signOut(scope: SignOutScope.local);
+    } catch (_) {}
+
+    // 4. Clear local storage
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      const storage = FlutterSecureStorage();
+      await storage.deleteAll();
+    } catch (_) {}
+
+    // 5. Clean RAM providers
+    ref.invalidate(userProvider);
+    ref.invalidate(profileImageProvider);
+    ref.invalidate(emergencyContactsProvider);
+    ref.invalidate(rescuerGpsProvider);
 
     state = const AuthState();
   }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(),
+  (ref) => AuthNotifier(ref),
 );
