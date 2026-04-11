@@ -7,6 +7,25 @@ import 'package:etoile_bleue_mobile/core/providers/sos_questions_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:etoile_bleue_mobile/features/calls/data/sos_question_model.dart';
 
+class TriageAnswersNotifier extends Notifier<Map<String, String>> {
+  String? _currentCallId;
+
+  @override
+  Map<String, String> build() => {};
+
+  void setAnswer(String callId, String key, String value) {
+    if (_currentCallId != callId) {
+      _currentCallId = callId;
+      state = {key: value};
+    } else {
+      state = {...state, key: value};
+    }
+  }
+}
+
+final triageAnswersProvider =
+    NotifierProvider<TriageAnswersNotifier, Map<String, String>>(TriageAnswersNotifier.new);
+
 class EmergencyTriagePanel extends ConsumerStatefulWidget {
   const EmergencyTriagePanel({super.key});
 
@@ -15,11 +34,7 @@ class EmergencyTriagePanel extends ConsumerStatefulWidget {
 }
 
 class _EmergencyTriagePanelState extends ConsumerState<EmergencyTriagePanel> {
-  final Map<String, String> _answers = {};
-  bool _submitted = false;
-  int _currentVisibleIndex = 0;
-
-  /// Fallback static questions used when the server has no data
+  // Fallback static questions used when the server has no data
   static final _fallbackQuestions = [
     SOSQuestion(
       id: 'fallback-1',
@@ -79,13 +94,15 @@ class _EmergencyTriagePanelState extends ConsumerState<EmergencyTriagePanel> {
 
   void _selectAnswer(String questionKey, String questionText, String value, List<SOSQuestion> allQuestions) async {
     final callState = ref.read(callStateProvider);
+    final callId = callState.callHistoryId ?? callState.incidentId ?? 'unknown';
 
-    setState(() {
-      _answers[questionKey] = value;
-    });
+    ref.read(triageAnswersProvider.notifier).setAnswer(callId, questionKey, value);
+
+    // Get current answers to calculate score
+    final answers = ref.read(triageAnswersProvider);
 
     // Recalculate score after this answer
-    final score = calculateGravityScore(allQuestions, _answers);
+    final score = calculateGravityScore(allQuestions, answers);
     final level = getGravityLevel(score);
 
     // Upsert one row per answer into sos_responses (dashboard contract)
@@ -107,23 +124,13 @@ class _EmergencyTriagePanelState extends ConsumerState<EmergencyTriagePanel> {
     // Also update triage_data on call_history for backward compatibility
     final channelName = callState.channelName;
     if (channelName != null && channelName.isNotEmpty) {
-      ref.read(emergencyCallServiceProvider).updateTriageData(channelName, _answers);
-    }
-
-    // Check if we should advance or are done
-    final visible = getVisibleQuestions(allQuestions, 'default', _answers);
-    final nextIndex = _currentVisibleIndex + 1;
-    if (nextIndex >= visible.length) {
-      setState(() => _submitted = true);
-    } else {
-      setState(() => _currentVisibleIndex = nextIndex);
+      ref.read(emergencyCallServiceProvider).updateTriageData(channelName, answers);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_submitted) return _buildCompletionCard();
-
+    final answers = ref.watch(triageAnswersProvider);
     final questionsAsync = ref.watch(sosQuestionsProvider);
 
     final allQuestions = questionsAsync.maybeWhen(
@@ -131,10 +138,18 @@ class _EmergencyTriagePanelState extends ConsumerState<EmergencyTriagePanel> {
       orElse: () => _fallbackQuestions,
     );
 
-    final visible = getVisibleQuestions(allQuestions, 'default', _answers);
-    if (visible.isEmpty) return _buildCompletionCard();
+    final visible = getVisibleQuestions(allQuestions, 'default', answers);
+    
+    // Si toutes les questions nécessaires sont répondues (c-a-d le filtre de visibilité ne retourne plus rien
+    // d'incomplet ou s'il retourne juste les questions visibles restantes), posée l'index logic :
+    // On trouve la première question visible qui n'a pas encore de réponse
+    final firstUnansweredIndex = visible.indexWhere((q) => !answers.containsKey(q.questionKey));
 
-    final safeIndex = _currentVisibleIndex.clamp(0, visible.length - 1);
+    if (firstUnansweredIndex == -1 || visible.isEmpty) {
+      return _buildCompletionCard();
+    }
+
+    final safeIndex = firstUnansweredIndex;
     final current = visible[safeIndex];
 
     return AnimatedSwitcher(
@@ -245,7 +260,8 @@ class _EmergencyTriagePanelState extends ConsumerState<EmergencyTriagePanel> {
       data: (qs) => qs.isNotEmpty ? qs : _fallbackQuestions,
       orElse: () => _fallbackQuestions,
     );
-    final score = calculateGravityScore(allQuestions, _answers);
+    final answers = ref.read(triageAnswersProvider);
+    final score = calculateGravityScore(allQuestions, answers);
     final level = getGravityLevel(score);
 
     Color badgeColor;

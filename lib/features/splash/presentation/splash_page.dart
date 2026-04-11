@@ -67,7 +67,7 @@ class _SplashPageState extends State<SplashPage>
       try {
         final profile = await Supabase.instance.client
             .from('users_directory')
-            .select()
+            .select('auth_user_id, first_name, last_name, phone, role, ville, commune, created_at')
             .eq('auth_user_id', currentUser.id)
             .maybeSingle();
 

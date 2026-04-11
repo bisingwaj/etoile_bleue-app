@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -122,7 +123,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final userId = _supabase.auth.currentUser!.id;
         final profile = await _supabase
             .from('users_directory')
-            .select()
+            .select('auth_user_id, first_name, last_name, phone, role, ville, commune, created_at')
             .eq('auth_user_id', userId)
             .maybeSingle();
 
@@ -184,7 +185,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       debugPrint('[AuthProvider] sendOtp error: $e');
       state = state.copyWith(
         isLoading: false,
-        error: _extractError(e, 'Impossible d\'envoyer le code'),
+        error: _extractError(e, 'errors.send_code_failed'.tr()),
       );
     }
   }
@@ -192,7 +193,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Step 2: Verify OTP code and establish Supabase session
   Future<bool> verifyOtp(String code) async {
     if (state.phone == null) {
-      state = state.copyWith(error: 'Aucune vérification en cours');
+      state = state.copyWith(error: 'errors.no_verification'.tr());
       return false;
     }
 
@@ -212,7 +213,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (data == null) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Réponse serveur invalide',
+          error: 'errors.invalid_server_response'.tr(),
         );
         return false;
       }
@@ -221,7 +222,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (session == null || session['refresh_token'] == null) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Session invalide (refresh token manquant)',
+          error: 'errors.invalid_session'.tr(),
         );
         return false;
       }
@@ -244,7 +245,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       debugPrint('[AuthProvider] verifyOtp error: $e');
       state = state.copyWith(
         isLoading: false,
-        error: _extractError(e, 'Code invalide ou expiré'),
+        error: _extractError(e, 'errors.invalid_code'.tr()),
       );
       return false;
     }
@@ -277,13 +278,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (data == null) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Réponse serveur invalide',
+          error: 'errors.invalid_server_response'.tr(),
         );
         return false;
       }
 
       if (data['success'] == false) {
-        final msg = data['error']?.toString() ?? 'Échec de la mise à jour du profil';
+        final msg = data['error']?.toString() ?? 'errors.profile_update_failed'.tr();
         state = state.copyWith(
           isLoading: false,
           error: msg,
@@ -296,7 +297,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (userMap == null && uid != null) {
         userMap = await _supabase
             .from('users_directory')
-            .select()
+            .select('auth_user_id, first_name, last_name, phone, role, ville, commune, created_at')
             .eq('auth_user_id', uid)
             .maybeSingle();
       }
@@ -311,7 +312,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       if (!complete) {
         state = state.copyWith(
-          error: 'Profil non mis à jour. Réessayez.',
+          error: 'errors.profile_not_updated'.tr(),
         );
         return false;
       }
@@ -321,7 +322,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       debugPrint('[AuthProvider] completeProfile error: $e');
       state = state.copyWith(
         isLoading: false,
-        error: _extractError(e, 'Erreur lors de la finalisation du profil'),
+        error: _extractError(e, 'errors.profile_finalize_error'.tr()),
       );
       return false;
     }

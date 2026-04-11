@@ -143,7 +143,7 @@ class _OtpPageState extends ConsumerState<OtpPage> {
                     height: 1.4,
                   ),
                   children: [
-                    TextSpan(text: 'auth.otp_subtitle'.tr() + ' '),
+                    TextSpan(text: '${'auth.otp_subtitle'.tr()} '),
                     TextSpan(
                       text: widget.phoneNumber,
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navyDeep),

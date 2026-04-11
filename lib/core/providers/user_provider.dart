@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:etoile_bleue_mobile/core/services/cache_service.dart';
 
-/// Fetches user profile once, then listens for Realtime UPDATE events.
-/// Avoids .stream() which opens an unfiltered Postgres replication slot per client.
+/// Fetches user profile with cache-first strategy, then listens for Realtime UPDATE events.
 final userProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return Stream.value(null);
@@ -12,15 +13,28 @@ final userProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   final controller = StreamController<Map<String, dynamic>?>();
 
   Future<void> fetchProfile() async {
+    // Serve cache first for instant UI
+    final cached = CacheService.getCachedProfile();
+    if (cached != null) {
+      controller.add(cached);
+    }
+
     try {
       final rows = await supabase
           .from('users_directory')
           .select()
           .eq('auth_user_id', user.id)
           .limit(1);
-      controller.add(rows.isNotEmpty ? Map<String, dynamic>.from(rows.first) : null);
+      if (rows.isNotEmpty) {
+        final profile = Map<String, dynamic>.from(rows.first);
+        controller.add(profile);
+        CacheService.cacheProfile(profile);
+      } else {
+        controller.add(null);
+      }
     } catch (e) {
-      controller.addError(e);
+      if (cached == null) controller.addError(e);
+      debugPrint('[UserProvider] Network error, serving cache: $e');
     }
   }
 
@@ -39,7 +53,9 @@ final userProvider = StreamProvider<Map<String, dynamic>?>((ref) {
         ),
         callback: (payload) {
           if (payload.newRecord.isNotEmpty) {
-            controller.add(Map<String, dynamic>.from(payload.newRecord));
+            final updated = Map<String, dynamic>.from(payload.newRecord);
+            controller.add(updated);
+            CacheService.cacheProfile(updated);
           }
         },
       )

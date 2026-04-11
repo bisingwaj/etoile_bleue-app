@@ -1488,3 +1488,113 @@ Le mobile implémente les protections suivantes contre les soumissions multiples
 - **Boutons d'action** : `HapticFeedback` + désactivation pendant le traitement
 - **Questionnaire SOS** : chaque question verrouillée après réponse, upsert par question (conflit sur `incident_id, question_key`) — idempotent par conception
 - **`send-call-push`** : appelé une seule fois après `call_history` insert — non bloquant, erreur silencieuse
+- **Signalements** : déduplication 30s via vérification `title + created_at >= now() - 30s` avant INSERT ; upload médias avec retry 3x + backoff exponentiel
+
+---
+
+## 14. MODULE SIGNALEMENTS (flux asynchrone — distinct des SOS)
+
+Les signalements sont un flux **asynchrone** totalement distinct des incidents SOS. Ils ne passent PAS par `call_queue`, n'ont PAS de canal Agora, et ne déclenchent PAS de dispatch.
+
+### 14.1 Tables
+
+**`signalements`** — une ligne par signalement citoyen
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | uuid PK | gen_random_uuid() |
+| `reference` | text NOT NULL | Format `SIG-YYYYMMDD-NNNNN` |
+| `category` | text NOT NULL | Code catégorie (voir §14.4) |
+| `title` | text NOT NULL | Titre court |
+| `description` | text | Description détaillée |
+| `citizen_name` | text | NULL si anonyme |
+| `citizen_phone` | text | NULL si anonyme |
+| `is_anonymous` | boolean | DEFAULT false |
+| `province` | text NOT NULL | DEFAULT 'Kinshasa' |
+| `ville` | text NOT NULL | DEFAULT 'Kinshasa' |
+| `commune` | text | Commune géolocalisée |
+| `lat` | double precision | Latitude GPS |
+| `lng` | double precision | Longitude GPS |
+| `structure_name` | text | Nom de la structure concernée |
+| `structure_id` | uuid | FK → health_structures.id |
+| `priority` | text NOT NULL | `critique`, `haute`, `moyenne`, `basse` |
+| `status` | text NOT NULL | DEFAULT 'nouveau' → `en_cours` → `enquete` → `resolu` / `classe` / `transfere` |
+| `assigned_to` | text | Enquêteur assigné |
+| `created_at` | timestamptz | DEFAULT now() |
+| `updated_at` | timestamptz | DEFAULT now() |
+
+**`signalement_media`** — une ligne par fichier joint
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | uuid PK | gen_random_uuid() |
+| `signalement_id` | uuid FK | → signalements.id |
+| `type` | text NOT NULL | `image`, `video`, `audio` |
+| `url` | text NOT NULL | URL publique Storage |
+| `thumbnail` | text | URL miniature (image/vidéo) |
+| `duration` | integer | Durée en secondes (audio/vidéo) |
+| `filename` | text NOT NULL | Nom original du fichier |
+| `created_at` | timestamptz | DEFAULT now() |
+
+**`signalement_notes`** — notes de suivi par les opérateurs
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | uuid PK | gen_random_uuid() |
+| `signalement_id` | uuid FK | → signalements.id |
+| `author` | text NOT NULL | Nom de l'auteur |
+| `text` | text NOT NULL | Contenu de la note |
+| `created_at` | timestamptz | DEFAULT now() |
+
+### 14.2 Storage
+
+Bucket : **`incidents`** (public: true). Chemin : `signalements/{signalement_id}/{type}_{timestamp}.{ext}`
+
+### 14.3 RLS
+
+| Table | citoyen | call_center | admin | superviseur |
+|---|---|---|---|---|
+| signalements SELECT | Ses propres | Tous | Tous | Tous |
+| signalements INSERT | Oui | Oui | Oui | Oui |
+| signalements UPDATE | Non | Oui | Oui | Oui |
+| signalement_media SELECT | Tous | Tous | Tous | Tous |
+| signalement_media INSERT | Oui | Oui | Oui | Oui |
+| signalement_notes SELECT | Tous | Tous | Tous | Tous |
+| signalement_notes INSERT | Non | Oui | Oui | Oui |
+
+### 14.4 Catégories (22 codes)
+
+`corruption`, `detournement_medicaments`, `maltraitance`, `surfacturation`, `personnel_fantome`, `medicaments_perimes`, `faux_diplomes`, `insalubrite`, `violence_harcelement`, `discrimination`, `negligence_medicale`, `trafic_organes`, `racket_urgences`, `detournement_aide`, `absence_injustifiee`, `conditions_travail`, `protocoles_sanitaires`, `falsification_certificats`, `rupture_stock`, `exploitation_stagiaires`, `abus_sexuels`, `obstruction_enquetes`
+
+### 14.5 Flux mobile → dashboard
+
+1. Le citoyen remplit le formulaire (titre, catégorie, description, priorité, anonymat, médias)
+2. Le mobile capture le GPS + resolve la commune
+3. Déduplication 30s (même titre dans les 30 dernières secondes)
+4. INSERT `signalements` avec `status = 'nouveau'`
+5. Upload des médias vers Storage `signalements/{id}/...` avec retry 3x + backoff
+6. INSERT `signalement_media` par fichier (url, thumbnail, duration)
+7. Le dashboard reçoit via Realtime et affiche instantanément dans le module Signalements
+8. L'opérateur peut changer le statut, assigner un enquêteur, ajouter des notes
+9. Le citoyen reçoit les mises à jour de statut via Realtime sur son téléphone
+
+### 14.6 Limites médias
+
+| Type | Max | Taille max unitaire | Taille totale max |
+|---|---|---|---|
+| Photos | 10 | 2 MB (compressé JPEG) | 50 MB total |
+| Vidéos | 3 | 20 MB (720p H.264) | — |
+| Audios | 5 | 5 MB (AAC 64kbps) | — |
+| Durée vidéo | — | 120s max | — |
+| Durée audio | — | 300s max | — |
+
+### 14.7 Compatibilité mobile ↔ dashboard
+
+| Fonctionnalité | Mobile | Dashboard | Statut |
+|---|---|---|---|
+| Création signalement | INSERT `signalements` + `signalement_media` | Reçoit via Realtime, affiche dans liste + carte | Compatible |
+| Upload médias | Storage `signalements/{id}/...` avec retry | Affiche médias dans onglet dédié de la fiche | Compatible |
+| Anonymat | `is_anonymous=true` → nullifie `citizen_name/phone` | Affiche "Anonyme" en jaune, masque bouton appeler | Compatible |
+| Suivi statut | Écoute Realtime sur `signalements` filtré par `citizen_phone` | Écrit les transitions de statut | Compatible |
+| Notes opérateur | Lecture seule `signalement_notes` si RLS le permet | CRUD complet sur notes | Compatible |
+| Catégories | 22 codes envoyés dans `category` | Libellés affichés via mapping local | Compatible |

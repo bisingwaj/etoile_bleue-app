@@ -155,9 +155,9 @@ class CallKitService {
   }
 
   /// Listen to native CallKit events (accept, decline, end).
-  /// The [onAccepted] callback receives the call ID from the event body.
+  /// The [onAccepted] callback receives the call ID and extra payload from the event body.
   static void listenToCallEvents({
-    void Function(String callId)? onAccepted,
+    void Function(String callId, Map<String, dynamic> extra)? onAccepted,
     void Function(String callId)? onDeclined,
     void Function(String callId)? onEnded,
     void Function(String callId)? onTimeout,
@@ -170,7 +170,12 @@ class CallKitService {
 
       switch (event.event) {
         case Event.actionCallAccept:
-          if (callId != null) onAccepted?.call(callId);
+          if (callId != null) {
+            final body = event.body as Map<dynamic, dynamic>? ?? {};
+            final extraMap = body['extra'] as Map<dynamic, dynamic>? ?? {};
+            final extraPayload = extraMap.map((key, value) => MapEntry(key.toString(), value));
+            onAccepted?.call(callId, extraPayload);
+          }
           break;
         case Event.actionCallDecline:
           if (callId != null) onDeclined?.call(callId);

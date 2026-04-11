@@ -13,17 +13,14 @@ import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/features/directory/presentation/directory_page.dart';
 import 'package:etoile_bleue_mobile/features/history/presentation/history_page.dart';
 import 'package:etoile_bleue_mobile/features/profile/presentation/profile_page.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 import '../../../core/utils/dynamic_island_toast.dart';
-import 'notifications_page.dart';
 import '../../training/presentation/training_page.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
-import 'incident_camera_page.dart';
 import 'widgets/goodsam_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/profile_provider.dart';
@@ -31,8 +28,7 @@ import '../../../core/providers/user_provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/providers/notifications_provider.dart';
-
-enum TrackingSheetState { collapsed, search, sos, found }
+import 'package:cached_network_image/cached_network_image.dart';
 
 enum SosTrackingState { processing, handled, onTheWay, onSite }
 
@@ -54,23 +50,18 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   
   bool _isLocationGranted = false;
   bool _isSosTriggered = false;
+  bool _isMapLoaded = false;
   StreamSubscription<Position>? _positionStreamSubscription;
   int _currentIndex = 0;
+  final Set<int> _loadedTabs = {0};
   final AudioPlayer _sosAudioPlayer = AudioPlayer();
   final GlobalKey<DirectoryPageState> _directoryKey = GlobalKey<DirectoryPageState>();
 
-  // Tracking-related state (legacy, still used by some UI components)
-  Timer? _stateSimulationTimer;
-  bool _isTracking = false;
+  // Tracking-related state (kept for _buildSOSButton and _buildTrackingShazamWave)
+  final bool _isTracking = false;
   bool _isTrackerMinimized = false;
-  bool _isIslandExpanded = false;
-  SosTrackingState _trackingState = SosTrackingState.processing;
-  int _ambulanceEtaMinutes = 8;
-  LatLng? _ambulancePos;
-  String _unitCallsign = '';
-  String _currentSOSCategory = '';
-  RealtimeChannel? _dispatchSub;
-  RealtimeChannel? _unitSub;
+  final SosTrackingState _trackingState = SosTrackingState.processing;
+  final int _ambulanceEtaMinutes = 8;
   
   // Exemple de position par défaut : Kinshasa Gombe
   static const LatLng _center = LatLng(-4.316, 15.311);
@@ -161,73 +152,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     if (mounted) setState(() {});
   }
 
-  void _showCancelSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Annuler l\'alerte ?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-              const SizedBox(height: 24),
-              _buildCancelTuile('Fausse alerte', CupertinoIcons.xmark_circle_fill, () => _confirmCancel(ctx)),
-              const SizedBox(height: 12),
-              _buildCancelTuile('Alerte non vitale', CupertinoIcons.info_circle_fill, () => _confirmCancel(ctx)),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Retour au suivi', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 14)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCancelTuile(String title, IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.black87, size: 28),
-            const SizedBox(width: 16),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.black87)),
-            const Spacer(),
-            const Icon(CupertinoIcons.chevron_right, color: Colors.grey, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _confirmCancel(BuildContext context) {
-    Navigator.pop(context); // fermer BottomSheet d'annulation
-    _stateSimulationTimer?.cancel();
-    _sosAnimationController.reset();
-    setState(() {
-      _isTracking = false;
-      _isTrackerMinimized = false;
-    });
-    DynamicIslandToast.showInfo(this.context, 'home.alert_canceled'.tr());
-  }
-
   ({Color color, IconData icon, String title, String subtitle}) _getTrackingStyle() {
     switch (_trackingState) {
       case SosTrackingState.processing:
@@ -241,514 +165,9 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     }
   }
 
-  Widget _buildDynamicIslandTracker() {
-    final style = _getTrackingStyle();
-    
-    return GestureDetector(
-      onVerticalDragUpdate: (details) {
-        if (details.primaryDelta! > 5) {
-          setState(() => _isIslandExpanded = true); // swipe down expands
-        } else if (details.primaryDelta! < -5) {
-          setState(() => _isIslandExpanded = false); // swipe up reduces
-        }
-      },
-      onTap: () {
-        setState(() => _isIslandExpanded = !_isIslandExpanded);
-      },
-      child: SafeArea(
-        bottom: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.fastOutSlowIn,
-            margin: EdgeInsets.only(left: 16, right: 16, top: MediaQuery.of(context).padding.top + 50, bottom: 10),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(_isIslandExpanded ? 28 : 32),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Top Row (Always visible)
-                Row(
-                  children: [
-                    if (_trackingState == SosTrackingState.onTheWay)
-                      Container(
-                        width: 64,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: AnimatedAlign(
-                          duration: const Duration(seconds: 1),
-                          curve: Curves.linear,
-                          alignment: Alignment(-1.0 + (((12 - _ambulanceEtaMinutes) / 12) * 2.0), 0),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: style.color, shape: BoxShape.circle),
-                            child: const Icon(CupertinoIcons.car_detailed, color: Colors.white, size: 14),
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: style.color.withValues(alpha: 0.2), shape: BoxShape.circle),
-                        child: Icon(style.icon, color: style.color, size: 16),
-                      ).animate(onPlay: (c) => c.repeat()).shake(hz: 3, duration: 1.seconds),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(style.title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Marianne')),
-                          Text(style.subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500, fontFamily: 'Marianne')),
-                        ],
-                      ),
-                    ),
-                    Icon(_isIslandExpanded ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down, color: Colors.white54, size: 20),
-                  ],
-                ),
-                
-                // Expanded Content
-                if (_isIslandExpanded) ...[
-                  const SizedBox(height: 16),
-                  // Mini Map Animée
-                  Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      color: Colors.grey[800],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: _AmbulanceMapWidget(userPosition: _currentPosition, ambulancePosition: _ambulancePos),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Vehicle Info & Call Button
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                            child: const Icon(CupertinoIcons.car_detailed, color: Colors.white, size: 24),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(_unitCallsign, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text('home.license_plate'.tr(), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                            ],
-                          ),
-                        ],
-                      ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.red,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          elevation: 0,
-                        ),
-                        onPressed: () async {
-                          final uri = Uri.parse('tel:112');
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri);
-                          }
-                        },
-                        icon: const Icon(CupertinoIcons.phone_fill, size: 16),
-                        label: Text('home.call_btn'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Button to restore Full Tracker BottomSheet
-                  Center(
-                    child: Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: TextButton.icon(
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () => setState(() {
-                          _isTrackerMinimized = false;
-                          _isIslandExpanded = false;
-                        }),
-                        icon: const Icon(CupertinoIcons.chevron_down, size: 14, color: Colors.white),
-                        label: Text('home.view_details'.tr(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildTimelineStep(String title, String subtitle, String time, String subtime, bool isActive, bool isLast) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isActive ? AppColors.blue : Colors.transparent,
-                border: Border.all(
-                  color: isActive ? AppColors.blue.withValues(alpha: 0.2) : Colors.grey[300]!,
-                  width: isActive ? 4 : 2,
-                ),
-              ),
-            ),
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 40,
-                color: isActive ? AppColors.blue.withValues(alpha: 0.3) : Colors.grey[200],
-              ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title, 
-                style: TextStyle(fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: isActive ? Colors.black87 : Colors.grey[600], fontSize: 15)
-              ),
-              if (subtitle.isNotEmpty)
-                Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-              if (!isLast) const SizedBox(height: 16),
-            ],
-          ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            if (subtime.isNotEmpty)
-              Text(subtime, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-          ],
-        )
-      ],
-    );
-  }
-
-  Widget _buildSOSTrackerSheetInline() {
-    final now = DateTime.now();
-    final timeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-    
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, -5))
-        ]
-      ),
-      padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Drag handle
-          GestureDetector(
-            onVerticalDragUpdate: (details) {
-              if (details.primaryDelta! > 5) {
-                setState(() => _isTrackerMinimized = true);
-              }
-            },
-            child: Container(
-              color: Colors.transparent,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Center(
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(CupertinoIcons.heart_circle_fill, color: AppColors.red, size: 28),
-                  const SizedBox(width: 8),
-                  Text('Étoile Bleue', style: AppTextStyles.headlineLarge.copyWith(fontWeight: FontWeight.bold, fontSize: 22)),
-                ],
-              ),
-              IconButton(
-                icon: const Icon(CupertinoIcons.chevron_down, color: Colors.black54, size: 28),
-                onPressed: () => setState(() => _isTrackerMinimized = true), // Réduire au lieu de pop
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Driver Profile equivalent
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: Colors.blue[50],
-                        child: const Icon(CupertinoIcons.person_3_fill, color: AppColors.blue),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('home.rescue_unit'.tr(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Row(
-                              children: [
-                                const Icon(Icons.verified_user, color: Colors.amber, size: 14),
-                                const SizedBox(width: 4),
-                                Text('home.red_cross'.tr(), style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text('home.est_delay'.tr(), style: TextStyle(color: Colors.grey, fontSize: 12)),
-                          Text('7 min', style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold, fontSize: 14)),
-                        ],
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Badges Premium
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(16)),
-                          child: Row(
-                            children: [
-                              const Icon(CupertinoIcons.location_solid, color: AppColors.blue, size: 14),
-                              const SizedBox(width: 4),
-                              Text('home.gps_vehicle'.tr(), style: const TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(16)),
-                          child: Row(
-                            children: [
-                              const Icon(CupertinoIcons.waveform_path_ecg, color: Colors.green, size: 14),
-                              const SizedBox(width: 4),
-                              Text('home.med_connection'.tr(), style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  
-                  // Trip Info equivalent (Timeline)
-                  Text('home.track_timeline'.tr(), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 20),
-                  _buildTimelineStep('home.step_sos'.tr(), _currentAddress, timeStr, 'home.step_validated'.tr(), true, false),
-                  _buildTimelineStep('home.track_handled_title'.tr(), 'home.step_triage'.tr(), '--:--', 'home.step_wait'.tr(), _trackingState.index >= SosTrackingState.handled.index, false),
-                  _buildTimelineStep('home.step_en_route'.tr(), 'home.step_assigned'.tr(), '--:--', '', _trackingState.index >= SosTrackingState.onTheWay.index, false),
-                  _buildTimelineStep('home.step_arrive'.tr(), 'home.step_calm'.tr(), '--:--', 'home.step_est'.tr(), _trackingState.index >= SosTrackingState.onSite.index, true),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Animated Radar Status Box
-                  AnimatedBuilder(
-                    animation: _radarAnimationController,
-                    builder: (context, child) {
-                      final style = _getTrackingStyle();
-                      return Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [style.color.withValues(alpha: 0.1), Colors.white.withValues(alpha: 0.5)], 
-                            begin: Alignment.topCenter, 
-                            end: Alignment.bottomCenter
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: style.color.withValues(alpha: 0.2)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: style.color.withValues(alpha: 0.15 * _radarAnimationController.value),
-                              blurRadius: 30 * _radarAnimationController.value,
-                              spreadRadius: 10 * _radarAnimationController.value,
-                            )
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Text('home.sos_qualified'.tr(args: [_currentSOSCategory]), style: TextStyle(color: style.color, fontSize: 13, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 12),
-                            Text('home.current_status'.tr(), style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 8),
-                            Text(style.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black87), textAlign: TextAlign.center),
-                          ],
-                        ),
-                      );
-                    }
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          ),
-          
-          // Actions: SMS Offline, Red Call Button & Hold-to-Cancel
-          GestureDetector(
-            onTap: () async {
-              HapticFeedback.heavyImpact();
-              final userOpt = ref.read(userProvider).value;
-              String userName = "Citoyen(ne)";
-              if (userOpt != null) {
-                final String first = userOpt['first_name'] ?? '';
-                final String last = userOpt['last_name'] ?? '';
-                final String full = "$first $last".trim();
-                if (full.isNotEmpty) userName = full;
-              }
-              
-              String time = "${DateTime.now().hour}h${DateTime.now().minute.toString().padLeft(2, '0')}";
-              String body = '🔴 ALERTE URGENCE ETOILE BLEUE 🔴\n'
-                  'Mme/M. $userName signale un cas de : ${_currentSOSCategory.toUpperCase()}.\n'
-                  '📍 Position : ${_currentAddress.isNotEmpty ? _currentAddress : "Inconnue"} (Lat: ${_currentPosition?.latitude}, Lng: ${_currentPosition?.longitude})\n'
-                  '⏰ Heure : $time\n'
-                  '🩺 \n\n'
-                  'Veuillez intervenir immédiatement.';
-              final uri = Uri.parse('sms:112?body=${Uri.encodeComponent(body)}');
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
-              try {
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri);
-                } else {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              } catch (e) {
-                scaffoldMessenger.showSnackBar(SnackBar(content: Text('home.error_sms'.tr())));
-              }
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                   const Icon(CupertinoIcons.chat_bubble_text_fill, color: Colors.orange),
-                   const SizedBox(width: 8),
-                   Text('home.sms_fallback'.tr(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 14)),
-                ],
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.red, 
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                     BoxShadow(color: AppColors.red.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: IconButton(
-                  icon: const Icon(CupertinoIcons.phone_fill, color: Colors.white),
-                  onPressed: () async {
-                    HapticFeedback.heavyImpact();
-                    final uri = Uri.parse('tel:112');
-                    final scaffoldMessenger = ScaffoldMessenger.of(context);
-                    try {
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
-                      } else {
-                        // Fallback force launch
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    } catch (e) {
-                      scaffoldMessenger.showSnackBar(
-                        SnackBar(content: Text('home.error_phone'.tr())),
-                      );
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _HoldToCancelButton(onComplete: _showCancelSheet, accentColor: _getTrackingStyle().color),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
   @override
   void dispose() {
-    _stateSimulationTimer?.cancel();
     _vibrationTimer?.cancel();
-    _dispatchSub?.unsubscribe();
-    _unitSub?.unsubscribe();
     _positionStreamSubscription?.cancel();
     _mapController?.dispose();
     _sosAnimationController.dispose();
@@ -969,6 +388,28 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   }
 
 
+  Widget _buildHomeTab() {
+    return Stack(
+      children: [
+        SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildAppBar(),
+              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 24),
+              if (!_isTracking || _isTrackerMinimized) _buildGreeting(),
+              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: AppSpacing.sm),
+              Expanded(child: RepaintBoundary(child: _buildMapSection())),
+              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 130),
+              if (!_isTracking || _isTrackerMinimized) _buildQuickActions(),
+              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -976,34 +417,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          // Index 0: Carte
-          Stack(
-            children: [
-              SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildAppBar(),
-                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 24),
-                    if (!_isTracking || _isTrackerMinimized) _buildGreeting(),
-                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: AppSpacing.sm),
-                    _buildMapSection(),
-                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 130),
-                    if (!_isTracking || _isTrackerMinimized) _buildQuickActions(),
-                    if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 32),
-                  ],
-                ),
-              ),
-              
-              // Dynamic Island removed, logic moved to overlay.
-            ],
-          ),
-          // Index 1: Annuaire
-          DirectoryPage(key: _directoryKey),
-          // Index 2: Historique
-          const HistoryPage(),
-          // Index 3: Profil
-          const ProfilePage(),
+          _buildHomeTab(),
+          _loadedTabs.contains(1) ? DirectoryPage(key: _directoryKey) : const SizedBox.shrink(),
+          _loadedTabs.contains(2) ? const HistoryPage() : const SizedBox.shrink(),
+          _loadedTabs.contains(3) ? const ProfilePage() : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -1091,7 +508,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                         image: DecorationImage(
                           image: profileImage != null 
                               ? FileImage(profileImage) as ImageProvider
-                              : const NetworkImage('https://api.dicebear.com/7.x/notionists/png?seed=David&backgroundColor=e6f0fa'),
+                              : const CachedNetworkImageProvider('https://api.dicebear.com/7.x/notionists/png?seed=David&backgroundColor=e6f0fa'),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -1133,7 +550,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
               final userName = userAsync.when(
                 data: (data) => data?['first_name'] ?? 'David',
                 loading: () => '...',
-                error: (_, __) => 'David',
+                error: (err, stack) => 'David',
               );
               return Text(
                 'home.greeting'.tr().replaceAll('David', userName),
@@ -1167,11 +584,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   }
 
   Widget _buildMapSection() {
-    return Expanded(
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.bottomCenter,
-        children: [
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.bottomCenter,
+      children: [
           // The Map Container
           Container(
             width: double.infinity,
@@ -1206,6 +622,8 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                               ),
                             );
                           }
+                          // Marquer la carte comme chargée pour masquer le shimmer
+                          if (mounted) setState(() => _isMapLoaded = true);
                         },
                         initialCameraPosition: const CameraPosition(
                           target: _center,
@@ -1233,6 +651,19 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             ),
           ),
           
+          // Shimmer de chargement : disparaît une fois la carte prête
+          if (!_isMapLoaded)
+            Positioned.fill(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  color: Colors.grey[200],
+                ),
+                child: const _MapShimmer(),
+              ),
+            ),
+
           // Gradient fade on top of map to make it blend into white
           Positioned(
             top: 0,
@@ -1261,7 +692,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             child: _buildSOSButton(),
           ),
         ],
-      ),
     );
   }
 
@@ -1295,7 +725,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                       height: 90,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: waveColor.withOpacity(0.3),
+                        color: waveColor.withValues(alpha: 0.3),
                       ),
                     ),
                   ),
@@ -1312,7 +742,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
               color: waveColor,
               boxShadow: [
                 BoxShadow(
-                  color: waveColor.withOpacity(0.5),
+                  color: waveColor.withValues(alpha: 0.5),
                   blurRadius: 20,
                   spreadRadius: 2,
                   offset: const Offset(0, 4),
@@ -1335,6 +765,11 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   
     return Listener(
       onPointerDown: (_) {
+        final callState = ref.read(callStateProvider);
+        if (callState.isInCall) {
+          DynamicIslandToast.showError(context, "Un appel d'urgence est déjà en cours");
+          return;
+        }
         HapticFeedback.heavyImpact();
         _sosAudioPlayer.play(AssetSource('audio/sos_sound.wav'));
         _sosAnimationController.forward();
@@ -1347,6 +782,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         _sosAudioPlayer.stop();
         if (_sosAnimationController.status != AnimationStatus.completed) {
           _sosAnimationController.reverse();
+          final callState = ref.read(callStateProvider);
+          if (!callState.isInCall && !_isSosTriggered) {
+            DynamicIslandToast.showInfo(context, "Maintenez le bouton enfoncé pour lancer l'appel");
+          }
         }
       },
       onPointerCancel: (_) {
@@ -1467,52 +906,39 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     );
   }
 
-  Future<void> _startEmergencyCall() async {
-    HapticFeedback.heavyImpact();
+  /// Déclenché par le bouton SOS après maintien complet (1.2 s).
+  /// Point d'entrée unique pour tout déclenchement d'appel SOS.
+  Future<void> _triggerEmergencyCall() async {
     if (_isSosTriggered) return;
+    if (!mounted) return;
+    
     setState(() => _isSosTriggered = true);
-    try {
-      await ref.read(callStateProvider.notifier).startSosCall(
-        lat: _currentPosition?.latitude,
-        lng: _currentPosition?.longitude,
-      );
-      if (mounted) context.go('/call/active');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSosTriggered = false);
+    
+    // 1. Lancement de la logique backend (met le status à 'connecting' immédiatement)
+    _executeEmergencyCallBackground();
+
+    // 2. Navigation IMMÉDIATE après que le statut est 'connecting' pour que GoRouter l'accepte
+    if (mounted) {
+      context.push('/call/active');
     }
   }
 
-  /// Déclenché par le bouton SOS après maintien complet (1.2 s).
-  Future<void> _triggerEmergencyCall() async {
-    if (_isSosTriggered) return;
-    setState(() => _isSosTriggered = true);
+  void _executeEmergencyCallBackground() async {
     try {
       await ref.read(callStateProvider.notifier).startSosCall(
         lat: _currentPosition?.latitude,
         lng: _currentPosition?.longitude,
       );
-      
-      if (!mounted) return;
-      
-      final callState = ref.read(callStateProvider);
-      if (callState.status == ActiveCallStatus.blocked) {
-        context.go('/blocked', extra: {
-          'expires_at': callState.blockedExpiresAt,
-          'reason': callState.blockedReason,
-        });
-      } else {
-        context.go('/call/active');
-      }
+      // La gestion de compte bloqué ou des erreurs terminales sera dorénavant captée
+      // par les listeners à l'intérieur de EmergencyCallScreen.
     } catch (e) {
+      // Unmounted est possible si on est revenu à l'accueil très vite, 
+      // ou bien on utilise context qui est toujours valide via GoRouter
       if (mounted) {
+        // En cas d'échec critique, la page d'appel verra son statut passer à `ended`
+        // et pop(), la SnackBar affichera la raison sur le Home.
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur SOS: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Erreur de connexion urgence: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -1521,13 +947,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   }
 
   void _showIncidentSheet() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const IncidentCameraPage(),
-        fullscreenDialog: true,
-      ),
-    );
+    context.push('/signalement-form');
   }
 
   void _showGoodSamSheet() {
@@ -1602,6 +1022,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         onTap: (index) {
           setState(() {
             _currentIndex = index;
+            _loadedTabs.add(index);
           });
           if (index == 1) {
             _directoryKey.currentState?.refreshLocation();
@@ -1806,158 +1227,52 @@ class _TriageSheetWidgetState extends State<_TriageSheetWidget> {
   }
 }
 
-class _HoldToCancelButton extends StatefulWidget {
-  final VoidCallback onComplete;
-  final Color accentColor;
-  const _HoldToCancelButton({required this.onComplete, this.accentColor = AppColors.red});
+
+class _MapShimmer extends StatefulWidget {
+  const _MapShimmer();
 
   @override
-  State<_HoldToCancelButton> createState() => _HoldToCancelButtonState();
+  State<_MapShimmer> createState() => _MapShimmerState();
 }
 
-class _HoldToCancelButtonState extends State<_HoldToCancelButton> with SingleTickerProviderStateMixin {
-  late AnimationController _holdController;
+class _MapShimmerState extends State<_MapShimmer> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
 
   @override
   void initState() {
     super.initState();
-    _holdController = AnimationController(vsync: this, duration: const Duration(seconds: 2));
-    _holdController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        HapticFeedback.heavyImpact();
-        widget.onComplete();
-        _holdController.reset();
-      }
-    });
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
   }
 
   @override
   void dispose() {
-    // Subscriptions cleared
-    _holdController.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) {
-        HapticFeedback.lightImpact();
-        _holdController.forward();
-      },
-      onTapUp: (_) {
-        _holdController.reverse();
-      },
-      onTapCancel: () {
-        _holdController.reverse();
-      },
-      child: AnimatedBuilder(
-        animation: _holdController,
-        builder: (context, child) {
-          return Container(
-            height: 56,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Stack(
-              children: [
-                // Filled progress background
-                if (_holdController.value > 0)
-                  Container(
-                    width: MediaQuery.of(context).size.width * _holdController.value,
-                    decoration: BoxDecoration(
-                      color: widget.accentColor.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                const Center(
-                  child: Text(
-                    'Maintenir pour annuler',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
-                  ),
-                ),
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.grey[200]!,
+                Colors.grey[100]!,
+                Colors.grey[200]!,
               ],
+              stops: [0.0, _anim.value, 1.0],
             ),
-          );
-        }
-      ),
-    );
-  }
-}
-
-class _AmbulanceMapWidget extends StatefulWidget {
-  final Position? userPosition;
-  final LatLng? ambulancePosition;
-  const _AmbulanceMapWidget({this.userPosition, this.ambulancePosition});
-
-  @override
-  State<_AmbulanceMapWidget> createState() => _AmbulanceMapWidgetState();
-}
-
-class _AmbulanceMapWidgetState extends State<_AmbulanceMapWidget> {
-  late LatLng _targetPos;
-  GoogleMapController? _mapController;
-
-  @override
-  void initState() {
-    super.initState();
-    double lat = widget.userPosition?.latitude ?? -4.321;
-    double lng = widget.userPosition?.longitude ?? 15.312;
-    _targetPos = LatLng(lat, lng);
-  }
-
-  @override
-  void didUpdateWidget(_AmbulanceMapWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.ambulancePosition != null && oldWidget.ambulancePosition != widget.ambulancePosition) {
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: widget.ambulancePosition!, zoom: 16.5, tilt: 45),
-        ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _mapController?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ambPos = widget.ambulancePosition ?? LatLng(_targetPos.latitude + 0.005, _targetPos.longitude + 0.005);
-    
-    return GoogleMap(
-      liteModeEnabled: false,
-      initialCameraPosition: CameraPosition(
-        target: ambPos,
-        zoom: 16.0,
-      ),
-      onMapCreated: (ctrl) => _mapController = ctrl,
-      mapType: MapType.normal,
-      zoomControlsEnabled: false,
-      myLocationButtonEnabled: false,
-      compassEnabled: false,
-      myLocationEnabled: true,
-      markers: {
-        Marker(
-          markerId: const MarkerId('ambulance'),
-          position: ambPos,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        ),
-      },
-      polylines: {
-        Polyline(
-          polylineId: const PolylineId('route'),
-          points: [ambPos, _targetPos],
-          color: AppColors.blue.withValues(alpha: 0.5),
-          width: 4,
-          patterns: [PatternItem.dash(10), PatternItem.gap(10)],
-        )
+          ),
+        );
       },
     );
   }
 }
-

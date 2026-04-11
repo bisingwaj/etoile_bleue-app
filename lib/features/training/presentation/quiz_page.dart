@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -63,10 +64,10 @@ class _QuizPageState extends State<QuizPage> {
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mauvaise réponse, réessayez !'),
+        SnackBar(
+          content: Text('quiz.wrong_answer'.tr()),
           backgroundColor: Colors.redAccent,
-          duration: Duration(seconds: 1),
+          duration: const Duration(seconds: 1),
         ),
       );
     }
@@ -78,6 +79,7 @@ class _QuizPageState extends State<QuizPage> {
       return _buildSuccessScreen();
     }
 
+    final moduleName = widget.title;
     final question = _questions[_currentQuestionIndex];
     final double progress = (_currentQuestionIndex) / _questions.length;
 
@@ -91,7 +93,7 @@ class _QuizPageState extends State<QuizPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Quiz : ${widget.title}',
+          'quiz.title'.tr(namedArgs: {'module': moduleName}),
           style: const TextStyle(color: AppColors.navyDeep, fontSize: 16),
         ),
       ),
@@ -111,7 +113,10 @@ class _QuizPageState extends State<QuizPage> {
               const SizedBox(height: 32),
               
               Text(
-                'Question ${_currentQuestionIndex + 1}/${_questions.length}',
+                'quiz.question_progress'.tr(namedArgs: {
+                  'current': '${_currentQuestionIndex + 1}',
+                  'total': '${_questions.length}',
+                }),
                 style: TextStyle(color: Colors.grey[500], fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
@@ -178,7 +183,7 @@ class _QuizPageState extends State<QuizPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 0,
                 ),
-                child: const Text('VALIDER', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                child: Text('quiz.validate'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
               ),
               const SizedBox(height: 16),
             ],
@@ -189,6 +194,7 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   Widget _buildSuccessScreen() {
+    final moduleName = widget.title;
     return Scaffold(
       backgroundColor: widget.themeColor,
       body: SafeArea(
@@ -200,15 +206,15 @@ class _QuizPageState extends State<QuizPage> {
               children: [
                 const Icon(CupertinoIcons.checkmark_seal_fill, color: Colors.white, size: 120),
                 const SizedBox(height: 32),
-                const Text(
-                  'Félicitations !',
-                  style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900),
+                Text(
+                  'quiz.congrats'.tr(),
+                  style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Vous avez validé le module et obtenu le badge :',
+                Text(
+                  'quiz.module_validated'.tr(namedArgs: {'module': moduleName}),
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 18),
+                  style: const TextStyle(color: Colors.white70, fontSize: 18),
                 ),
                 const SizedBox(height: 32),
                 Container(
@@ -224,7 +230,7 @@ class _QuizPageState extends State<QuizPage> {
                       Icon(CupertinoIcons.heart_fill, color: widget.themeColor, size: 32),
                       const SizedBox(width: 12),
                       Text(
-                        'Héros ${widget.title}',
+                        'quiz.hero_label'.tr(namedArgs: {'module': moduleName}),
                         style: TextStyle(color: widget.themeColor, fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                     ],
@@ -243,7 +249,7 @@ class _QuizPageState extends State<QuizPage> {
                     padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text("RETOUR À L'ACADÉMIE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: Text('quiz.back_to_academy'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 )
               ],
             ),

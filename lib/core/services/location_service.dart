@@ -71,10 +71,19 @@ class LocationService {
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
+      ).timeout(const Duration(seconds: 10));
       return {'lat': position.latitude, 'lng': position.longitude};
     } catch (e) {
-      debugPrint('[LocationService] Erreur position: $e');
+      debugPrint('[LocationService] Position courante échouée, tentative dernière position connue: $e');
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) {
+          debugPrint('[LocationService] Dernière position connue utilisée');
+          return {'lat': last.latitude, 'lng': last.longitude};
+        }
+      } catch (e2) {
+        debugPrint('[LocationService] Dernière position échouée: $e2');
+      }
       return null;
     }
   }

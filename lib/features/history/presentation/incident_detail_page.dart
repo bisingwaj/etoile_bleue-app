@@ -21,7 +21,9 @@ class IncidentDetailPage extends StatefulWidget {
 
 class _IncidentDetailPageState extends State<IncidentDetailPage> {
   Map<String, dynamic> _incidentData = {};
+  Map<String, dynamic>? _dispatchData;
   RealtimeChannel? _incidentSub;
+  RealtimeChannel? _dispatchSub;
 
   @override
   void initState() {
@@ -44,18 +46,53 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
           ),
           callback: (payload) {
             if (mounted && payload.newRecord.isNotEmpty) {
-              setState(() {
-                _incidentData = payload.newRecord;
-              });
+              setState(() => _incidentData = payload.newRecord);
             }
           },
         )
         .subscribe();
+
+    _dispatchSub = Supabase.instance.client
+        .channel('public:dispatches:${widget.incidentId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'dispatches',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'incident_id',
+            value: widget.incidentId,
+          ),
+          callback: (payload) {
+            if (mounted && payload.newRecord.isNotEmpty) {
+              setState(() => _dispatchData = payload.newRecord);
+            }
+          },
+        )
+        .subscribe();
+
+    _fetchDispatchData();
+  }
+
+  Future<void> _fetchDispatchData() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('dispatches')
+          .select()
+          .eq('incident_id', widget.incidentId)
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (data != null && mounted) {
+        setState(() => _dispatchData = data);
+      }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _incidentSub?.unsubscribe();
+    _dispatchSub?.unsubscribe();
     super.dispose();
   }
 
@@ -115,19 +152,40 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
   @override
   Widget build(BuildContext context) {
     final status = _incidentData['status']?.toString();
-    final title = _incidentData['title']?.toString() ?? 'SOS Triage Rapide';
-    final address = _incidentData['location_address']?.toString() ?? 'Adresse inconnue';
+    final address = _incidentData['location_address']?.toString() ?? 'Adresse à préciser';
     
     int statusIndex = 0;
     if (status == 'dispatched' || status == 'en_route') statusIndex = 1;
     if (status == 'arrived' || status == 'investigating') statusIndex = 2;
     if (status == 'ended' || status == 'resolved') statusIndex = 3;
 
-    DateTime? createdAt;
-    if (_incidentData['created_at'] != null) {
-      createdAt = DateTime.tryParse(_incidentData['created_at'].toString());
+    String formatTime(String? isoString) {
+      if (isoString == null) return '--:--';
+      final dt = DateTime.tryParse(isoString)?.toLocal();
+      if (dt == null) return '--:--';
+      return "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
     }
-    final timeStr = createdAt != null ? "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}" : "--:--";
+
+    final createdAtStr = formatTime(_incidentData['created_at']?.toString());
+    final updatedAtStr = formatTime(_incidentData['updated_at']?.toString());
+    final resolvedAtStr = formatTime(_incidentData['resolved_at']?.toString());
+
+    final dispatchedAtStr = formatTime(_dispatchData?['dispatched_at']?.toString());
+    final arrivedAtStr = formatTime(_dispatchData?['arrived_at']?.toString());
+    
+    final unitName = _dispatchData?['assigned_structure_name']?.toString() ?? 'En cours de coordination...';
+
+    // Step 2 : Prise en charge
+    final step2Active = statusIndex >= 1 || _incidentData['assigned_operator_id'] != null;
+    final step2Time = step2Active ? (dispatchedAtStr != '--:--' ? dispatchedAtStr : updatedAtStr) : '--:--';
+
+    // Step 3 : En route
+    final step3Active = _dispatchData != null || statusIndex >= 1;
+    final step3Time = _dispatchData?['dispatched_at'] != null ? dispatchedAtStr : '--:--';
+
+    // Step 4 : Sur place / Résolu
+    final step4Active = statusIndex >= 2 || _dispatchData?['arrived_at'] != null;
+    final step4Time = _dispatchData?['arrived_at'] != null ? arrivedAtStr : (statusIndex >= 3 ? resolvedAtStr : '--:--');
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -175,7 +233,13 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                               children: [
                                 const Icon(Icons.verified_user, color: Colors.amber, size: 14),
                                 const SizedBox(width: 4),
-                                Text('Croix-Rouge', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                                Expanded(
+                                  child: Text(
+                                    unitName, 
+                                    style: TextStyle(color: Colors.grey[600], fontSize: 13), 
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -229,10 +293,10 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                   // Trip Info equivalent (Timeline)
                   const Text('Historique du suivi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 20),
-                  _buildTimelineStep('SOS Déclenché', address, timeStr, 'Validé', true, false),
-                  _buildTimelineStep('Pris en charge', 'Évaluation en cours', '--:--', 'Patienter', statusIndex >= 1, false),
-                  _buildTimelineStep('En route', 'Unité assignée', '--:--', '', statusIndex >= 2, false),
-                  _buildTimelineStep('Sur place', 'Restez calme', '--:--', 'Estimé', statusIndex >= 3, true),
+                  _buildTimelineStep('Appel de détresse reçu', address.isNotEmpty ? 'Localisation: $address' : 'Nous avons bien reçu votre signal', createdAtStr, 'Validé', true, false),
+                  _buildTimelineStep('Dossier en traitement', 'Un spécialiste étudie votre urgence', step2Time, '', step2Active, false),
+                  _buildTimelineStep('Secours en route', step3Active ? 'Votre équipe ($unitName) arrive' : 'Recherche de la meilleure équipe...', step3Time, '', step3Active, false),
+                  _buildTimelineStep(statusIndex >= 3 ? 'Intervention clôturée' : 'Les secours sont là', statusIndex >= 3 ? 'Vous êtes en sécurité' : 'L\'équipe est à vos côtés', step4Time, '', step4Active, true),
                   
                   const SizedBox(height: 24),
 
@@ -314,7 +378,7 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                         const SizedBox(height: 12),
                         const Text('Statut Actuel', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
-                        Text(status == 'ended' || status == 'resolved' ? 'Terminé' : (status == 'dispatched' ? 'En route' : 'En traitement'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black87), textAlign: TextAlign.center),
+                        Text(status == 'ended' || status == 'resolved' ? 'Intervention Terminée' : (status == 'dispatched' || status == 'en_route' ? 'Secours en Approche' : 'Analyse de la situation'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black87), textAlign: TextAlign.center),
                       ],
                     ),
                   ),

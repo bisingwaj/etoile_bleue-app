@@ -7,6 +7,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/registration_provider.dart';
 import '../providers/auth_provider.dart';
+
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
 
@@ -69,17 +70,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Utiliser un autre numéro ?'),
+        title: Text('common.confirm'.tr()),
         content: const Text('Vous serez déconnecté et pourrez vous reconnecter avec un autre numéro de téléphone.'),
         actions: [
           CupertinoDialogAction(
             isDefaultAction: true,
-            child: const Text('Annuler'),
+            child: Text('common.cancel'.tr()),
             onPressed: () => Navigator.of(ctx).pop(false),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            child: const Text('Déconnexion'),
+            child: Text('common.disconnect'.tr()),
             onPressed: () => Navigator.of(ctx).pop(true),
           ),
         ],

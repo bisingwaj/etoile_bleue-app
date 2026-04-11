@@ -11,8 +11,8 @@ import '../../../core/providers/emergency_contacts_provider.dart';
 import 'package:country_flags/country_flags.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:go_router/go_router.dart';
-import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 import 'package:etoile_bleue_mobile/features/profile/data/profile_repository.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -25,7 +25,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source);
+    final picked = await picker.pickImage(
+      source: source,
+      imageQuality: 70,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
     if (picked != null) {
       await ref.read(profileImageProvider.notifier).setImage(File(picked.path));
     }
@@ -63,7 +68,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final _profileImage = ref.watch(profileImageProvider);
+    final profileImage = ref.watch(profileImageProvider);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -94,9 +99,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: AppColors.blue, width: 3),
                                 image: DecorationImage(
-                                  image: _profileImage != null 
-                                      ? FileImage(_profileImage) as ImageProvider 
-                                      : const NetworkImage('https://api.dicebear.com/7.x/notionists/png?seed=David&backgroundColor=e6f0fa'),
+                                  image: profileImage != null 
+                                      ? FileImage(profileImage) as ImageProvider 
+                                      : const CachedNetworkImageProvider('https://api.dicebear.com/7.x/notionists/png?seed=David&backgroundColor=e6f0fa'),
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -117,12 +122,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               final pdName = userAsync.when(
                                 data: (data) => "${data?['first_name'] ?? ''} ${data?['last_name'] ?? ''}".trim(),
                                 loading: () => "Chargement...",
-                                error: (_, __) => "Utilisateur",
+                                error: (err, stack) => "Utilisateur",
                               );
                               final pdPhone = userAsync.when(
                                 data: (data) => data?['phone'] ?? '+243 ...',
                                 loading: () => "...",
-                                error: (_, __) => "...",
+                                error: (err, stack) => "...",
                               );
                               final pdMemberSince = userAsync.when(
                                 data: (data) {
@@ -133,7 +138,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                   return 'Inscrit depuis ${months[date.month - 1]} ${date.year}';
                                 },
                                 loading: () => "...",
-                                error: (_, __) => 'profile.member_since'.tr(),
+                                error: (err, stack) => 'profile.member_since'.tr(),
                               );
 
                               return Column(
@@ -158,8 +163,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       builder: (context, ref, _) {
                         final userData = ref.watch(userProvider).value;
                         final bloodType = userData?['blood_type'] as String? ?? 'Non renseigné';
-                        final allergies = (userData?['allergies'] as List?)?.cast<String>() ?? [];
-                        final medHistory = (userData?['medical_history'] as List?)?.cast<String>() ?? [];
+                        final allergies = List<String>.from(userData?['allergies'] as List? ?? []);
+                        final medHistory = List<String>.from(userData?['medical_history'] as List? ?? []);
                         return _buildCardGroup([
                           _buildListTile(context, icon: CupertinoIcons.heart_fill, color: AppColors.red,
                             title: 'profile.blood_group'.tr(), subtitle: bloodType,

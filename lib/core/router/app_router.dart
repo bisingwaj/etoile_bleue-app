@@ -13,6 +13,10 @@ import 'package:etoile_bleue_mobile/features/history/presentation/active_trackin
 import 'package:etoile_bleue_mobile/features/home/presentation/notifications_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/presentation/logout_screen.dart';
 import 'package:etoile_bleue_mobile/features/calls/presentation/blocked_screen.dart';
+import 'package:etoile_bleue_mobile/features/signalements/presentation/signalement_flow_page.dart';
+import 'package:etoile_bleue_mobile/features/signalements/presentation/signalement_success_page.dart';
+import 'package:etoile_bleue_mobile/features/signalements/presentation/signalements_list_page.dart';
+import 'package:etoile_bleue_mobile/features/signalements/presentation/signalement_detail_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 
@@ -29,6 +33,10 @@ abstract class AppRoutes {
   static const notifications = '/notifications';
   static const logout = '/logout';
   static const blocked = '/blocked';
+  static const signalementForm = '/signalement-form';
+  static const signalementSuccess = '/signalement-success';
+  static const signalements = '/signalements';
+  static const signalementDetail = '/signalements/:id';
 }
 
 // The GoRouter is created ONCE and never rebuilt.
@@ -41,6 +49,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final user = Supabase.instance.client.auth.currentUser;
       final loc = state.matchedLocation;
+
+      // Public routes that don't require authentication
+      const publicRoutes = {
+        AppRoutes.splash,
+        AppRoutes.onboarding,
+        AppRoutes.login,
+        AppRoutes.otp,
+        AppRoutes.register,
+      };
+
+      // Redirect unauthenticated users away from protected routes
+      if (user == null && !publicRoutes.contains(loc)) {
+        return AppRoutes.login;
+      }
 
       // Only block /login and /otp if the user is already authenticated.
       // /register is intentionally NOT blocked: a newly-verified user needs
@@ -140,6 +162,37 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final reason = extra['reason'] as String? ?? '';
           
           return BlockedScreen(expiresAt: expiresAt, reason: reason);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.signalementForm,
+        name: 'signalement_form',
+        builder: (context, state) => const SignalementFlowPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.signalementSuccess,
+        name: 'signalement_success',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return SignalementSuccessPage(
+            reference: extra['reference'] as String? ?? '',
+            mediaCount: extra['mediaCount'] as int? ?? 0,
+            mediaUploaded: extra['mediaUploaded'] as int? ?? 0,
+            pendingSync: extra['pendingSync'] as bool? ?? false,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.signalements,
+        name: 'signalements',
+        builder: (context, state) => const SignalementsListPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.signalementDetail,
+        name: 'signalement_detail',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return SignalementDetailPage(signalementId: id);
         },
       ),
     ],

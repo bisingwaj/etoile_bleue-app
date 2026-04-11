@@ -252,7 +252,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   Future<void> rejectIncomingCall() async {
     _incomingTimeoutTimer?.cancel();
     if (state.callHistoryId == null) return;
-    await _service.rejectIncomingCall(state.callHistoryId!);
+    await _service.rejectIncomingCall(state.callHistoryId!, channelName: state.channelName);
     state = const ActiveCallState();
   }
 

@@ -4,17 +4,87 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:etoile_bleue_mobile/core/services/cache_service.dart';
 import 'incident_detail_page.dart';
 
-final callHistoryProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+class _HistoryListNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
+  String? _cursor;
+  bool _hasMore = true;
+  bool _loading = false;
+  final String? _uid;
+
+  _HistoryListNotifier(this._uid) : super(const AsyncValue.loading()) {
+    _loadInitial();
+  }
+
+  Future<void> _loadInitial() async {
+    if (_uid == null) {
+      state = const AsyncValue.data([]);
+      return;
+    }
+
+    // Cache-first
+    final cached = CacheService.getCachedHistory();
+    if (cached != null && cached.isNotEmpty) {
+      state = AsyncValue.data(cached);
+    }
+
+    try {
+      final data = await Supabase.instance.client
+          .from('incidents')
+          .select('id, reference, type, title, description, status, priority, media_urls, media_type, created_at, resolved_at')
+          .eq('citizen_id', _uid)
+          .order('created_at', ascending: false)
+          .limit(50);
+      final items = (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _cursor = items.isNotEmpty ? items.last['created_at'] as String? : null;
+      _hasMore = items.length >= 50;
+      state = AsyncValue.data(items);
+      CacheService.cacheHistory(items);
+    } catch (e, st) {
+      if (cached == null || cached.isEmpty) {
+        state = AsyncValue.error(e, st);
+      }
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (!_hasMore || _loading || _uid == null) return;
+    _loading = true;
+    try {
+      final data = await Supabase.instance.client
+          .from('incidents')
+          .select('id, reference, type, title, description, status, priority, media_urls, media_type, created_at, resolved_at')
+          .eq('citizen_id', _uid)
+          .lt('created_at', _cursor!)
+          .order('created_at', ascending: false)
+          .limit(50);
+      final items = (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (items.isEmpty) {
+        _hasMore = false;
+      } else {
+        _cursor = items.last['created_at'] as String?;
+        _hasMore = items.length >= 50;
+        final current = state.valueOrNull ?? [];
+        state = AsyncValue.data([...current, ...items]);
+      }
+    } catch (_) {}
+    _loading = false;
+  }
+
+  Future<void> refresh() async {
+    _cursor = null;
+    _hasMore = true;
+    await _loadInitial();
+  }
+
+  bool get hasMore => _hasMore;
+}
+
+final callHistoryProvider =
+    StateNotifierProvider<_HistoryListNotifier, AsyncValue<List<Map<String, dynamic>>>>((ref) {
   final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid == null) return Stream.value([]);
-  return Supabase.instance.client
-      .from('incidents')
-      .stream(primaryKey: ['id'])
-      .eq('citizen_id', uid)
-      .order('created_at', ascending: false)
-      .limit(50);
+  return _HistoryListNotifier(uid);
 });
 
 class HistoryPage extends ConsumerStatefulWidget {
@@ -27,7 +97,6 @@ class HistoryPage extends ConsumerStatefulWidget {
 class _HistoryPageState extends ConsumerState<HistoryPage> {
   String _currentFilter = 'Tous';
 
-  /// Formater le timestamp (ISO String) en texte lisible
   String _formatDate(dynamic ts) {
     if (ts == null) return '—';
     DateTime date;
@@ -44,7 +113,6 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  /// Formater la durée d'un appel en secondes (depuis strings ISO)
   String _formatDuration(dynamic start, dynamic end) {
     if (start == null || end == null) return '';
     try {
@@ -156,7 +224,6 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         loading: () => const Center(child: CupertinoActivityIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),
         data: (allCalls) {
-          // Filtrage par groupe de statut
           final filtered = _currentFilter == 'Tous'
               ? allCalls
               : allCalls.where((c) {
@@ -169,77 +236,98 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   }
                 }).toList();
 
-          // Stats calculées depuis les vraies données
           final sosCount = allCalls.length;
           final endedCount = allCalls.where((c) {
             final s = c['status'] as String? ?? '';
             return s == 'ended' || s == 'resolved' || s == 'archived';
           }).length;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.only(top: 16, bottom: 40),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ─── Stats ────────────────────────────────────────
-                Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text("history.citizen_engagement".tr(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[600]))),
-                const SizedBox(height: 12),
-                SizedBox(height: 110, child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    _buildStatCard(title: 'history.alerts_issued'.tr(), value: '$sosCount', icon: CupertinoIcons.waveform_path_ecg, color: AppColors.red),
-                    const SizedBox(width: 12),
-                    _buildStatCard(title: 'Appels terminés', value: '$endedCount', icon: CupertinoIcons.checkmark_circle_fill, color: AppColors.blue),
-                    const SizedBox(width: 12),
-                    _buildStatCard(title: 'history.badges_earned'.tr(), value: '3', icon: CupertinoIcons.rosette, color: Colors.orangeAccent),
-                  ],
-                )),
-                const SizedBox(height: 32),
-
-                // ─── Timeline ─────────────────────────────────────
-                Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text("history.event_history".tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
-                    Text("history.see_all".tr(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.blue)),
-                  ])),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))]),
-                    child: Column(children: filtered.isEmpty
-                        ? [Padding(padding: const EdgeInsets.all(32.0), child: Center(child: Text('Aucun événement', style: const TextStyle(fontFamily: 'Marianne', color: Colors.grey))))]
-                        : filtered.asMap().entries.map((entry) {
-                            final i = entry.key;
-                            final c = entry.value;
-                            final status = c['status'] as String? ?? 'unknown';
-                            final icon = status == 'ended' || status == 'resolved' ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.waveform_path_ecg;
-                            final color = status == 'ended' || status == 'resolved' ? AppColors.blue : AppColors.red;
-                            final duration = _formatDuration(c['created_at'], c['ended_at']);
-                            return _buildHistoryTile(
-                              title: c['title'] ?? 'Incident',
-                              subtitle: status == 'ended' || status == 'resolved' ? 'Terminé${duration.isNotEmpty ? " ($duration)" : ""}' : 'Statut: $status',
-                              date: _formatDate(c['created_at']),
-                              icon: icon, color: color,
-                              isLast: i == filtered.length - 1,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  CupertinoPageRoute(
-                                    builder: (context) => IncidentDetailPage(
-                                      incidentId: c['id'].toString(),
-                                      initialData: c,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          }).toList()),
+          return RefreshIndicator(
+            onRefresh: () => ref.read(callHistoryProvider.notifier).refresh(),
+            child: CustomScrollView(
+              slivers: [
+                // Stats header
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text("history.citizen_engagement".tr(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[600]))),
+                        const SizedBox(height: 12),
+                        SizedBox(height: 110, child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          children: [
+                            _buildStatCard(title: 'history.alerts_issued'.tr(), value: '$sosCount', icon: CupertinoIcons.waveform_path_ecg, color: AppColors.red),
+                            const SizedBox(width: 12),
+                            _buildStatCard(title: 'Appels terminés', value: '$endedCount', icon: CupertinoIcons.checkmark_circle_fill, color: AppColors.blue),
+                            const SizedBox(width: 12),
+                            _buildStatCard(title: 'history.badges_earned'.tr(), value: '3', icon: CupertinoIcons.rosette, color: Colors.orangeAccent),
+                          ],
+                        )),
+                        const SizedBox(height: 32),
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Text("history.event_history".tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
+                            Text("history.see_all".tr(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.blue)),
+                          ])),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
+                // Timeline list
+                if (filtered.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Center(child: Text('Aucun événement', style: const TextStyle(fontFamily: 'Marianne', color: Colors.grey))),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList.builder(
+                      itemCount: filtered.length + (ref.read(callHistoryProvider.notifier).hasMore ? 1 : 0),
+                      itemBuilder: (context, i) {
+                        if (i >= filtered.length) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            ref.read(callHistoryProvider.notifier).loadMore();
+                          });
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CupertinoActivityIndicator()),
+                          );
+                        }
+                        final c = filtered[i];
+                        final status = c['status'] as String? ?? 'unknown';
+                        final icon = status == 'ended' || status == 'resolved' ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.waveform_path_ecg;
+                        final color = status == 'ended' || status == 'resolved' ? AppColors.blue : AppColors.red;
+                        final duration = _formatDuration(c['created_at'], c['resolved_at']);
+                        return _buildHistoryTile(
+                          title: c['title'] ?? 'Incident',
+                          subtitle: status == 'ended' || status == 'resolved' ? 'Terminé${duration.isNotEmpty ? " ($duration)" : ""}' : 'Statut: $status',
+                          date: _formatDate(c['created_at']),
+                          icon: icon, color: color,
+                          isLast: i == filtered.length - 1,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (context) => IncidentDetailPage(
+                                  incidentId: c['id'].toString(),
+                                  initialData: c,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 40)),
               ],
             ),
           );
@@ -271,7 +359,8 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.transparent, // Pour activer le tap sur toute la surface
+          color: Colors.white,
+          borderRadius: isLast ? const BorderRadius.vertical(bottom: Radius.circular(20)) : null,
           border: isLast ? null : Border(bottom: BorderSide(color: Colors.grey[100]!)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

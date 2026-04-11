@@ -93,32 +93,77 @@ class EmergencyCallService {
       }
     }
 
-    // 2. Créer l'incident
-    final reference = 'SOS-${DateTime.now().millisecondsSinceEpoch}';
-    final incidentRes = await _supabase.from('incidents').insert({
-      'reference': reference,
-      'type': type,
-      'title': 'Appel SOS - $callerName',
-      'description': description,
-      'caller_name': callerName,
-      'caller_phone': callerPhone,
-      'location_lat': lat,
-      'location_lng': lng,
-      'location_address': locationAddress,
-      'priority': 'critical',
-      'status': 'new',
-      'citizen_id': userId,
-      'device_model': telemetry['device_model'],
-      'battery_level': telemetry['battery_level'],
-      'network_state': telemetry['network_state'],
-    }).select('id').single();
+    // 2. Créer l'incident (avec gestion des erreurs P0001 du backend)
+    String incidentId;
+    String channelName;
 
-    final incidentId = incidentRes['id'] as String;
+    try {
+      final reference = 'SOS-${DateTime.now().millisecondsSinceEpoch}';
+      final incidentRes = await _supabase.from('incidents').insert({
+        'reference': reference,
+        'type': type,
+        'title': 'Appel SOS - $callerName',
+        'description': description,
+        'caller_name': callerName,
+        'caller_phone': callerPhone,
+        'location_lat': lat,
+        'location_lng': lng,
+        'location_address': locationAddress,
+        'priority': 'critical',
+        'status': 'new',
+        'citizen_id': userId,
+        'device_model': telemetry['device_model'],
+        'battery_level': telemetry['battery_level'],
+        'network_state': telemetry['network_state'],
+      }).select('id').single();
+
+      incidentId = incidentRes['id'] as String;
+      channelName = reference;
+    } on PostgrestException catch (e) {
+      if (e.code == 'P0001' && e.message.contains('in_progress')) {
+        debugPrint('[EmergencyCall] Incident in_progress detected. Reusing existing incident...');
+        final existing = await _supabase
+            .from('incidents')
+            .select('id, reference')
+            .eq('citizen_id', userId)
+            .eq('status', 'in_progress')
+            .limit(1)
+            .single();
+
+        incidentId = existing['id'] as String;
+        channelName = existing['reference'] as String;
+      } else if (e.code == 'P0001' && e.message.contains('just ended')) {
+        debugPrint('[EmergencyCall] Incident just ended. Waiting 3 seconds before retrying...');
+        await Future.delayed(const Duration(seconds: 3));
+        
+        final reference = 'SOS-${DateTime.now().millisecondsSinceEpoch}';
+        final retryRes = await _supabase.from('incidents').insert({
+          'reference': reference,
+          'type': type,
+          'title': 'Appel SOS - $callerName',
+          'description': description,
+          'caller_name': callerName,
+          'caller_phone': callerPhone,
+          'location_lat': lat,
+          'location_lng': lng,
+          'location_address': locationAddress,
+          'priority': 'critical',
+          'status': 'new',
+          'citizen_id': userId,
+          'device_model': telemetry['device_model'],
+          'battery_level': telemetry['battery_level'],
+          'network_state': telemetry['network_state'],
+        }).select('id').single();
+
+        incidentId = retryRes['id'] as String;
+        channelName = reference;
+      } else {
+        rethrow;
+      }
+    }
+
     _currentIncidentId = incidentId;
-
-    // 2. Créer l'entrée call_history avec channel_name = reference
-    // ⚠️ CRITIQUE: Le dashboard utilise ce channel_name pour rejoindre le même canal Agora
-    final channelName = reference;
+    _currentChannelName = channelName;
 
     // 3. Obtenir le token Agora
     final tokenRes = await _supabase.functions.invoke('agora-token', body: {
@@ -276,7 +321,7 @@ class EmergencyCallService {
         debugPrint('[Agora] onUserOffline: uid=$remoteUid, reason=$reason');
         onRemoteUserLeft?.call(remoteUid);
         if (reason == UserOfflineReasonType.userOfflineQuit) {
-          hangUp();
+          hangUp(endedBy: 'remote');
         }
       },
       onConnectionLost: (connection) {
@@ -321,10 +366,11 @@ class EmergencyCallService {
   }
 
   /// Raccrocher — met à jour call_history ET libère les ressources
-  Future<void> hangUp() async {
+  Future<void> hangUp({String endedBy = 'citizen_hangup'}) async {
     final callIdToEnd = _currentCallId;
+    final channelName = _currentChannelName;
 
-    if (callIdToEnd != null) {
+    if (channelName != null) {
       try {
         final now = DateTime.now().toUtc();
         
@@ -332,7 +378,9 @@ class EmergencyCallService {
         final callData = await _supabase
             .from('call_history')
             .select('answered_at')
-            .eq('id', callIdToEnd)
+            .eq('channel_name', channelName)
+            .inFilter('status', ['ringing', 'active'])
+            .limit(1)
             .maybeSingle();
             
         int? durationSeconds;
@@ -344,14 +392,18 @@ class EmergencyCallService {
         final updateData = <String, dynamic>{
           'status': 'completed',
           'ended_at': now.toIso8601String(),
-          'ended_by': 'citizen_hangup',
+          'ended_by': endedBy,
         };
         
         if (durationSeconds != null && durationSeconds >= 0) {
           updateData['duration_seconds'] = durationSeconds;
         }
 
-        await _supabase.from('call_history').update(updateData).eq('id', callIdToEnd);
+        await _supabase
+            .from('call_history')
+            .update(updateData)
+            .eq('channel_name', channelName)
+            .inFilter('status', ['ringing', 'active']);
       } catch (e) {
         debugPrint('[EmergencyCall] hangUp DB update failed (non-fatal): $e');
       }
@@ -438,17 +490,23 @@ class EmergencyCallService {
     await _supabase.from('call_history').update({
       'status': 'active',
       'answered_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', callHistoryId);
+    }).eq('channel_name', channelName).inFilter('status', ['ringing', 'active']);
     debugPrint('[AnswerCall] Complete');
   }
 
   /// Rejeter un appel entrant du dashboard
-  Future<void> rejectIncomingCall(String callHistoryId) async {
-    await _supabase.from('call_history').update({
+  Future<void> rejectIncomingCall(String callHistoryId, {String? channelName}) async {
+    final updateQuery = _supabase.from('call_history').update({
       'status': 'missed',
       'ended_at': DateTime.now().toUtc().toIso8601String(),
       'ended_by': 'citizen_rejected',
-    }).eq('id', callHistoryId);
+    });
+
+    if (channelName != null) {
+      await updateQuery.eq('channel_name', channelName).inFilter('status', ['ringing', 'active']);
+    } else {
+      await updateQuery.eq('id', callHistoryId);
+    }
 
     CallKitService.endCall(callHistoryId);
   }

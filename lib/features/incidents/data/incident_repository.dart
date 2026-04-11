@@ -17,12 +17,24 @@ class IncidentRepository {
   // ─── UPLOAD MÉDIA ─────────────────────────────────────────────────────────────
 
   /// ✅ Upload vers le bucket 'incidents' (créé par migration)
+  static const int _maxImageBytes = 10 * 1024 * 1024; // 10 MB
+  static const int _maxVideoBytes = 50 * 1024 * 1024; // 50 MB
+
   Future<String> uploadMedia({
     required File file,
     required bool isVideo,
     void Function(double progress)? onProgress,
   }) async {
     if (_uid == null) throw Exception('Utilisateur non connecté');
+
+    final fileSize = await file.length();
+    final maxSize = isVideo ? _maxVideoBytes : _maxImageBytes;
+    if (fileSize > maxSize) {
+      throw Exception(
+        'Fichier trop volumineux (${(fileSize / (1024 * 1024)).toStringAsFixed(1)} Mo). '
+        'Maximum : ${maxSize ~/ (1024 * 1024)} Mo',
+      );
+    }
 
     final ext = isVideo ? 'mp4' : 'jpg';
     final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -147,7 +159,9 @@ class IncidentRepository {
 
   /// ✅ Récupérer un incident par ID
   Future<Map<String, dynamic>?> getIncident(String id) async {
-    return await _db.from('incidents').select().eq('id', id).maybeSingle();
+    return await _db.from('incidents')
+        .select('id, reference, type, title, description, caller_name, caller_phone, citizen_id, media_urls, media_type, location_lat, location_lng, status, priority, province, ville, incident_at, created_at')
+        .eq('id', id).maybeSingle();
   }
 }
 

@@ -24,7 +24,7 @@ final incomingCallListenerProvider = Provider<void>((ref) {
   debugPrint('[IncomingCall] Setting up Realtime subscription for citizen_id=$userId');
 
   RealtimeChannel? channel;
-  Timer? _retryTimer;
+  Timer? retryTimer;
 
   void subscribe() {
     channel?.unsubscribe();
@@ -42,32 +42,35 @@ final incomingCallListenerProvider = Provider<void>((ref) {
           callback: (payload) {
             debugPrint('[IncomingCall] Realtime event received: ${payload.newRecord}');
             final record = payload.newRecord;
-            final callType = record['call_type'] as String?;
             final status = record['status'] as String?;
 
-            if (callType == 'outgoing' && status == 'ringing') {
-              final channelName = record['channel_name'] as String?;
-              final callId = record['id'] as String?;
-              final callerName = record['caller_name'] as String?;
-              final name = callerName ?? 'Opérateur';
+            if (status == 'ringing') {
+              final isMyOwnCall = ref.read(callStateProvider).isInCall;
+              if (!isMyOwnCall) {
+                final channelName = record['channel_name'] as String?;
+                final callId = record['id'] as String?;
+                final callerName = record['caller_name'] as String?;
+                final name = callerName ?? 'Centre d\'appels Etoile Bleue';
 
-              if (channelName != null && callId != null) {
-                debugPrint('[IncomingCall] Incoming call detected: channel=$channelName, caller=$name');
-                HapticFeedback.heavyImpact();
+                if (channelName != null && callId != null) {
+                  debugPrint('[IncomingCall] Incoming call detected: channel=$channelName, caller=$name');
+                  HapticFeedback.heavyImpact();
 
-                ref.read(callStateProvider.notifier).setIncomingCall(
-                  channelName: channelName,
-                  callHistoryId: callId,
-                  callerName: name,
-                );
+                  ref.read(callStateProvider.notifier).setIncomingCall(
+                    channelName: channelName,
+                    callHistoryId: callId,
+                    callerName: name,
+                  );
 
-                final hasVideo = record['has_video'] == true;
+                  final hasVideo = record['has_video'] == true;
 
-                CallKitService.showIncomingCall(
-                  callId: callId,
-                  callerName: name,
-                  hasVideo: hasVideo,
-                );
+                  CallKitService.showIncomingCall(
+                    callId: callId,
+                    callerName: name,
+                    hasVideo: hasVideo,
+                    extra: {'channelName': channelName},
+                  );
+                }
               }
             }
           },
@@ -106,8 +109,8 @@ final incomingCallListenerProvider = Provider<void>((ref) {
           if (status == RealtimeSubscribeStatus.channelError) {
             final errMsg = error?.toString() ?? '';
             debugPrint('[IncomingCall] Channel error detected: $errMsg');
-            _retryTimer?.cancel();
-            _retryTimer = Timer(const Duration(seconds: 3), () async {
+            retryTimer?.cancel();
+            retryTimer = Timer(const Duration(seconds: 3), () async {
               debugPrint('[IncomingCall] Attempting session refresh + re-subscribe...');
               try {
                 await Supabase.instance.client.auth.refreshSession();
@@ -125,7 +128,7 @@ final incomingCallListenerProvider = Provider<void>((ref) {
 
   ref.onDispose(() {
     debugPrint('[IncomingCall] Disposing Realtime subscription');
-    _retryTimer?.cancel();
+    retryTimer?.cancel();
     channel?.unsubscribe();
   });
 });

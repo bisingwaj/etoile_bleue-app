@@ -1,5 +1,5 @@
-/// rescuer_gps_provider.dart — Envoi GPS temps réel vers active_rescuers
-/// Upsert la position toutes les 10 secondes via Supabase
+// rescuer_gps_provider.dart — Envoi GPS temps réel vers active_rescuers
+// Upsert la position toutes les 10 secondes via Supabase
 
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -6,11 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/features/calls/presentation/emergency_call_screen.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/services/location_service.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
+import 'package:etoile_bleue_mobile/features/incidents/data/incident_repository.dart';
 
 class SosVocalSheet extends ConsumerStatefulWidget {
   final VoidCallback onSent;
@@ -248,26 +248,22 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
       gpsLocation = await locationService.getCurrentPosition().timeout(const Duration(seconds: 5));
     } catch (_) {}
 
-    // 2. Écriture finale dans Firestore (Au lieu du Mock)
-    final userId = Supabase.instance.client.auth.currentUser?.id ?? 'unknown_user';
-    final docId = 'sos_${userId}_${DateTime.now().millisecondsSinceEpoch}';
-
+    // 2. Upload et création dans la table incidents (Supabase) via le Repository
     try {
-      await Supabase.instance.client.from('calls').insert({
-        'id': docId,
-        'citizen_id': userId,
-        'rescuer_id': null,
-        'status': 'pending', // Attente d'un urgentiste
-        'call_type': 'SOS Vocal',
-        'type': 'sos',
-        'created_at': DateTime.now().toIso8601String(),
-        if (gpsLocation != null) 'location': {
-          'latitude': gpsLocation['lat'],
-          'longitude': gpsLocation['lng'],
-        },
-      });
+      if (_audioPath != null) {
+        final file = File(_audioPath!);
+        final incidentRepo = ref.read(incidentRepositoryProvider);
+        await incidentRepo.submitIncident(
+          file: file,
+          isVideo: false, // c'est un audio, le repo utilise 'photo' ou 'video', mais on peut l'améliorer plus tard
+          category: 'SOS Vocal',
+          details: 'Alerte vocale émise depuis le bouton SOS',
+          location: gpsLocation,
+          incidentTimestamp: DateTime.now(),
+        );
+      }
     } catch (e) {
-      debugPrint('SOS Vocal Error: Impossible de créer l\'alerte sur Supabase: $e');
+      debugPrint('SOS Vocal Error: Impossible de créer l\'alerte: $e');
     }
 
     if (mounted) {

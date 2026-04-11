@@ -16,8 +16,16 @@ class DynamicIslandToast {
     _showIsland(context, message, CupertinoIcons.exclamationmark_triangle_fill, Colors.redAccent);
   }
 
+  static OverlayEntry? _currentEntry;
+
   static void _showIsland(BuildContext context, String message, IconData icon, Color iconColor) {
     final overlay = Overlay.of(context);
+    
+    if (_currentEntry != null && _currentEntry!.mounted) {
+      _currentEntry!.remove();
+      _currentEntry = null;
+    }
+
     late OverlayEntry overlayEntry;
 
     overlayEntry = OverlayEntry(
@@ -72,6 +80,9 @@ class DynamicIslandToast {
                   controller.reverse().then((value) {
                     if (overlayEntry.mounted) {
                       overlayEntry.remove();
+                      if (_currentEntry == overlayEntry) {
+                        _currentEntry = null;
+                      }
                     }
                   });
                 }
@@ -85,6 +96,7 @@ class DynamicIslandToast {
       },
     );
 
+    _currentEntry = overlayEntry;
     overlay.insert(overlayEntry);
   }
 }

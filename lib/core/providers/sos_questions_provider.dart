@@ -38,7 +38,7 @@ class SOSQuestionsNotifier extends StateNotifier<AsyncValue<List<SOSQuestion>>> 
     try {
       final data = await _supabase
           .from('sos_questions')
-          .select()
+          .select('id, question_text, question_type, options, display_order, is_active')
           .eq('is_active', true)
           .order('display_order', ascending: true);
 

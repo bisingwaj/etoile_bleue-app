@@ -1,5 +1,5 @@
-/// messaging_provider.dart — Messagerie Supabase Realtime pour Flutter
-/// Permet aux citoyens/secouristes d'envoyer et recevoir des messages texte/audio
+// messaging_provider.dart — Messagerie Supabase Realtime pour Flutter
+// Permet aux citoyens/secouristes d'envoyer et recevoir des messages texte/audio
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -72,7 +72,7 @@ class MessagingNotifier extends StateNotifier<MessagingState> {
     // Charger l'historique
     final response = await _supabase
         .from('messages')
-        .select()
+        .select('id, sender_id, recipient_id, content, type, is_read, created_at')
         .or('and(sender_id.eq.$_userId,recipient_id.eq.$recipientId),and(sender_id.eq.$recipientId,recipient_id.eq.$_userId)')
         .order('created_at', ascending: true)
         .limit(100);

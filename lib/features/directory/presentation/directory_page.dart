@@ -408,7 +408,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       itemCount: list.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      separatorBuilder: (ctx, idx) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
         return _buildInstitutionCard(inst: list[index]);
       },

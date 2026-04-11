@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/features/calls/domain/entities/call_session.dart';
 import 'package:etoile_bleue_mobile/features/calls/domain/repositories/call_repository.dart';
@@ -39,6 +40,7 @@ class CallSessionNotifier extends StateNotifier<CallSession> {
   final CallRepository _repository;
   final Ref _ref;
   StreamSubscription? _eventsSubscription;
+  bool _disposed = false;
 
   CallSessionNotifier(this._repository, this._ref) 
     : super(CallSession.initial(channelId: '', role: 'Unknown'));
@@ -77,14 +79,14 @@ class CallSessionNotifier extends StateNotifier<CallSession> {
       if (e.toString().contains('PERMISSIONS_DENIED')) {
         state = state.copyWith(
           status: CallStatus.error,
-          errorMessage: 'Veuillez autoriser l\'accès au microphone pour passer des appels.',
+          errorMessage: 'errors.mic_permission'.tr(),
         );
       } else if (e.toString().contains('CALL_ALREADY_IN_PROGRESS')) {
         // Double appel ignoré silencieusement — ne pas changer l'état
       } else {
         state = state.copyWith(
           status: CallStatus.error,
-          errorMessage: 'Impossible de rejoindre le canal vidéo. Vérifiez votre connexion.',
+          errorMessage: 'errors.channel_join_failed'.tr(),
         );
       }
     }
@@ -126,7 +128,7 @@ class CallSessionNotifier extends StateNotifier<CallSession> {
             // Rétablir le statut selon si qqn est là ou non
             state = state.copyWith(status: state.remoteUid != null ? CallStatus.active : CallStatus.ringing);
           } else if (connectionState == ConnectionStateType.connectionStateFailed) {
-            state = state.copyWith(status: CallStatus.error, errorMessage: 'Connexion réseau perdue.');
+            state = state.copyWith(status: CallStatus.error, errorMessage: 'errors.network_lost'.tr());
           }
           break;
 
@@ -134,7 +136,7 @@ class CallSessionNotifier extends StateNotifier<CallSession> {
           // Traitement des codes d'erreur bruts
           state = state.copyWith(
             status: CallStatus.error,
-            errorMessage: 'Erreur technique (${event['code']}): ${event['msg']}',
+            errorMessage: '${'errors.technical_error'.tr()} (${event['code']}): ${event['msg']}',
           );
           break;
 
@@ -177,7 +179,7 @@ class CallSessionNotifier extends StateNotifier<CallSession> {
     _eventsSubscription?.cancel();
     state = state.copyWith(status: CallStatus.ended);
     await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
+    if (!_disposed) {
       state = CallSession.initial(channelId: '', role: 'Unknown');
     }
   }
@@ -209,6 +211,7 @@ class CallSessionNotifier extends StateNotifier<CallSession> {
 
   @override
   void dispose() {
+    _disposed = true;
     _eventsSubscription?.cancel();
     super.dispose();
   }

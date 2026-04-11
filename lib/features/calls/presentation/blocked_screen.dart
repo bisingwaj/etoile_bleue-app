@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -32,15 +33,17 @@ class _BlockedScreenState extends ConsumerState<BlockedScreen> {
   }
 
   void _updateRemaining() {
+    if (!mounted) return;
     final now = DateTime.now();
+    final remaining = widget.expiresAt.difference(now);
     setState(() {
-      _remaining = widget.expiresAt.difference(now);
-      if (_remaining.isNegative) {
-        _remaining = Duration.zero;
-        _timer.cancel();
-        _checkAndRedirect();
-      }
+      _remaining = remaining.isNegative ? Duration.zero : remaining;
     });
+    if (remaining.isNegative) {
+      _timer.cancel();
+      // Appel hors setState pour éviter les side-effects dans le cycle de build
+      Future.microtask(_checkAndRedirect);
+    }
   }
 
   Future<void> _checkAndRedirect() async {
@@ -108,8 +111,8 @@ class _BlockedScreenState extends ConsumerState<BlockedScreen> {
                 const SizedBox(height: 24),
                 
                 // Title
-                const Text(
-                  'Compte temporairement suspendu',
+                Text(
+                  'calls.blocked_title'.tr(),
                   style: TextStyle(
                     fontFamily: 'Marianne',
                     fontSize: 22, 
@@ -128,8 +131,8 @@ class _BlockedScreenState extends ConsumerState<BlockedScreen> {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.orange.withOpacity(0.2)),
                   ),
-                  child: const Text(
-                    'Votre accès au service SOS est temporairement suspendu suite à une activité inhabituelle détectée sur votre compte.',
+                  child: Text(
+                    'calls.blocked_body'.tr(),
                     style: TextStyle(
                       fontFamily: 'Marianne',
                       fontSize: 15, 
@@ -142,21 +145,21 @@ class _BlockedScreenState extends ConsumerState<BlockedScreen> {
                 const SizedBox(height: 32),
                 
                 // Countdown
-                const Text(
-                  'Suspension levée dans :', 
+                Text(
+                  'calls.blocked_remaining'.tr(), 
                   style: TextStyle(fontFamily: 'Marianne', fontSize: 14, color: Colors.grey)
                 ),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildTimeUnit(days.toString().padLeft(2, '0'), 'J'),
+                    _buildTimeUnit(days.toString().padLeft(2, '0'), 'calls.unit_days'.tr()),
                     const Text(' : ', style: TextStyle(fontFamily: 'Marianne', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
-                    _buildTimeUnit(hours.toString().padLeft(2, '0'), 'H'),
+                    _buildTimeUnit(hours.toString().padLeft(2, '0'), 'calls.unit_hours'.tr()),
                     const Text(' : ', style: TextStyle(fontFamily: 'Marianne', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
-                    _buildTimeUnit(minutes.toString().padLeft(2, '0'), 'M'),
+                    _buildTimeUnit(minutes.toString().padLeft(2, '0'), 'calls.unit_minutes'.tr()),
                     const Text(' : ', style: TextStyle(fontFamily: 'Marianne', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
-                    _buildTimeUnit(seconds.toString().padLeft(2, '0'), 'S'),
+                    _buildTimeUnit(seconds.toString().padLeft(2, '0'), 'calls.unit_seconds'.tr()),
                   ],
                 ),
                 const SizedBox(height: 32),
@@ -175,7 +178,7 @@ class _BlockedScreenState extends ConsumerState<BlockedScreen> {
                           Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            'Pourquoi cette mesure ?',
+                            'calls.blocked_why'.tr(),
                             style: TextStyle(
                               fontFamily: 'Marianne',
                               fontWeight: FontWeight.bold, 
@@ -185,8 +188,8 @@ class _BlockedScreenState extends ConsumerState<BlockedScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        'Les appels abusifs empêchent les personnes en réelle détresse d\'accéder à l\'aide dont elles ont besoin.\n\nChaque faux appel mobilise des ressources qui pourraient sauver des vies.',
+                      Text(
+                        widget.reason.isNotEmpty ? widget.reason : 'calls.blocked_reason'.tr(),
                         style: TextStyle(fontFamily: 'Marianne', fontSize: 14, height: 1.5, color: Colors.black87),
                       ),
                     ],
@@ -196,7 +199,7 @@ class _BlockedScreenState extends ConsumerState<BlockedScreen> {
                 
                 // Support contact
                 Text(
-                  'Si vous pensez qu\'il s\'agit d\'une erreur, contactez le support :',
+                  'calls.blocked_support'.tr(),
                   style: TextStyle(fontFamily: 'Marianne', fontSize: 13, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),

@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:go_router/go_router.dart';
@@ -19,8 +19,8 @@ class EmergencyCallOverlay extends ConsumerStatefulWidget {
 }
 
 class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
-  Offset _pipOffset = const Offset(20, 100);
   Timer? _vibrationTimer;
+  bool _isCallActionPending = false;
 
   void _startVibration() {
     _vibrationTimer?.cancel();
@@ -36,6 +36,11 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
   }
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   void dispose() {
     _stopVibration();
     super.dispose();
@@ -43,6 +48,16 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<ActiveCallState>(callStateProvider, (prev, next) {
+      final shouldVibrate = next.status == ActiveCallStatus.incomingRinging &&
+          !(Platform.isIOS || Platform.isAndroid);
+      if (shouldVibrate && _vibrationTimer == null) {
+        _startVibration();
+      } else if (!shouldVibrate && _vibrationTimer != null) {
+        _stopVibration();
+      }
+    });
+
     final callState = ref.watch(callStateProvider);
     final isMinimized = ref.watch(isCallMinimizedProvider);
 
@@ -52,16 +67,9 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
          callState.status == ActiveCallStatus.connecting ||
          callState.status == ActiveCallStatus.onHold);
 
-    // CallKit handles native incoming call UI on iOS and Android.
-    // Only show the in-app overlay on platforms where CallKit is unavailable.
+    // CallKit gère l'UI native sur iOS et Android — overlay uniquement sur desktop/web.
     final showIncomingCall = callState.status == ActiveCallStatus.incomingRinging &&
         !(Platform.isIOS || Platform.isAndroid);
-
-    if (showIncomingCall && _vibrationTimer == null) {
-      _startVibration();
-    } else if (!showIncomingCall && _vibrationTimer != null) {
-      _stopVibration();
-    }
 
     return Stack(
       children: [
@@ -90,8 +98,8 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
                   color: Colors.orange.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  'Appel Entrant',
+                child: Text(
+                  'calls.incoming_call'.tr(),
                   style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -101,12 +109,12 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
               const SizedBox(height: 24),
 
               Text(
-                callState.callerName ?? 'Opérateur',
+                callState.callerName ?? 'calls.operator'.tr(),
                 style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Centre d\'appel d\'urgence',
+              Text(
+                'calls.emergency_center'.tr(),
                 style: TextStyle(color: Colors.white54, fontSize: 14),
               ),
 
@@ -120,18 +128,28 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
                     _buildCallActionButton(
                       icon: Icons.call_end,
                       color: Colors.red,
-                      label: 'Rejeter',
-                      onTap: () => ref.read(callStateProvider.notifier).rejectIncomingCall(),
+                      label: 'calls.reject'.tr(),
+                      onTap: () {
+                        if (_isCallActionPending) return;
+                        _isCallActionPending = true;
+                        ref.read(callStateProvider.notifier).rejectIncomingCall();
+                        Future.delayed(const Duration(seconds: 2), () {
+                          if (mounted) _isCallActionPending = false;
+                        });
+                      },
                     ),
                     _buildCallActionButton(
                       icon: Icons.call,
                       color: Colors.green,
-                      label: 'Décrocher',
+                      label: 'calls.answer'.tr(),
                       size: 80,
                       onTap: () async {
+                        if (_isCallActionPending) return;
+                        _isCallActionPending = true;
                         await ref.read(callStateProvider.notifier).answerIncomingCall();
                         if (mounted) {
                           GoRouter.of(context).push('/call/active');
+                          _isCallActionPending = false;
                         }
                       },
                     ),
@@ -175,14 +193,14 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
     final isActive = status == ActiveCallStatus.active;
     final isHold = status == ActiveCallStatus.onHold;
     
-    String title = 'Connexion...';
+    String title = 'calls.connecting'.tr();
     Color color = Colors.orange;
     
     if (isActive) {
-      title = 'Appel en cours';
+      title = 'calls.call_in_progress'.tr();
       color = Colors.green;
     } else if (isHold) {
-      title = 'En attente...';
+      title = 'calls.waiting'.tr();
       color = Colors.redAccent;
     }
 
@@ -229,7 +247,7 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         Text(
-                          'Appuyez pour revenir',
+                          'calls.tap_to_return'.tr(),
                           style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11),
                         ),
                       ],
