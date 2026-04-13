@@ -400,7 +400,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
               if (!_isTracking || _isTrackerMinimized) _buildGreeting(),
               if (!_isTracking || _isTrackerMinimized) const SizedBox(height: AppSpacing.sm),
               Expanded(child: RepaintBoundary(child: _buildMapSection())),
-              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 130),
               if (!_isTracking || _isTrackerMinimized) _buildQuickActions(),
               if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 32),
             ],
@@ -589,15 +588,17 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       alignment: Alignment.bottomCenter,
       children: [
           // The Map Container
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              color: Colors.grey[200],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: LayoutBuilder(
+          Padding(
+            padding: EdgeInsets.only(bottom: (!_isTracking || _isTrackerMinimized) ? 130 : 0),
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                color: Colors.grey[200],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: LayoutBuilder(
               builder: (context, constraints) {
                 return Stack(
                   children: [
@@ -650,17 +651,21 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
               },
             ),
           ),
+          ),
           
           // Shimmer de chargement : disparaît une fois la carte prête
           if (!_isMapLoaded)
             Positioned.fill(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  color: Colors.grey[200],
+              child: Padding(
+                padding: EdgeInsets.only(bottom: (!_isTracking || _isTrackerMinimized) ? 130 : 0),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: Colors.grey[200],
+                  ),
+                  child: const _MapShimmer(),
                 ),
-                child: const _MapShimmer(),
               ),
             ),
 
@@ -688,7 +693,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           
           // SOS Button
           Positioned(
-            bottom: -70,
+            bottom: (!_isTracking || _isTrackerMinimized) ? 60 : -70,
             child: _buildSOSButton(),
           ),
         ],
@@ -764,6 +769,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     }
   
     return Listener(
+      behavior: HitTestBehavior.opaque,
       onPointerDown: (_) {
         final callState = ref.read(callStateProvider);
         if (callState.isInCall) {
