@@ -59,6 +59,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         AppRoutes.register,
       };
 
+      // Skip splash screen if user is already authenticated.
+      // The splash is only useful on cold start without a session.
+      if (loc == AppRoutes.splash && user != null) {
+        return AppRoutes.home;
+      }
+
       // Redirect unauthenticated users away from protected routes
       if (user == null && !publicRoutes.contains(loc)) {
         return AppRoutes.login;

@@ -52,6 +52,13 @@ final incomingCallListenerProvider = Provider<void>((ref) {
                 final callerName = record['caller_name'] as String?;
                 final name = callerName ?? 'Centre d\'appels Etoile Bleue';
 
+                // Ignore calls initiated by the patient (SOS or CALLBACK)
+                if (channelName != null &&
+                    (channelName.startsWith('SOS-') || channelName.startsWith('CALLBACK-'))) {
+                  debugPrint('[IncomingCall] Ignoring own outgoing call: $channelName');
+                  return;
+                }
+
                 if (channelName != null && callId != null) {
                   debugPrint('[IncomingCall] Incoming call detected: channel=$channelName, caller=$name');
                   HapticFeedback.heavyImpact();

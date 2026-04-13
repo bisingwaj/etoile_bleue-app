@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/services/cache_service.dart';
+import 'package:etoile_bleue_mobile/core/providers/missed_calls_provider.dart';
+import 'package:etoile_bleue_mobile/features/calls/presentation/widgets/missed_calls_banner.dart';
 import 'incident_detail_page.dart';
 
 class _HistoryListNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
@@ -243,9 +245,16 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           }).length;
 
           return RefreshIndicator(
-            onRefresh: () => ref.read(callHistoryProvider.notifier).refresh(),
+            onRefresh: () async {
+              await ref.read(callHistoryProvider.notifier).refresh();
+              await ref.read(missedCallsProvider.notifier).refresh();
+            },
             child: CustomScrollView(
               slivers: [
+                // Missed calls banner (callback functionality)
+                const SliverToBoxAdapter(
+                  child: MissedCallsBanner(),
+                ),
                 // Stats header
                 SliverToBoxAdapter(
                   child: Padding(

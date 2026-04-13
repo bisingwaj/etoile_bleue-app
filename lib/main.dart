@@ -94,15 +94,30 @@ void _setupCallKitListener(ProviderContainer container) {
       debugPrint('[main] CallKit accepted: $callId, extra: $extra');
       final state = container.read(callStateProvider);
       
-      // If we don't have a channel name, get it from extra
+      // If we don't have a channel name, try to recover it
       if (state.channelName == null) {
-        final channelName = extra['channelName']?.toString();
+        String? channelName = extra['channelName']?.toString();
+        
+        // §4.4: Si le Realtime n'a pas encore fourni les données (réveil FCM),
+        // fetch directement depuis call_history
+        if (channelName == null || channelName.isEmpty) {
+          debugPrint('[main] No channelName in extra, fetching from call_history...');
+          final service = container.read(emergencyCallServiceProvider);
+          final callRecord = await service.fetchIncomingCall(callId);
+          if (callRecord != null) {
+            channelName = callRecord['channel_name'] as String?;
+            debugPrint('[main] Fetched channelName from DB: $channelName');
+          }
+        }
+
         if (channelName != null && channelName.isNotEmpty) {
-          debugPrint('[main] Recovered channelName from extra: $channelName');
+          debugPrint('[main] Recovered channelName: $channelName');
           container.read(callStateProvider.notifier).setIncomingCall(
             channelName: channelName,
             callHistoryId: callId,
           );
+        } else {
+          debugPrint('[main] WARNING: Could not recover channelName for callId=$callId');
         }
       }
 

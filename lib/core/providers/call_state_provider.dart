@@ -240,7 +240,19 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
         state.channelName!,
         state.callHistoryId!,
       );
+      
+      // Sync incident_id recovered from call_history fetch
+      if (_service.currentIncidentId != null) {
+        state = state.copyWith(incidentId: _service.currentIncidentId);
+      }
+      
       _listenForCallStatusChanges(state.callHistoryId!);
+      
+      // Start GPS tracking for citizen during active call
+      if (state.channelName != null) {
+        _location.startCitizenTracking(state.channelName!);
+      }
+      
       debugPrint('[CallState] answerIncomingCall: service call succeeded');
     } catch (e, stack) {
       debugPrint('[CallState] answerIncomingCall FAILED: $e\n$stack');
@@ -302,7 +314,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
     }
   }
 
-  // ─── Abandoned-call Realtime listener ─────────────────────────────────────
+  // ─── Call status Realtime listener ─────────────────────────────────────────
 
   void _listenForCallStatusChanges(String callHistoryId) {
     _stopCallStatusListener();
@@ -322,6 +334,13 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
             if (newStatus == 'abandoned') {
               debugPrint('[CallState] Call marked abandoned by server — hanging up');
               hangUp();
+            } else if (newStatus == 'completed' || newStatus == 'missed' || newStatus == 'failed') {
+              final endedBy = payload.newRecord['ended_by'] as String?;
+              // Only hang up if the remote side triggered the status change
+              if (endedBy != null && endedBy != 'citizen_hangup' && endedBy != 'citizen_rejected') {
+                debugPrint('[CallState] Call $newStatus by remote ($endedBy) — hanging up');
+                hangUp();
+              }
             }
           },
         )
@@ -341,6 +360,11 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   Future<void> toggleVideo() async {
     await _service.toggleVideo();
     state = state.copyWith(isVideoOn: _service.isVideoOn);
+    // Sync has_video status to call_history for dashboard awareness
+    final callId = state.callHistoryId;
+    if (callId != null) {
+      _service.updateVideoStatus(callId, _service.isVideoOn);
+    }
   }
 
   Future<void> toggleSpeaker() async {
@@ -350,6 +374,34 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
 
   Future<void> switchCamera() async {
     await _service.switchCamera();
+  }
+
+  /// Rappeler un appel manqué ou terminé
+  Future<void> startCallbackCall(String originalCallId) async {
+    if (state.isInCall || state.status == ActiveCallStatus.connecting) {
+      debugPrint('[CallState] startCallbackCall ignored: already in call or connecting');
+      return;
+    }
+    _endedResetTimer?.cancel();
+    state = state.copyWith(status: ActiveCallStatus.connecting);
+
+    try {
+      await _service.callbackCall(originalCallId: originalCallId);
+      state = state.copyWith(
+        channelName: _service.currentChannelName,
+        incidentId: _service.currentIncidentId,
+        callHistoryId: _service.currentCallId,
+      );
+      if (_service.currentCallId != null) {
+        _listenForCallStatusChanges(_service.currentCallId!);
+      }
+      if (_service.currentChannelName != null) {
+        _location.startCitizenTracking(_service.currentChannelName!);
+      }
+    } catch (e) {
+      state = const ActiveCallState(status: ActiveCallStatus.ended);
+      rethrow;
+    }
   }
 }
 

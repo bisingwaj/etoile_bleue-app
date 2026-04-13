@@ -370,18 +370,28 @@ class EmergencyCallService {
     final callIdToEnd = _currentCallId;
     final channelName = _currentChannelName;
 
-    if (channelName != null) {
+    // Prefer update by ID (per prompt §4.7), fallback to channel_name
+    if (callIdToEnd != null || channelName != null) {
       try {
         final now = DateTime.now().toUtc();
         
         // Fetch answered_at to calculate duration
-        final callData = await _supabase
-            .from('call_history')
-            .select('answered_at')
-            .eq('channel_name', channelName)
-            .inFilter('status', ['ringing', 'active'])
-            .limit(1)
-            .maybeSingle();
+        Map<String, dynamic>? callData;
+        if (callIdToEnd != null) {
+          callData = await _supabase
+              .from('call_history')
+              .select('answered_at')
+              .eq('id', callIdToEnd)
+              .maybeSingle();
+        } else {
+          callData = await _supabase
+              .from('call_history')
+              .select('answered_at')
+              .eq('channel_name', channelName!)
+              .inFilter('status', ['ringing', 'active'])
+              .limit(1)
+              .maybeSingle();
+        }
             
         int? durationSeconds;
         if (callData != null && callData['answered_at'] != null) {
@@ -399,11 +409,18 @@ class EmergencyCallService {
           updateData['duration_seconds'] = durationSeconds;
         }
 
-        await _supabase
-            .from('call_history')
-            .update(updateData)
-            .eq('channel_name', channelName)
-            .inFilter('status', ['ringing', 'active']);
+        if (callIdToEnd != null) {
+          await _supabase
+              .from('call_history')
+              .update(updateData)
+              .eq('id', callIdToEnd);
+        } else {
+          await _supabase
+              .from('call_history')
+              .update(updateData)
+              .eq('channel_name', channelName!)
+              .inFilter('status', ['ringing', 'active']);
+        }
       } catch (e) {
         debugPrint('[EmergencyCall] hangUp DB update failed (non-fatal): $e');
       }
@@ -438,7 +455,30 @@ class EmergencyCallService {
   String? get currentIncidentId => _currentIncidentId;
   RtcEngine? get engine => _engine;
 
-  /// Répondre à un appel entrant du dashboard
+  /// Récupérer les données complètes d'un appel entrant depuis call_history.
+  /// Utilisé quand l'app est réveillée par FCM et que le Realtime n'est pas encore actif.
+  Future<Map<String, dynamic>?> fetchIncomingCall(String callId) async {
+    try {
+      final response = await _supabase
+          .from('call_history')
+          .select()
+          .eq('id', callId)
+          .eq('status', 'ringing')
+          .maybeSingle();
+      debugPrint('[EmergencyCall] fetchIncomingCall($callId): ${response != null ? 'found' : 'not found'}');
+      return response;
+    } catch (e) {
+      debugPrint('[EmergencyCall] fetchIncomingCall error: $e');
+      return null;
+    }
+  }
+
+  /// Répondre à un appel entrant de la Centrale ou d'un Urgentiste.
+  ///
+  /// Flux conforme au prompt :
+  /// 1. Fetch call_history pour récupérer le agora_token pré-généré
+  /// 2. Rejoindre le canal Agora avec ce token
+  /// 3. UPDATE status: active + answered_at (par ID)
   Future<void> answerIncomingCall(String channelName, String callHistoryId) async {
     debugPrint('[AnswerCall] Starting: channel=$channelName, callId=$callHistoryId');
 
@@ -449,24 +489,39 @@ class EmergencyCallService {
     _currentChannelName = channelName;
     _currentCallId = callHistoryId;
 
-    debugPrint('[AnswerCall] Fetching Agora token...');
-    final tokenRes = await _supabase.functions.invoke('agora-token', body: {
-      'channelName': channelName,
-      'uid': 0,
-      'role': 'publisher',
-      'expireTime': 3600,
-    });
-    debugPrint('[AnswerCall] Token response status: ${tokenRes.status}');
-    final tokenData = tokenRes.data;
-    if (tokenData == null || tokenData['token'] == null) {
-      debugPrint('[AnswerCall] Agora token invalid — clearing stale state');
-      _currentChannelName = null;
-      _currentCallId = null;
-      throw Exception('Impossible d\'obtenir le token Agora pour répondre à l\'appel.');
+    // 1. Fetch le record call_history pour récupérer le token pré-généré + incident_id
+    String? token;
+    final callRecord = await fetchIncomingCall(callHistoryId);
+    if (callRecord != null) {
+      token = callRecord['agora_token'] as String?;
+      _currentIncidentId = callRecord['incident_id'] as String?;
+      debugPrint('[AnswerCall] Pre-generated token found: ${token != null ? '${token.length} chars' : 'null'}');
+      debugPrint('[AnswerCall] Incident ID: $_currentIncidentId');
     }
-    final token = tokenData['token'].toString();
-    debugPrint('[AnswerCall] Token received (${token.length} chars)');
 
+    // 2. Fallback : si pas de token pré-généré, en demander un nouveau
+    if (token == null || token.isEmpty) {
+      debugPrint('[AnswerCall] No pre-generated token, requesting new one from edge function...');
+      final tokenRes = await _supabase.functions.invoke('agora-token', body: {
+        'channelName': channelName,
+        'uid': 0,
+        'role': 'publisher',
+        'expireTime': 3600,
+      });
+      debugPrint('[AnswerCall] Token response status: ${tokenRes.status}');
+      final tokenData = tokenRes.data;
+      if (tokenData == null || tokenData['token'] == null) {
+        debugPrint('[AnswerCall] Agora token invalid — clearing stale state');
+        _currentChannelName = null;
+        _currentCallId = null;
+        _currentIncidentId = null;
+        throw Exception('Impossible d\'obtenir le token Agora pour répondre à l\'appel.');
+      }
+      token = tokenData['token'].toString();
+    }
+    debugPrint('[AnswerCall] Token ready (${token.length} chars)');
+
+    // 3. Initialiser Agora et rejoindre le canal
     debugPrint('[AnswerCall] Initializing Agora engine...');
     await _initAgoraEngine();
 
@@ -486,11 +541,12 @@ class EmergencyCallService {
 
     _startForegroundService(channelName);
 
+    // 4. Mettre à jour le statut en base (par ID, conformément au prompt)
     debugPrint('[AnswerCall] Updating call_history to active...');
     await _supabase.from('call_history').update({
       'status': 'active',
       'answered_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('channel_name', channelName).inFilter('status', ['ringing', 'active']);
+    }).eq('id', callHistoryId);
     debugPrint('[AnswerCall] Complete');
   }
 
@@ -509,6 +565,152 @@ class EmergencyCallService {
     }
 
     CallKitService.endCall(callHistoryId);
+  }
+
+  /// Rappeler — initie un nouvel appel de rappel vers l'urgentiste
+  /// qui avait précédemment appelé le patient (appel manqué ou terminé).
+  /// Cible spécifiquement l'urgentiste via son operator_id.
+  Future<String?> callbackCall({
+    required String originalCallId,
+  }) async {
+    debugPrint('[EmergencyCall] Starting callback for original call: $originalCallId');
+
+    await [Permission.microphone, Permission.camera].request();
+
+    // 1. Récupérer les données de l'appel original
+    final originalCall = await _supabase
+        .from('call_history')
+        .select()
+        .eq('id', originalCallId)
+        .maybeSingle();
+
+    if (originalCall == null) {
+      throw Exception('Appel original introuvable.');
+    }
+
+    final incidentId = originalCall['incident_id'] as String?;
+    final callerName = originalCall['caller_name'] as String?;
+    final operatorId = originalCall['operator_id'] as String?;
+    final originalChannelName = originalCall['channel_name'] as String? ?? '';
+
+    debugPrint('[EmergencyCall] Original call: caller=$callerName, operator=$operatorId, channel=$originalChannelName');
+
+    // 2. Générer un nouveau canal pour le rappel
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final channelName = 'CALLBACK-${originalCallId.substring(0, 8)}-$timestamp';
+    _currentChannelName = channelName;
+    _currentIncidentId = incidentId;
+
+    // 3. Obtenir un token Agora
+    final tokenRes = await _supabase.functions.invoke('agora-token', body: {
+      'channelName': channelName,
+      'uid': 0,
+      'role': 'publisher',
+      'expireTime': 3600,
+    });
+    final tokenData = tokenRes.data;
+    if (tokenData == null || tokenData['token'] == null) {
+      _currentChannelName = null;
+      _currentIncidentId = null;
+      throw Exception('Impossible d\'obtenir le token Agora pour le rappel.');
+    }
+    final token = tokenData['token'].toString();
+
+    // 4. Récupérer les infos du patient
+    final userRes = await _supabase
+        .from('users_directory')
+        .select('first_name, last_name, phone')
+        .eq('auth_user_id', userId)
+        .maybeSingle();
+    final String patientName = userRes != null
+        ? '${userRes['first_name']} ${userRes['last_name']}'
+        : 'Patient';
+    final String patientPhone = userRes?['phone'] ?? '';
+
+    // 5. Créer l'entrée call_history pour le rappel — avec operator_id pour cibler l'urgentiste
+    final insertData = <String, dynamic>{
+      'channel_name': channelName,
+      'caller_name': patientName,
+      'caller_phone': patientPhone,
+      'incident_id': incidentId,
+      'citizen_id': userId,
+      'call_type': 'audio',
+      'status': 'ringing',
+      'agora_token': token,
+      'role': 'citoyen',
+      'has_video': false,
+    };
+
+    // Conserver l'operator_id pour le routage vers l'urgentiste
+    if (operatorId != null) {
+      insertData['operator_id'] = operatorId;
+    }
+
+    final callRes = await _supabase.from('call_history')
+        .insert(insertData)
+        .select('id')
+        .single();
+
+    _currentCallId = callRes['id'] as String;
+
+    // 6. Initialiser Agora et rejoindre le canal
+    await _initAgoraEngine();
+    await _engine!.joinChannel(
+      token: token,
+      channelId: channelName,
+      uid: 0,
+      options: const ChannelMediaOptions(
+        clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+        publishMicrophoneTrack: true,
+        autoSubscribeAudio: true,
+      ),
+    );
+
+    // 7. UI native + foreground service
+    CallKitService.startOutgoingCall(
+      callId: _currentCallId!,
+      callerName: callerName ?? 'Urgentiste',
+    );
+    _startForegroundService(channelName);
+
+    // 8. Notifier l'urgentiste ciblé via FCM push
+    //    On passe target_user_id = operator_id pour que l'edge function
+    //    envoie le push au bon urgentiste, pas à la centrale.
+    try {
+      final pushBody = <String, dynamic>{
+        'citizen_id': userId,
+        'channel_name': channelName,
+        'caller_name': patientName,
+        'call_type': 'callback',
+        'original_call_id': originalCallId,
+        'call_history_id': _currentCallId,
+      };
+
+      // Cibler l'urgentiste spécifique via son operator_id
+      if (operatorId != null) {
+        pushBody['target_user_id'] = operatorId;
+        debugPrint('[EmergencyCall] Callback targeting urgentiste: $operatorId');
+      }
+
+      await _supabase.functions.invoke('send-call-push', body: pushBody);
+    } catch (e) {
+      debugPrint('[EmergencyCall] send-call-push (callback) failed (non-fatal): $e');
+    }
+
+    debugPrint('[EmergencyCall] Callback call started: channel=$channelName, callId=$_currentCallId, targetOperator=$operatorId');
+    return _currentCallId;
+  }
+
+  /// Met à jour le statut vidéo dans call_history pour la synchronisation dashboard
+  Future<void> updateVideoStatus(String callId, bool hasVideo) async {
+    try {
+      await _supabase.from('call_history').update({
+        'has_video': hasVideo,
+      }).eq('id', callId);
+    } catch (e) {
+      debugPrint('[EmergencyCall] updateVideoStatus error: $e');
+    }
   }
 
   void _startForegroundService(String channelName) {
