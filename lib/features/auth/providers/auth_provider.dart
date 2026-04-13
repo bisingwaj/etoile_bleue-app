@@ -123,7 +123,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final userId = _supabase.auth.currentUser!.id;
         final profile = await _supabase
             .from('users_directory')
-            .select('auth_user_id, first_name, last_name, phone, role, ville, commune, created_at')
+            .select('auth_user_id, first_name, last_name, phone, role, created_at')
             .eq('auth_user_id', userId)
             .maybeSingle();
 
@@ -297,7 +297,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (userMap == null && uid != null) {
         userMap = await _supabase
             .from('users_directory')
-            .select('auth_user_id, first_name, last_name, phone, role, ville, commune, created_at')
+            .select('auth_user_id, first_name, last_name, phone, role, created_at')
             .eq('auth_user_id', uid)
             .maybeSingle();
       }

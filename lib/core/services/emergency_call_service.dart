@@ -196,9 +196,11 @@ class EmergencyCallService {
         'caller_lng': lng,
         'incident_id': incidentId,
         'citizen_id': userId,
-        'call_type': 'incoming',
+        'call_type': 'audio', // Must be 'audio' per prompt
         'status': 'ringing',
         'agora_token': token,
+        'role': 'citoyen',    // Required by dashboard
+        'has_video': false,   // Required
       }).select('id').single();
     } catch (e) {
       debugPrint('[EmergencyCall] call_history insert failed — cleaning orphan incident $incidentId');
@@ -241,7 +243,7 @@ class EmergencyCallService {
         'citizen_id': userId,
         'channel_name': channelName,
         'caller_name': callerName,
-        'call_type': 'incoming',
+        'call_type': 'audio',
       });
     } catch (e) {
       debugPrint('[EmergencyCall] send-call-push failed (non-fatal): $e');
