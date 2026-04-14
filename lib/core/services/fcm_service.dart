@@ -1,9 +1,11 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
+import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 
 @pragma('vm:entry-point')
 Future<void> _handleBackgroundMessage(RemoteMessage message) async {
@@ -34,8 +36,11 @@ class FcmService {
     playSound: true,
   );
 
+  static ProviderContainer? _container;
+
   /// Initialisation complète FCM et Local Notifications
-  static Future<void> initialize() async {
+  static Future<void> initialize(ProviderContainer container) async {
+    _container = container;
     // 1. Demander les permissions Push (Obligatoire pour iOS, recommandé Android 13+)
     await FirebaseMessaging.instance.requestPermission();
 
@@ -43,7 +48,7 @@ class FcmService {
     FirebaseMessaging.onMessage.listen(_handleFcmData);
     FirebaseMessaging.onBackgroundMessage(_handleBackgroundMessage);
 
-    // 3. Configuration des notifications locales (Fallback)
+    // 3. Configuration des notifications locales
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings(
       requestAlertPermission: false, 
@@ -54,6 +59,13 @@ class FcmService {
       const InitializationSettings(android: androidInit, iOS: iosInit),
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
+    
+    // Check if the app was launched via a notification tap (Killed state)
+    final NotificationAppLaunchDetails? launchDetails = 
+        await _localNotifications.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      _onNotificationTapped(launchDetails!.notificationResponse!);
+    }
 
     // 4. Créer le canal Android haute priorité
     await _localNotifications
@@ -105,7 +117,23 @@ class FcmService {
   }
 
   static void _onNotificationTapped(NotificationResponse response) {
-    debugPrint('[PUSH] Notification locale tapée: \${response.payload}');
+    final payload = response.payload;
+    debugPrint('[PUSH] Notification locale tapée: $payload');
+    
+    if (payload != null && payload.startsWith('incident:')) {
+      final incidentId = payload.replaceFirst('incident:', '');
+      if (incidentId.isNotEmpty && _container != null) {
+        debugPrint('[PUSH] Redirection vers l\'incident: $incidentId');
+        // Use addPostFrameCallback to ensure the router is ready
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            _container!.read(appRouterProvider).push('/incident/$incidentId');
+          } catch (e) {
+            debugPrint('[PUSH] Erreur lors de la navigation: $e');
+          }
+        });
+      }
+    }
   }
 
   /// Réception quand l'app est au premier plan
@@ -130,6 +158,10 @@ class FcmService {
 
     // Accept multiple type values from different backends
     final type = data['type'] ?? data['action'] ?? '';
+    final isDispatchUpdate = type == 'dispatch_status_update' || 
+                           type == 'dispatch' ||
+                           data.containsKey('incidentId') || 
+                           data.containsKey('incident_id');
     final isIncomingCall = type == 'incoming_call' || 
                            type == 'call' || 
                            type == 'voip_call' ||
@@ -137,7 +169,7 @@ class FcmService {
                            data.containsKey('callId') ||
                            data.containsKey('call_id') ||
                            data.containsKey('channel_name');
-
+    
     if (isIncomingCall) {
       // Handle both camelCase and snake_case field names
       final callId = (data['callId'] ?? data['call_id'] ?? data['id'] ?? '') as String;
@@ -146,11 +178,6 @@ class FcmService {
       final hasVideo = data['hasVideo'] == 'true' || data['has_video'] == 'true';
 
       debugPrint('[PUSH] → Incoming call detected!');
-      debugPrint('[PUSH]   callId=$callId');
-      debugPrint('[PUSH]   channelName=$channelName');
-      debugPrint('[PUSH]   callerName=$callerName');
-      debugPrint('[PUSH]   hasVideo=$hasVideo');
-
       if (callId.isNotEmpty) {
         await CallKitService.showIncomingCall(
           callId: callId,
@@ -158,12 +185,42 @@ class FcmService {
           hasVideo: hasVideo,
           extra: {'channelName': channelName},
         );
-        debugPrint('[PUSH] ✅ CallKit incoming call triggered');
-      } else {
-        debugPrint('[PUSH] ⚠️ callId is empty, cannot show incoming call');
+      }
+    } else if (isDispatchUpdate) {
+      final incidentId = (data['incidentId'] ?? data['incident_id'] ?? data['reference_id'] ?? '') as String;
+      final status = (data['status'] ?? '') as String;
+      
+      debugPrint('[PUSH] → Dispatch status update: $status (incident=$incidentId)');
+      
+      // If we are in foreground and there's no system notification shown yet,
+      // or if we want to ensure visual feedback, we show a local notification.
+      if (incidentId.isNotEmpty) {
+        String title = message.notification?.title ?? "Mise à jour d'intervention";
+        String body = message.notification?.body ?? "Le statut de votre demande a changé.";
+        
+        await _localNotifications.show(
+          incidentId.hashCode,
+          title,
+          body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              _androidChannel.id,
+              _androidChannel.name,
+              channelDescription: _androidChannel.description,
+              importance: Importance.max,
+              priority: Priority.max,
+            ),
+            iOS: const DarwinNotificationDetails(
+              presentAlert: true,
+              presentSound: true,
+              presentBadge: true,
+            ),
+          ),
+          payload: 'incident:$incidentId',
+        );
       }
     } else {
-      debugPrint('[PUSH] ℹ️ Not an incoming call message (type=$type). Ignoring.');
+      debugPrint('[PUSH] ℹ️ Message type not recognized (type=$type). Ignoring.');
     }
   }
 

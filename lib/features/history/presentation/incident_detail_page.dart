@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:etoile_bleue_mobile/core/providers/dispatch_timeline_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class IncidentDetailPage extends StatefulWidget {
+class IncidentDetailPage extends ConsumerStatefulWidget {
   final String incidentId;
   final Map<String, dynamic> initialData;
 
@@ -16,10 +17,10 @@ class IncidentDetailPage extends StatefulWidget {
   });
 
   @override
-  State<IncidentDetailPage> createState() => _IncidentDetailPageState();
+  ConsumerState<IncidentDetailPage> createState() => _IncidentDetailPageState();
 }
 
-class _IncidentDetailPageState extends State<IncidentDetailPage> {
+class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
   Map<String, dynamic> _incidentData = {};
   Map<String, dynamic>? _dispatchData;
   RealtimeChannel? _incidentSub;
@@ -149,8 +150,80 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
     );
   }
 
+  Widget _buildTerrainTimelineItem(Map<String, dynamic> item, bool isLast) {
+    final type = item['type']?.toString() ?? 'info';
+    final title = item['title']?.toString() ?? 'Action terrain';
+    final content = item['content']?.toString() ?? '';
+    final createdAt = DateTime.tryParse(item['created_at']?.toString() ?? '')?.toLocal();
+    final timeStr = createdAt != null 
+        ? "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}"
+        : '--:--';
+
+    IconData icon;
+    Color color;
+    switch (type) {
+      case 'vitals':
+        icon = CupertinoIcons.waveform_path_ecg;
+        color = Colors.blue;
+        break;
+      case 'care':
+        icon = CupertinoIcons.bandage;
+        color = Colors.green;
+        break;
+      case 'decision':
+        icon = CupertinoIcons.checkmark_circle_fill;
+        color = Colors.orange;
+        break;
+      case 'evaluation':
+        icon = CupertinoIcons.doc_text_viewfinder;
+        color = Colors.purple;
+        break;
+      default:
+        icon = CupertinoIcons.info_circle_fill;
+        color = Colors.grey;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(timeStr, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                  ],
+                ),
+                if (content.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(content, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final timelineAsync = ref.watch(dispatchTimelineProvider(widget.incidentId));
     final status = _incidentData['status']?.toString();
     final address = _incidentData['location_address']?.toString() ?? 'Adresse à préciser';
     
@@ -298,6 +371,57 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
                   _buildTimelineStep('Secours en route', step3Active ? 'Votre équipe ($unitName) arrive' : 'Recherche de la meilleure équipe...', step3Time, '', step3Active, false),
                   _buildTimelineStep(statusIndex >= 3 ? 'Intervention clôturée' : 'Les secours sont là', statusIndex >= 3 ? 'Vous êtes en sécurité' : 'L\'équipe est à vos côtés', step4Time, '', step4Active, true),
                   
+                  const SizedBox(height: 32),
+                  
+                  // Live terrain actions from dispatch_timeline
+                  timelineAsync.when(
+                    data: (terrainActions) {
+                      if (terrainActions.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(CupertinoIcons.waveform_path_ecg, color: AppColors.blue, size: 20),
+                              const SizedBox(width: 8),
+                              const Text('Suivi médical & terrain', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text('EN DIRECT', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey[200]!),
+                            ),
+                            child: Column(
+                              children: [
+                                for (int i = 0; i < terrainActions.length; i++)
+                                  _buildTerrainTimelineItem(terrainActions[i], i == terrainActions.length - 1),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    },
+                    loading: () => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Center(child: CupertinoActivityIndicator()),
+                    ),
+                    error: (e, _) => const SizedBox.shrink(),
+                  ),
+
                   const SizedBox(height: 24),
 
                   // Recommandations Center

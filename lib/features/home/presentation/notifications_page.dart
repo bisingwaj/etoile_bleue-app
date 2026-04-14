@@ -88,6 +88,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               Color iconColor;
 
               switch (type) {
+                case 'dispatch':
+                  icon = CupertinoIcons.bus; // Using bus as placeholder for ambulance 
+                  iconColor = AppColors.blue;
+                  break;
+                case 'hospital':
+                  icon = CupertinoIcons.house_fill;
+                  iconColor = Colors.green;
+                  break;
                 case 'alert':
                   icon = CupertinoIcons.exclamationmark_triangle_fill;
                   iconColor = Colors.redAccent;

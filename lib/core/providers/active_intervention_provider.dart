@@ -15,11 +15,12 @@ class ActiveInterventionState {
     this.rescuerName,
   });
 
-  /// Visible tant que l'équipe n'est pas sur place (arrived) ou terminé.
+  /// Visible tant que l'équipe n'est pas sur place (arrived, on_scene) ou terminé.
   bool get isVisible =>
       incidentId != null &&
-      dispatchStatus != 'arrived' &&
-      dispatchStatus != 'completed';
+      (dispatchStatus == 'processing' ||
+       dispatchStatus == 'dispatched' ||
+       dispatchStatus == 'en_route');
 
   ActiveInterventionState copyWith({
     String? incidentId,

@@ -50,18 +50,11 @@ void main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? 'YOUR_SUPABASE_ANON_KEY',
   );
 
-  await FcmService.initialize();
+  final container = ProviderContainer();
+
+  await FcmService.initialize(container);
   await CallKitService.requestPermissions();
   CallForegroundService.initTaskHandler();
-
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
-
-  final container = ProviderContainer();
 
   _setupCallKitListener(container);
   _setupForegroundHangupListener(container);
