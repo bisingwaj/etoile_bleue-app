@@ -297,82 +297,137 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
         child: Scaffold(
           backgroundColor: Colors.black,
           body: SafeArea(
-            child: Stack(
-              children: [
-                // Background (Video or Audio Visualizer)
-                Positioned.fill(
-                  child: callState.isVideoOn
-                      ? _buildVideoGrid(callState)
-                      : _buildAudioVisualizer(callState),
-                ),
-
-                // Foreground layout
-                Column(
-                  children: [
-                    // Top header (status + minimize)
-                    IgnorePointer(
-                      ignoring: !_isControlsVisible,
-                      child: AnimatedOpacity(
-                        opacity: _isControlsVisible ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 300),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                          child: _buildHeader(callState),
-                        ),
-                      ),
-                    ),
-
-                    // Scrollable middle space for dynamic banners
-                    Expanded(
-                      child: IgnorePointer(
-                        ignoring: !_isControlsVisible,
-                        child: AnimatedOpacity(
-                          opacity: _isControlsVisible ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 300),
-                          child: ListView(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            children: [
-                              _buildIncidentProgress(callState),
-                              const SizedBox(height: 16),
-                              _buildEmergencyActionButtons(callState),
-                              if (hasReco) const SizedBox(height: 16),
-                              if (hasReco) _buildRecommendationsBanner(),
-                              if (callState.channelName != null && isCallLive) const SizedBox(height: 16),
-                              if (callState.channelName != null && isCallLive) _buildTranscriptionPanel(callState.channelName!),
-                              if (_showConnectionIssue) const SizedBox(height: 16),
-                              if (_showConnectionIssue) _buildConnectionIssueBanner(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Bottom triage panel
-                    if ((isCallLive || callState.status == ActiveCallStatus.ringing) && _isControlsVisible)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: const EmergencyTriagePanel(),
-                      ),
-
-                    // Bottom controls
-                    IgnorePointer(
-                      ignoring: !_isControlsVisible,
-                      child: AnimatedOpacity(
-                        opacity: _isControlsVisible ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 300),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                          child: _buildBottomControls(callState),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            child: callState.isVideoOn
+                ? _buildVideoLayout(callState, hasReco, isCallLive)
+                : _buildAudioLayout(callState, hasReco, isCallLive),
           ),
         ),
       ),
+    );
+  }
+
+  /// Full-screen video layout: video has the highest z-index and is fully
+  /// interactive. Only the header and bottom controls float on top.
+  Widget _buildVideoLayout(ActiveCallState callState, bool hasReco, bool isCallLive) {
+    return Stack(
+      children: [
+        // 1. Video grid fills the entire screen — highest visual priority
+        Positioned.fill(
+          child: _buildVideoGrid(callState),
+        ),
+
+        // 2. Header floating on top of video
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            ignoring: !_isControlsVisible,
+            child: AnimatedOpacity(
+              opacity: _isControlsVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildHeader(callState),
+              ),
+            ),
+          ),
+        ),
+
+        // 3. Bottom controls floating on top of video
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            ignoring: !_isControlsVisible,
+            child: AnimatedOpacity(
+              opacity: _isControlsVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: _buildBottomControls(callState),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Audio layout: visualizer in background, cards/triage in the middle,
+  /// controls at the bottom.
+  Widget _buildAudioLayout(ActiveCallState callState, bool hasReco, bool isCallLive) {
+    return Stack(
+      children: [
+        // Background audio visualizer
+        Positioned.fill(
+          child: _buildAudioVisualizer(callState),
+        ),
+
+        // Foreground layout
+        Column(
+          children: [
+            // Top header (status + minimize)
+            IgnorePointer(
+              ignoring: !_isControlsVisible,
+              child: AnimatedOpacity(
+                opacity: _isControlsVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: _buildHeader(callState),
+                ),
+              ),
+            ),
+
+            // Scrollable middle space for dynamic banners
+            Expanded(
+              child: IgnorePointer(
+                ignoring: !_isControlsVisible,
+                child: AnimatedOpacity(
+                  opacity: _isControlsVisible ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    children: [
+                      _buildIncidentProgress(callState),
+                      const SizedBox(height: 16),
+                      _buildEmergencyActionButtons(callState),
+                      if (hasReco) const SizedBox(height: 16),
+                      if (hasReco) _buildRecommendationsBanner(),
+                      if (callState.channelName != null && isCallLive) const SizedBox(height: 16),
+                      if (callState.channelName != null && isCallLive) _buildTranscriptionPanel(callState.channelName!),
+                      if (_showConnectionIssue) const SizedBox(height: 16),
+                      if (_showConnectionIssue) _buildConnectionIssueBanner(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Bottom triage panel
+            if ((isCallLive || callState.status == ActiveCallStatus.ringing) && _isControlsVisible)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: const EmergencyTriagePanel(),
+              ),
+
+            // Bottom controls
+            IgnorePointer(
+              ignoring: !_isControlsVisible,
+              child: AnimatedOpacity(
+                opacity: _isControlsVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: _buildBottomControls(callState),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

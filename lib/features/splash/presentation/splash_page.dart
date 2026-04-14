@@ -72,6 +72,12 @@ class _SplashPageState extends State<SplashPage>
             .maybeSingle();
 
         if (mounted) {
+          final currentRoute = GoRouterState.of(context).matchedLocation;
+          if (currentRoute != AppRoutes.splash) {
+            debugPrint('[Splash] Un autre écran est déjà affiché ($currentRoute), annulation de la redirection.');
+            return;
+          }
+
           if (profile != null && AuthNotifier.isProfileComplete(profile)) {
             context.go(AppRoutes.home);
           } else {
@@ -80,7 +86,12 @@ class _SplashPageState extends State<SplashPage>
         }
       } catch (e) {
         debugPrint('[Splash] profile fetch error: $e');
-        if (mounted) context.go(AppRoutes.login);
+        if (mounted) {
+          final currentRoute = GoRouterState.of(context).matchedLocation;
+          if (currentRoute == AppRoutes.splash) {
+            context.go(AppRoutes.login);
+          }
+        }
       }
     });
   }

@@ -205,9 +205,9 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
     }
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 10,
-      left: 20,
-      right: 20,
+      top: MediaQuery.of(context).viewPadding.top + 8,
+      left: 16,
+      right: 16,
       child: GestureDetector(
         onTap: _restoreCall,
         child: Material(

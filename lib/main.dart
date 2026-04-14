@@ -123,6 +123,9 @@ void _setupCallKitListener(ProviderContainer container) {
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         try {
+          // Force app to foreground (Android necessity when answering from background)
+          FlutterForegroundTask.launchApp();
+          
           container.read(appRouterProvider).go('/call/active');
           debugPrint('[main] Navigated to /call/active');
         } catch (e) {
@@ -208,17 +211,22 @@ class _EtoileBleuAppState extends ConsumerState<EtoileBleuApp>
     super.dispose();
   }
 
-  /// Quand l'app revient au premier plan, si un appel est actif,
-  /// on restaure automatiquement l'écran d'appel.
+  /// Quand l'app revient au premier plan, si un appel est actif
+  /// et que l'utilisateur n'a pas explicitement minimisé l'appel,
+  /// on restaure l'écran d'appel. Sinon, le Dynamic Island reste
+  /// affiché pour permettre à l'utilisateur de revenir quand il veut.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       final callState = ref.read(callStateProvider);
-      if (callState.isInCall) {
-        ref.read(isCallMinimizedProvider.notifier).state = false;
+      final isMinimized = ref.read(isCallMinimizedProvider);
+      if (callState.isInCall && !isMinimized) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           try {
-            ref.read(appRouterProvider).go('/call/active');
+            final currentRoute = ref.read(appRouterProvider).routerDelegate.currentConfiguration.last.matchedLocation;
+            if (currentRoute != '/call/active') {
+              ref.read(appRouterProvider).go('/call/active');
+            }
           } catch (e) {
             debugPrint('[AppLifecycle] Navigation to /call/active failed: $e');
           }

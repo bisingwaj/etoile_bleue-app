@@ -194,7 +194,7 @@ class CallKitService {
 
   static String? _extractCallId(CallEvent event) {
     try {
-      final body = event.body as Map<String, dynamic>?;
+      final body = event.body as Map<dynamic, dynamic>?;
       return body?['id'] as String?;
     } catch (_) {
       return null;
