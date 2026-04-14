@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:etoile_bleue_mobile/core/services/fcm_service.dart';
 
 // ══════════════════════════════════════════════════════════════
 // AUTH PROVIDER — Twilio Verify OTP → Supabase Session
@@ -147,6 +148,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
             } catch (e) {
               debugPrint('[AuthProvider] status update failed (non-fatal): $e');
             }
+            // Sync FCM token now that user is authenticated
+            FcmService.syncToken();
           }
           return;
         }
@@ -239,6 +242,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isNewUser: needsRegistration,
         user: userMap,
       );
+
+      // Sync FCM token after successful login
+      FcmService.syncToken();
 
       return true;
     } catch (e) {

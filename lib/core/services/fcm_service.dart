@@ -8,9 +8,17 @@ import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
 @pragma('vm:entry-point')
 Future<void> _handleBackgroundMessage(RemoteMessage message) async {
   // Réveil profond de l'application (Background / Killed)
-  await Firebase.initializeApp();
-  debugPrint('[PUSH] Background message received: ${message.messageId}');
+  debugPrint('[PUSH-BG] ===== BACKGROUND MESSAGE RECEIVED =====');
+  debugPrint('[PUSH-BG] messageId=${message.messageId}');
+  debugPrint('[PUSH-BG] data=${message.data}');
+  try {
+    await Firebase.initializeApp();
+    debugPrint('[PUSH-BG] Firebase initialized in background isolate');
+  } catch (e) {
+    debugPrint('[PUSH-BG] Firebase already initialized: $e');
+  }
   await FcmService.processMessage(message);
+  debugPrint('[PUSH-BG] ===== BACKGROUND PROCESSING DONE =====');
 }
 
 /// Gestionnaire centralisé des notifications Push (Firebase FCM).
@@ -68,11 +76,15 @@ class FcmService {
   static Future<void> syncToken() async {
     try {
       final token = await FirebaseMessaging.instance.getToken();
+      debugPrint('[PUSH] FCM Token: ${token ?? "NULL"}');
       if (token != null) {
         await _updateTokenInDatabase(token);
+        debugPrint('[PUSH] ✅ Token synced to database');
+      } else {
+        debugPrint('[PUSH] ⚠️ FCM token is null — push won\'t work');
       }
     } catch (e) {
-      debugPrint('[PUSH] Erreur lors de la récupération du token: $e');
+      debugPrint('[PUSH] ❌ Erreur lors de la récupération du token: $e');
     }
   }
 
@@ -105,22 +117,53 @@ class FcmService {
   /// Traitement logique du payload recu par FCM
   static Future<void> processMessage(RemoteMessage message) async {
     final data = message.data;
-    debugPrint('[PUSH] Payload Data: $data');
+    debugPrint('[PUSH] ===== FCM MESSAGE RECEIVED =====');
+    debugPrint('[PUSH] Message ID: ${message.messageId}');
+    debugPrint('[PUSH] Data keys: ${data.keys.toList()}');
+    debugPrint('[PUSH] Full payload: $data');
+    
+    // Also check notification body for data (some backends send it there)
+    if (message.notification != null) {
+      debugPrint('[PUSH] Notification title: ${message.notification?.title}');
+      debugPrint('[PUSH] Notification body: ${message.notification?.body}');
+    }
 
-    if (data['type'] == 'incoming_call') {
-      final callId = data['callId'] as String?;
-      final channelName = data['channelName'] as String?;
-      final callerName = data['callerName'] as String?;
+    // Accept multiple type values from different backends
+    final type = data['type'] ?? data['action'] ?? '';
+    final isIncomingCall = type == 'incoming_call' || 
+                           type == 'call' || 
+                           type == 'voip_call' ||
+                           type == 'incoming-call' ||
+                           data.containsKey('callId') ||
+                           data.containsKey('call_id') ||
+                           data.containsKey('channel_name');
 
-      if (callId != null && callerName != null) {
-        // Appelle explicitement CallKit pour réveiller le téléphone
+    if (isIncomingCall) {
+      // Handle both camelCase and snake_case field names
+      final callId = (data['callId'] ?? data['call_id'] ?? data['id'] ?? '') as String;
+      final channelName = (data['channelName'] ?? data['channel_name'] ?? '') as String;
+      final callerName = (data['callerName'] ?? data['caller_name'] ?? 'Centre d\'appels Étoile Bleue') as String;
+      final hasVideo = data['hasVideo'] == 'true' || data['has_video'] == 'true';
+
+      debugPrint('[PUSH] → Incoming call detected!');
+      debugPrint('[PUSH]   callId=$callId');
+      debugPrint('[PUSH]   channelName=$channelName');
+      debugPrint('[PUSH]   callerName=$callerName');
+      debugPrint('[PUSH]   hasVideo=$hasVideo');
+
+      if (callId.isNotEmpty) {
         await CallKitService.showIncomingCall(
           callId: callId,
           callerName: callerName,
-          hasVideo: false,
+          hasVideo: hasVideo,
           extra: {'channelName': channelName},
         );
+        debugPrint('[PUSH] ✅ CallKit incoming call triggered');
+      } else {
+        debugPrint('[PUSH] ⚠️ callId is empty, cannot show incoming call');
       }
+    } else {
+      debugPrint('[PUSH] ℹ️ Not an incoming call message (type=$type). Ignoring.');
     }
   }
 
