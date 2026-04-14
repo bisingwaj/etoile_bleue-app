@@ -19,6 +19,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../../core/utils/dynamic_island_toast.dart';
 import '../../training/presentation/training_page.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
+import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 import 'widgets/goodsam_sheet.dart';
@@ -917,6 +918,25 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   Future<void> _triggerEmergencyCall() async {
     if (_isSosTriggered) return;
     if (!mounted) return;
+
+    // Bloquer si un appel est déjà en cours
+    final callState = ref.read(callStateProvider);
+    if (callState.isInCall || callState.status == ActiveCallStatus.connecting) {
+      debugPrint('[SOS] Appel déjà en cours, redirection vers l\'écran actif');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Un appel est déjà en cours'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      // Redirige vers l'écran de l'appel en cours
+      if (mounted) {
+        ref.read(isCallMinimizedProvider.notifier).state = false;
+        context.push('/call/active');
+      }
+      return;
+    }
     
     setState(() => _isSosTriggered = true);
     
