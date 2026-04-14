@@ -20,6 +20,7 @@ import '../../../core/utils/dynamic_island_toast.dart';
 import '../../training/presentation/training_page.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
+import 'package:etoile_bleue_mobile/core/providers/active_intervention_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 import 'widgets/goodsam_sheet.dart';
@@ -390,6 +391,12 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
 
   Widget _buildHomeTab() {
+    final interventionState = ref.watch(activeInterventionProvider);
+    final showBanner = interventionState.isVisible;
+    if (showBanner) {
+      debugPrint('[Intervention] Banner is visible for incident: ${interventionState.incidentId} status: ${interventionState.dispatchStatus}');
+    }
+
     return Stack(
       children: [
         SafeArea(
@@ -406,7 +413,119 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             ],
           ),
         ),
+
+        // Bannière d'intervention en cours
+        if (showBanner)
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: _buildInterventionBanner(interventionState),
+          ),
       ],
+    );
+  }
+
+  Widget _buildInterventionBanner(ActiveInterventionState intervention) {
+    final status = intervention.dispatchStatus;
+    final IconData icon;
+    final String label;
+    final Color accentColor;
+
+    switch (status) {
+      case 'en_route':
+        icon = CupertinoIcons.location_fill;
+        label = 'Équipe en route vers vous';
+        accentColor = Colors.green;
+        break;
+      case 'dispatched':
+        icon = CupertinoIcons.car_detailed;
+        label = 'Secours assignés — En attente de départ';
+        accentColor = Colors.orange;
+        break;
+      default:
+        icon = CupertinoIcons.doc_text_search;
+        label = 'Dossier en cours de traitement';
+        accentColor = const Color(0xFF003580);
+    }
+
+    return GestureDetector(
+      onTap: () {
+        final id = intervention.incidentId;
+        if (id != null) {
+          context.push('/incident/$id');
+        }
+      },
+      child: Material(
+        color: Colors.transparent,
+        elevation: 8,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFF0D1421),
+                accentColor.withValues(alpha: 0.4),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: accentColor.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: accentColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      '🚨 Intervention en cours',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  CupertinoIcons.chevron_right,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

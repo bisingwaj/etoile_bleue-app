@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
+import 'package:etoile_bleue_mobile/core/providers/active_intervention_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,7 +26,7 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
   void _startVibration() {
     _vibrationTimer?.cancel();
     HapticFeedback.heavyImpact();
-    _vibrationTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+    _vibrationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       HapticFeedback.heavyImpact();
     });
   }
@@ -55,6 +56,15 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
         _startVibration();
       } else if (!shouldVibrate && _vibrationTimer != null) {
         _stopVibration();
+      }
+
+      // Start/stop intervention tracking based on incidentId
+      final prevIncident = prev?.incidentId;
+      final nextIncident = next.incidentId;
+      if (nextIncident != null && nextIncident != prevIncident) {
+        ref.read(activeInterventionProvider.notifier).startTracking(nextIncident);
+      } else if (nextIncident == null && prevIncident != null && !next.isInCall) {
+        // Don't stop tracking when call ends — keep showing the banner
       }
     });
 
