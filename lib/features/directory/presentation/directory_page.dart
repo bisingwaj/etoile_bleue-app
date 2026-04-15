@@ -7,34 +7,57 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 
+/// Clés stables pour filtrer les onglets (doivent correspondre à `directory.tab_<key>` dans les JSON).
+const List<String> _tabCategoryKeys = [
+  'hospitals',
+  'centers',
+  'dispensaries',
+  'police',
+  'rapid',
+];
+
 class Institution {
-  final String category;
+  /// Aligné sur [tab_hospitals], [tab_centers], etc. (sans préfixe `tab_`).
+  final String categoryKey;
+  /// Nom officiel tel qu’en base (non traduit).
   final String name;
-  final String type;
-  final String address;
+  /// Clés `directory.*` pour type, adresse et spécialités.
+  final String typeKey;
+  final String addressKey;
+  /// Spécialités séparées par `|` (chaîne unique traduite).
+  final String specsKey;
   final double lat;
   final double lng;
-  final List<String> specialties;
   final String phone;
   final IconData icon;
   final Color color;
   final bool isAffiliated;
-  
+
   double distanceInMeters = 0;
 
   Institution({
-    required this.category,
+    required this.categoryKey,
     required this.name,
-    required this.type,
-    required this.address,
+    required this.typeKey,
+    required this.addressKey,
+    required this.specsKey,
     required this.lat,
     required this.lng,
-    required this.specialties,
     required this.phone,
     required this.icon,
     required this.color,
     this.isAffiliated = false,
   });
+
+  String get _typeText => typeKey.tr();
+  String get _addressText => addressKey.tr();
+
+  List<String> get _specsList =>
+      specsKey.tr().split('|').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+
+  /// Texte agrégé pour recherche (nom brut + champs traduits).
+  String get _searchBlob =>
+      '${name.toLowerCase()} ${_typeText.toLowerCase()} ${_addressText.toLowerCase()} ${specsKey.tr().toLowerCase()}';
 }
 
 class DirectoryPage extends StatefulWidget {
@@ -46,43 +69,135 @@ class DirectoryPage extends StatefulWidget {
 
 class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<String> get _categories => [
-    'directory.tab_hospitals'.tr(),
-    'directory.tab_centers'.tr(),
-    'directory.tab_dispensaries'.tr(),
-    'directory.tab_police'.tr(),
-    'directory.tab_rapid'.tr(),
-  ];
 
   bool _isLoadingLocation = true;
   bool _hasLoadedGps = false;
   Position? _currentPosition;
-  int _selectedDistanceFilter = 5; // Radius par défaut en KM
+  int _selectedDistanceFilter = 5;
   final List<int> _distanceOptions = [1, 5, 10, 20];
 
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  // Simulate a realistic database of Kinshasa institutions
-  // Gombe: ~ -4.316, 15.311 | Ngaliema: ~ -4.341, 15.263 | Limete: ~ -4.375, 15.334 | Kalamu: ~ -4.348, 15.316
   final List<Institution> _allInstitutions = [
-    // GOMBE
-    Institution(category: 'Hôpitaux (CHU)', name: 'Hôpital Général (Ex-Maman Yemo)', type: 'Établissement Public', address: 'Avenue de l\'Hôpital, Gombe', lat: -4.310, lng: 15.315, specialties: ['Urgences', 'Maternité'], phone: '112', icon: CupertinoIcons.building_2_fill, color: AppColors.blue, isAffiliated: true),
-    Institution(category: 'Centres de Réf.', name: 'Centre Médical Diamant', type: 'Clinique Privée', address: 'Boulevard du 30 Juin, Gombe', lat: -4.312, lng: 15.310, specialties: ['Urgences', 'Laboratoire'], phone: '112', icon: CupertinoIcons.heart_fill, color: AppColors.red, isAffiliated: true),
-    Institution(category: 'Postes de Police', name: 'Commissariat Provincial', type: 'Direction Générale', address: 'Boulevard du 30 Juin, Gombe', lat: -4.311, lng: 15.311, specialties: ['Intervention Rapide'], phone: '112', icon: CupertinoIcons.shield_fill, color: AppColors.navyDeep, isAffiliated: true),
-    
-    // NGALIEMA
-    Institution(category: 'Hôpitaux (CHU)', name: 'directory.clinique_ngaliema'.tr(), type: 'Établissement Public', address: 'Montagne, Ngaliema', lat: -4.341, lng: 15.263, specialties: ['Traumatologie', 'Réanimation'], phone: '112', icon: CupertinoIcons.building_2_fill, color: AppColors.blue, isAffiliated: false),
-    Institution(category: 'Secours Rapide', name: 'Croix-Rouge - Base Ngaliema', type: 'Secours Rapide', address: 'Avenue de la Montagne, Ngaliema', lat: -4.345, lng: 15.260, specialties: ['Ambulance'], phone: '112', icon: CupertinoIcons.heart_circle_fill, color: AppColors.red, isAffiliated: true),
-
-    // LIMETE
-    Institution(category: 'Hôpitaux (CHU)', name: 'HJ Hospitals', type: 'Clinique Moderne', address: '1ère Rue, Limete Industriel', lat: -4.375, lng: 15.334, specialties: ['Cardiologie', 'Chirurgie'], phone: '112', icon: CupertinoIcons.building_2_fill, color: AppColors.blue, isAffiliated: false),
-    Institution(category: 'Dispensaires', name: 'Centre de Santé Limete', type: 'Public', address: '7ème Rue, Limete', lat: -4.372, lng: 15.330, specialties: ['Soins Infirmiers'], phone: '112', icon: CupertinoIcons.bandage_fill, color: Colors.green, isAffiliated: true),
-
-    // KASA-VUBU / KALAMU
-    Institution(category: 'Hôpitaux (CHU)', name: 'directory.hosp_cinq'.tr(), type: 'Centre Médico-Chirurgical', address: 'Avenue de la Libération, Kasa-Vubu', lat: -4.340, lng: 15.300, specialties: ['Imagerie', 'Urgences Vitales'], phone: '112', icon: CupertinoIcons.building_2_fill, color: AppColors.blue, isAffiliated: false),
-    Institution(category: 'Postes de Police', name: 'Sous-Commissariat Kalamu', type: 'Poste Local', address: 'Quartier Matonge', lat: -4.348, lng: 15.316, specialties: ['Sécurité de Proximité'], phone: '112', icon: CupertinoIcons.shield_fill, color: AppColors.navyDeep, isAffiliated: false),
+    Institution(
+      categoryKey: 'hospitals',
+      name: 'Hôpital Général (Ex-Maman Yemo)',
+      typeKey: 'directory.demo_maman_yemo_type',
+      addressKey: 'directory.demo_maman_yemo_address',
+      specsKey: 'directory.demo_maman_yemo_specs',
+      lat: -4.310,
+      lng: 15.315,
+      phone: '112',
+      icon: CupertinoIcons.building_2_fill,
+      color: AppColors.blue,
+      isAffiliated: true,
+    ),
+    Institution(
+      categoryKey: 'centers',
+      name: 'Centre Médical Diamant',
+      typeKey: 'directory.demo_diamant_type',
+      addressKey: 'directory.demo_diamant_address',
+      specsKey: 'directory.demo_diamant_specs',
+      lat: -4.312,
+      lng: 15.310,
+      phone: '112',
+      icon: CupertinoIcons.heart_fill,
+      color: AppColors.red,
+      isAffiliated: true,
+    ),
+    Institution(
+      categoryKey: 'police',
+      name: 'Commissariat Provincial',
+      typeKey: 'directory.demo_commissariat_gombe_type',
+      addressKey: 'directory.demo_commissariat_gombe_address',
+      specsKey: 'directory.demo_commissariat_gombe_specs',
+      lat: -4.311,
+      lng: 15.311,
+      phone: '112',
+      icon: CupertinoIcons.shield_fill,
+      color: AppColors.navyDeep,
+      isAffiliated: true,
+    ),
+    Institution(
+      categoryKey: 'hospitals',
+      name: 'Clinique Ngaliema',
+      typeKey: 'directory.demo_ngaliema_type',
+      addressKey: 'directory.demo_ngaliema_address',
+      specsKey: 'directory.demo_ngaliema_specs',
+      lat: -4.341,
+      lng: 15.263,
+      phone: '112',
+      icon: CupertinoIcons.building_2_fill,
+      color: AppColors.blue,
+      isAffiliated: false,
+    ),
+    Institution(
+      categoryKey: 'rapid',
+      name: 'Croix-Rouge - Base Ngaliema',
+      typeKey: 'directory.demo_croix_rouge_type',
+      addressKey: 'directory.demo_croix_rouge_address',
+      specsKey: 'directory.demo_croix_rouge_specs',
+      lat: -4.345,
+      lng: 15.260,
+      phone: '112',
+      icon: CupertinoIcons.heart_circle_fill,
+      color: AppColors.red,
+      isAffiliated: true,
+    ),
+    Institution(
+      categoryKey: 'hospitals',
+      name: 'HJ Hospitals',
+      typeKey: 'directory.demo_hj_hospitals_type',
+      addressKey: 'directory.demo_hj_hospitals_address',
+      specsKey: 'directory.demo_hj_hospitals_specs',
+      lat: -4.375,
+      lng: 15.334,
+      phone: '112',
+      icon: CupertinoIcons.building_2_fill,
+      color: AppColors.blue,
+      isAffiliated: false,
+    ),
+    Institution(
+      categoryKey: 'dispensaries',
+      name: 'Centre de Santé Limete',
+      typeKey: 'directory.demo_limete_css_type',
+      addressKey: 'directory.demo_limete_css_address',
+      specsKey: 'directory.demo_limete_css_specs',
+      lat: -4.372,
+      lng: 15.330,
+      phone: '112',
+      icon: CupertinoIcons.bandage_fill,
+      color: Colors.green,
+      isAffiliated: true,
+    ),
+    Institution(
+      categoryKey: 'hospitals',
+      name: 'Hôpital du Cinquantenaire',
+      typeKey: 'directory.demo_hosp_cinq_type',
+      addressKey: 'directory.demo_hosp_cinq_address',
+      specsKey: 'directory.demo_hosp_cinq_specs',
+      lat: -4.340,
+      lng: 15.300,
+      phone: '112',
+      icon: CupertinoIcons.building_2_fill,
+      color: AppColors.blue,
+      isAffiliated: false,
+    ),
+    Institution(
+      categoryKey: 'police',
+      name: 'Sous-Commissariat Kalamu',
+      typeKey: 'directory.demo_kalamu_police_type',
+      addressKey: 'directory.demo_kalamu_police_address',
+      specsKey: 'directory.demo_kalamu_police_specs',
+      lat: -4.348,
+      lng: 15.316,
+      phone: '112',
+      icon: CupertinoIcons.shield_fill,
+      color: AppColors.navyDeep,
+      isAffiliated: false,
+    ),
   ];
 
   List<Institution> _filteredInstitutions = [];
@@ -90,13 +205,18 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _categories.length, vsync: this);
+    _tabController = TabController(length: _tabCategoryKeys.length, vsync: this);
     _currentPosition = Position(
       latitude: -4.316,
       longitude: 15.311,
       timestamp: DateTime.now(),
-      accuracy: 0, altitude: 0, altitudeAccuracy: 0,
-      heading: 0, headingAccuracy: 0, speed: 0, speedAccuracy: 0,
+      accuracy: 0,
+      altitude: 0,
+      altitudeAccuracy: 0,
+      heading: 0,
+      headingAccuracy: 0,
+      speed: 0,
+      speedAccuracy: 0,
     );
     _isLoadingLocation = false;
     _filterAndSortInstitutions();
@@ -117,8 +237,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
 
   Future<void> _getUserLocationAndFilter() async {
     setState(() => _isLoadingLocation = true);
-    
-    // 1. Simulation de chargement depuis le cache local (Mode Hors Ligne)
+
     final prefs = await SharedPreferences.getInstance();
     final bool hasCache = prefs.getBool('has_directory_cache') ?? false;
     if (!hasCache) {
@@ -137,7 +256,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) throw Exception('Location permissions denied.');
       }
-      
+
       if (permission == LocationPermission.deniedForever) {
         throw Exception('Location permissions permanently denied.');
       }
@@ -149,12 +268,17 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
       );
     } catch (e) {
       debugPrint('Geolocation error: $e');
-      // Fallback position for testing (Kinshasa Gombe) if real GPS fails in emulator
       _currentPosition = Position(
-        latitude: -4.316, 
+        latitude: -4.316,
         longitude: 15.311,
         timestamp: DateTime.now(),
-        accuracy: 0, altitude: 0, altitudeAccuracy: 0, heading: 0, headingAccuracy: 0, speed: 0, speedAccuracy: 0,
+        accuracy: 0,
+        altitude: 0,
+        altitudeAccuracy: 0,
+        heading: 0,
+        headingAccuracy: 0,
+        speed: 0,
+        speedAccuracy: 0,
       );
     }
 
@@ -176,25 +300,18 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
 
       inst.distanceInMeters = distance;
 
-      inst.distanceInMeters = distance;
-
-      // Filter: Dynamic radius based on _selectedDistanceFilter
-      if (distance <= (_selectedDistanceFilter * 1000)) { 
+      if (distance <= (_selectedDistanceFilter * 1000)) {
         withinRadius.add(inst);
       }
     }
 
-    // Filter: Search Query
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       withinRadius = withinRadius.where((inst) {
-        return inst.name.toLowerCase().contains(q) || 
-               inst.specialties.any((s) => s.toLowerCase().contains(q)) ||
-               inst.type.toLowerCase().contains(q);
+        return inst._searchBlob.contains(q);
       }).toList();
     }
 
-    // Sort: Etoile Bleue Affiliated FIRST, then by shortest distance
     withinRadius.sort((a, b) {
       if (a.isAffiliated && !b.isAffiliated) return -1;
       if (!a.isAffiliated && b.isAffiliated) return 1;
@@ -221,6 +338,17 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
     }
   }
 
+  String _formatDistance(Institution inst) {
+    if (inst.distanceInMeters < 1000) {
+      return 'directory.distance_m'.tr(namedArgs: {
+        'value': inst.distanceInMeters.toStringAsFixed(0),
+      });
+    }
+    return 'directory.distance_km'.tr(namedArgs: {
+      'value': (inst.distanceInMeters / 1000).toStringAsFixed(1),
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -229,81 +357,82 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
         backgroundColor: AppColors.background,
         elevation: 0,
         scrolledUnderElevation: 0,
-        toolbarHeight: 110, // INCREASING HEIGHT TO FIX OVERLAP
+        toolbarHeight: 110,
         title: Padding(
           padding: const EdgeInsets.only(top: 20.0),
           child: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: const TextStyle(fontSize: 18, color: AppColors.navyDeep),
-                decoration: InputDecoration(
-                  hintText: 'directory.search_placeholder'.tr(),
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                ),
-                onChanged: (val) {
-                  setState(() {
-                    _searchQuery = val;
-                    _filterAndSortInstitutions();
-                  });
-                },
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'directory.title'.tr(),
-                    style: const TextStyle(
-                      fontSize: 34, 
-                      fontWeight: FontWeight.w900, 
-                      fontFamily: 'Marianne', 
-                      color: AppColors.navyDeep, 
-                      letterSpacing: -1.0,
-                    ),
+              ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  style: const TextStyle(fontSize: 18, color: AppColors.navyDeep),
+                  decoration: InputDecoration(
+                    hintText: 'directory.search_placeholder'.tr(),
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.grey[400]),
                   ),
-                  const SizedBox(height: 12),
-                  // Dynamic radius indicator with Chips
-                  SizedBox(
-                    height: 38,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _distanceOptions.length,
-                      separatorBuilder: (context, index) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        final distanceKm = _distanceOptions[index];
-                        final isSelected = _selectedDistanceFilter == distanceKm;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedDistanceFilter = distanceKm;
-                              _filterAndSortInstitutions();
-                            });
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: isSelected ? AppColors.blue : Colors.grey[200],
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: isSelected ? AppColors.blue : Colors.transparent),
-                            ),
-                            child: Text(
-                              '$distanceKm km',
-                              style: TextStyle(
-                                fontFamily: 'Marianne',
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                color: isSelected ? Colors.white : Colors.grey[600],
-                                fontSize: 14,
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val;
+                      _filterAndSortInstitutions();
+                    });
+                  },
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'directory.title'.tr(),
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Marianne',
+                        color: AppColors.navyDeep,
+                        letterSpacing: -1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 38,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _distanceOptions.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final distanceKm = _distanceOptions[index];
+                          final isSelected = _selectedDistanceFilter == distanceKm;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedDistanceFilter = distanceKm;
+                                _filterAndSortInstitutions();
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? AppColors.blue : Colors.grey[200],
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: isSelected ? AppColors.blue : Colors.transparent),
+                              ),
+                              child: Text(
+                                'directory.distance_radius_km'.tr(namedArgs: {
+                                  'km': '$distanceKm',
+                                }),
+                                style: TextStyle(
+                                  fontFamily: 'Marianne',
+                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                  color: isSelected ? Colors.white : Colors.grey[600],
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
         ),
         centerTitle: false,
         actions: [
@@ -335,7 +464,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
           )
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(70), // Plus grand pour aérer
+          preferredSize: const Size.fromHeight(70),
           child: Padding(
             padding: const EdgeInsets.only(bottom: 12.0),
             child: TabBar(
@@ -350,12 +479,14 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
                 color: AppColors.blue,
                 boxShadow: [
                   BoxShadow(color: AppColors.blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
-                ]
+                ],
               ),
               indicatorSize: TabBarIndicatorSize.tab,
               labelPadding: const EdgeInsets.symmetric(horizontal: 20),
               labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Marianne'),
-              tabs: _categories.map((c) => Tab(text: c)).toList(),
+              tabs: _tabCategoryKeys
+                  .map((k) => Tab(text: 'directory.tab_$k'.tr()))
+                  .toList(),
             ),
           ),
         ),
@@ -364,13 +495,13 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
           ? const Center(child: CupertinoActivityIndicator())
           : TabBarView(
               controller: _tabController,
-              children: _categories.map((cat) => _buildListForCategory(cat)).toList(),
+              children: _tabCategoryKeys.map(_buildListForCategory).toList(),
             ),
     );
   }
 
-  Widget _buildListForCategory(String category) {
-    final list = _filteredInstitutions.where((i) => i.category == category).toList();
+  Widget _buildListForCategory(String categoryKey) {
+    final list = _filteredInstitutions.where((i) => i.categoryKey == categoryKey).toList();
 
     if (list.isEmpty) {
       return Center(
@@ -416,10 +547,9 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
   }
 
   Widget _buildInstitutionCard({required Institution inst}) {
-    // Formatting distance: if < 1000m display meters, else display km
-    final formattedDistance = inst.distanceInMeters < 1000 
-        ? '${inst.distanceInMeters.toStringAsFixed(0)} m'
-        : '${(inst.distanceInMeters / 1000).toStringAsFixed(1)} km';
+    final formattedDistance = _formatDistance(inst);
+    final typeDisplay = inst._typeText;
+    final addressDisplay = inst._addressText;
 
     return Container(
       decoration: BoxDecoration(
@@ -495,7 +625,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(inst.type, style: TextStyle(color: inst.color, fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text(typeDisplay, style: TextStyle(color: inst.color, fontWeight: FontWeight.bold, fontSize: 13)),
                       const SizedBox(height: 8),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,7 +633,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
                           Icon(CupertinoIcons.map_pin_ellipse, size: 14, color: Colors.grey[600]),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(inst.address, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                            child: Text(addressDisplay, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                           ),
                         ],
                       ),
@@ -513,25 +643,27 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
               ],
             ),
           ),
-          
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: inst.specialties.map((s) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  border: Border.all(color: Colors.grey[200]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(s, style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600)),
-              )).toList(),
+              children: inst._specsList
+                  .map(
+                    (s) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        border: Border.all(color: Colors.grey[200]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(s, style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600)),
+                    ),
+                  )
+                  .toList(),
             ),
           ),
           const SizedBox(height: 20),
-          
           Container(
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: Colors.grey[100]!)),
