@@ -163,6 +163,23 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextButton(
+                    onPressed: () => context.push(AppRoutes.privacyPolicy),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text(
+                      'onboarding.privacy_policy_link'.tr(),
+                      style: const TextStyle(
+                        fontFamily: 'Marianne',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.white,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                 ],
               ),

@@ -335,7 +335,26 @@
     "slide3_title": "Assistance\nen continu",
     "slide3_desc": "Des professionnels de santé vous accompagnent à distance en attendant l'arrivée des secours.",
     "get_started": "COMMENCER",
-    "next": "Suivant"
+    "next": "Suivant",
+    "privacy_policy_link": "Politique de confidentialité"
+  },
+  "privacy_policy": {
+    "app_bar_title": "Politique de confidentialité",
+    "updated": "Dernière mise à jour : avril 2026",
+    "s1_title": "1. Responsable du traitement et finalité générale",
+    "s1_body": "L’application mobile « Étoile Bleue » est proposée dans le cadre de la mission de santé publique et d’urgence vitale du Ministère de la Santé de la République démocratique du Congo. La présente politique explique quelles données personnelles peuvent être traitées lorsque vous utilisez l’application (compte, appels d’urgence, signalements, notifications) et dans quel but : assurer la sécurité des personnes, orienter les secours, permettre le suivi des plaintes et améliorer le service de régulation.",
+    "s2_title": "2. Données de compte et d’identité",
+    "s2_body": "Pour créer un compte, nous traitons notamment votre numéro de téléphone et un code de vérification envoyé par SMS (OTP). Lors de l’inscription ou de la complétion du profil, des informations telles que votre prénom, nom et année de naissance peuvent être enregistrées. Des données médicales ou informations de profil complémentaires peuvent être proposées de manière optionnelle pour aider les secours ; elles ne sont collectées que si vous les renseignez volontairement.",
+    "s3_title": "3. Urgences vitales et régulation",
+    "s3_body": "Lorsque vous déclenchez une urgence, l’application transmet les informations nécessaires au centre de régulation et aux professionnels habilités : identité de l’appelant lorsque disponible, état de l’appel, et données techniques liées à la communication (par exemple flux audio/voix). Ces traitements visent à localiser, dispatcher et assister la personne en danger. Les données d’incident peuvent être conservées sur des serveurs sécurisés afin d’assurer la continuité du dossier d’urgence.",
+    "s4_title": "4. Géolocalisation",
+    "s4_body": "La localisation GPS peut être utilisée pour indiquer votre position aux services de secours lors d’une urgence et, le cas échéant, lors de la création d’un signalement. La précision dépend des réglages de l’appareil et du réseau. Des services de géocodage (conversion coordonnées ↔ adresse) peuvent être sollicités via des prestataires techniques afin d’afficher une adresse lisible sur la carte.",
+    "s5_title": "5. Signalements et contenus multimédias",
+    "s5_body": "Le module de signalement permet de décrire des faits (texte), d’indiquer une commune ou une structure de santé, et d’ajouter des preuves optionnelles : photos, vidéos ou enregistrements audio. Vous pouvez activer le mode anonyme : dans ce cas, les éléments d’identité directement associés au profil peuvent être masqués dans le flux exposé aux opérateurs habilités, selon les règles métier en vigueur. Les fichiers sont stockés de manière sécurisée sur l’infrastructure de l’application.",
+    "s6_title": "6. Notifications, hébergement et sous-traitants",
+    "s6_body": "Des notifications push peuvent vous être envoyées pour des alertes ou des informations liées au service. L’application s’appuie sur des prestataires techniques (hébergement cloud, base de données, authentification, stockage de fichiers, envoi de messages push, éventuellement audio temps réel) situés dans des environnements conformes aux usages standards de sécurité. Ces sous-traitants ne traitent les données que pour le compte du service et selon les instructions du responsable du traitement.",
+    "s7_title": "7. Conservation, droits et contact",
+    "s7_body": "Les données sont conservées pendant la durée nécessaire aux finalités ci-dessus et aux obligations légales applicables. Conformément au droit en vigueur, vous pouvez demander l’accès, la rectification ou la suppression de données vous concernant lorsque ce droit est applicable. Pour toute question relative à cette politique ou à vos données, adressez-vous aux coordonnées officielles du Ministère de la Santé ou de la plateforme de support indiquée dans l’application. Le texte peut être mis à jour : la date de « dernière mise à jour » en tête de page vous informe de la version en vigueur."
   },
   "signalement": {
     "form_title": "Nouveau signalement",

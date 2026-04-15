@@ -335,7 +335,26 @@
     "slide3_title": "Msaada\nendelevu",
     "slide3_desc": "Wataalamu wa afya watakusindikiza ukiwa unangojea uokoaji ufike.",
     "get_started": "ANZA",
-    "next": "Mbele"
+    "next": "Mbele",
+    "privacy_policy_link": "Sera ya faragha"
+  },
+  "privacy_policy": {
+    "app_bar_title": "Sera ya faragha",
+    "updated": "Ilisasishwa mwisho: Aprili 2026",
+    "s1_title": "1. Mwenye data na madhumuni ya jumla",
+    "s1_body": "Programu ya simu « Étoile Bleue » inatolewa katika mipaka ya afya ya umma na dharura za uhai katika Wizara ya Afya ya Jamhuri ya Kidemokrasia ya Kongo. Sera hii inaeleza data gani binafsi zinaweza kusindikwa unapotumia programu (akaunti, simu za dharura, ripoti, arifa) na kwa nini: kulinda watu, kutuma uokoaji, kushughulikia malalamiko na kuboresha huduma ya usimamizi.",
+    "s2_title": "2. Data ya akaunti na utambulisho",
+    "s2_body": "Ili kuunda akaunti, tunasindikia nambari yako ya simu na msimbo wa uthibitisho uliotumwa kwa SMS (OTP). Wakati wa usajili au kukamilisha wasifu, maelezo kama jina la kwanza, jina la ukoo na mwaka wa kuzaliwa yanaweza kuhifadhiwa. Data ya maisha au ya ziada za wasifu inaweza kutolewa kwa hiari kusaidia wanaookoa; inakusanywa tu ukikubali kujaza kujitolea.",
+    "s3_title": "3. Dharura za uhai na usimamizi",
+    "s3_body": "Unapoanzisha dharura, programu inatuma taarifa zinazohitajika na kituo cha usimamizi na wataalamu wa kibidi: utambulisho wa mpigaji pale inapopatikana, hali ya simu, na data ya kiufundi (k.m. sauti). Kusindikwa huku kulenga kuonyesha mahali, kutuma usaidizi na kutoa msaada kwa mtu hatari. Data ya tukio inaweza kuhifadhiwa kwenye seva salama kuendeleza rekodi ya dharura.",
+    "s4_title": "4. Mahali (GPS)",
+    "s4_body": "Mahali pa GPS linaweza kutumika kuonyesha mahali kwa huduma za dharura na, inapohitajika, wakati wa kuunda ripoti. Usahihi unategemea mipangilio ya kifaa na mtandao. Huduma za geocoding (kurasa ↔ anwani) zinaweza kutumika kupitia watoa huduma wa kiufundi kuonyesha anwani kwenye ramani.",
+    "s5_title": "5. Ripoti na maudhui (picha, video, sauti)",
+    "s5_body": "Moduli ya ripoti inakuwezesha kueleza matukio (maandishi), kuonyesha mji au kituo cha afya, na kuongeza ushahidi wa hiari: picha, video au rekodi za sauti. Unaweza kuwasha hali ya siri: vipengele vya moja kwa moja vya utambulisho vinaweza kufichwa kwa waendeshaji wa kibidi kulingana na sheria za kazi. Faili zinahifadhiwa kwa usalama kwenye miundombinu ya programu.",
+    "s6_title": "6. Arifa, mwenyeji na wasindikaji",
+    "s6_body": "Arifa za push zinaweza kutumwa kwa tahadhari au taarifa za huduma. Programu inategemea watoa huduma wa kiufundi (mwenyeji wa wingu, hifadhidata, uthibitisho, uhifadhi wa faili, ujumbe wa push, pengine sauti ya moja kwa moja) katika mazingira yenye usalama wa kawaida. Wasindikaji hushughulikia data kwa niaba ya huduma na maagizo ya mwenye data.",
+    "s7_title": "7. Uhifadhi, haki na mawasiliano",
+    "s7_body": "Data inahifadhiwa kwa muda unaohitajika kwa madhumuni hapo juu na wajibu wa kisheria. Kwa kuendana na sheria, unaweza kuomba ufikiaji, urekebishaji au ufutaji wa data yako inapohusika. Maswali kuhusu sera hii au data yako: tumia anwani rasmi ya Wizara ya Afya au msaada ulio katika programu. Maandishi yanaweza kusasishwa; tarehe ya mwanzo inaonyesha toleo la sasa."
   },
   "signalement": {
     "form_title": "Ripoti mpya",

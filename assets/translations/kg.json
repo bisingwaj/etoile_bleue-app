@@ -335,7 +335,26 @@
     "slide3_title": "Lusadisu\nya ntangu yonso",
     "slide3_desc": "Minganga kesadisa nge na ntama tango nge kevingila bansadisi.",
     "get_started": "KUBANDA",
-    "next": "Nima"
+    "next": "Nima",
+    "privacy_policy_link": "Privacy policy"
+  },
+  "privacy_policy": {
+    "app_bar_title": "Privacy policy",
+    "updated": "Last updated: April 2026",
+    "s1_title": "1. Data controller and general purpose",
+    "s1_body": "The « Étoile Bleue » mobile application is provided as part of the public health and vital emergency mission of the Ministry of Health of the Democratic Republic of the Congo. This policy explains which personal data may be processed when you use the app (account, emergency calls, reports, notifications) and why: protect people, dispatch rescue, handle complaints and improve the dispatch service.",
+    "s2_title": "2. Account and identity data",
+    "s2_body": "To create an account, we process your phone number and a verification code sent by SMS (OTP). During registration or profile completion, information such as your first name, last name and year of birth may be stored. Medical or additional profile data may be offered optionally to help responders; they are only collected if you voluntarily provide them.",
+    "s3_title": "3. Vital emergencies and dispatch",
+    "s3_body": "When you trigger an emergency, the app transmits the information needed by the dispatch center and authorized professionals: caller identity when available, call status, and technical data related to communication (e.g. voice/audio streams). These processes aim to locate, dispatch and assist the person in danger. Incident data may be kept on secure servers to maintain continuity of the emergency record.",
+    "s4_title": "4. Geolocation",
+    "s4_body": "GPS location may be used to show your position to emergency services during an emergency and, where applicable, when creating a report. Accuracy depends on device settings and network. Geocoding services (coordinates ↔ readable address) may be used via technical providers to display an address on the map.",
+    "s5_title": "5. Reports and media",
+    "s5_body": "The reporting module lets you describe facts (text), indicate a municipality or health facility, and optionally add evidence: photos, videos or audio recordings. You can enable anonymous mode: identity elements linked to your profile may then be hidden from the workflow shown to authorized operators, according to applicable business rules. Files are stored securely on the application infrastructure.",
+    "s6_title": "6. Notifications, hosting and subprocessors",
+    "s6_body": "Push notifications may be sent for alerts or service-related information. The app relies on technical providers (cloud hosting, database, authentication, file storage, push messaging, possibly real-time audio) in environments that follow standard security practices. Subprocessors only process data on behalf of the service and under the controller’s instructions.",
+    "s7_title": "7. Retention, rights and contact",
+    "s7_body": "Data is kept for as long as necessary for the purposes above and applicable legal obligations. Under applicable law, you may request access, rectification or erasure of your data where such rights apply. For questions about this policy or your data, use the official Ministry of Health or in-app support contacts. This text may be updated; the “last updated” date at the top indicates the current version."
   },
   "signalement": {
     "form_title": "Nsangu ya sika",

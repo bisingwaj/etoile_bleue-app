@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/locale/app_locale.dart';
 import 'package:etoile_bleue_mobile/features/splash/presentation/splash_page.dart';
 import 'package:etoile_bleue_mobile/features/onboarding/presentation/onboarding_page.dart';
+import 'package:etoile_bleue_mobile/features/legal/presentation/privacy_policy_page.dart';
 import 'package:etoile_bleue_mobile/features/home/presentation/home_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/presentation/login_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/presentation/otp_page.dart';
@@ -24,6 +25,7 @@ import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 abstract class AppRoutes {
   static const splash = '/';
   static const onboarding = '/onboarding';
+  static const privacyPolicy = '/privacy-policy';
   static const home = '/home';
   static const register = '/register';
   static const login = '/login';
@@ -56,6 +58,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       const publicRoutes = {
         AppRoutes.splash,
         AppRoutes.onboarding,
+        AppRoutes.privacyPolicy,
         AppRoutes.login,
         AppRoutes.otp,
         AppRoutes.register,
@@ -94,6 +97,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.onboarding,
         name: 'onboarding',
         builder: (context, state) => const OnboardingPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.privacyPolicy,
+        name: 'privacy_policy',
+        builder: (context, state) => const PrivacyPolicyPage(),
       ),
       GoRoute(
         path: AppRoutes.home,
