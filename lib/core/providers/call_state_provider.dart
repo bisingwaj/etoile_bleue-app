@@ -98,6 +98,9 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   Timer? _endedResetTimer;
   RealtimeChannel? _callStatusChannel;
 
+  /// Évite deux lancements SOS concurrents avant que l’état ne passe à `connecting`.
+  bool _sosStartInFlight = false;
+
   CallStateNotifier(this._service, this._recording, this._location) : super(const ActiveCallState()) {
     _wireCallbacks();
   }
@@ -144,45 +147,54 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   }
 
   Future<void> startSosCall({double? lat, double? lng}) async {
+    if (_sosStartInFlight) {
+      debugPrint('[CallState] startSosCall ignored: SOS start already in flight');
+      return;
+    }
     if (state.isInCall || state.status == ActiveCallStatus.connecting) {
       debugPrint('[CallState] startSosCall ignored: already in call or connecting');
       return;
     }
-    _endedResetTimer?.cancel();
-    state = state.copyWith(status: ActiveCallStatus.connecting);
-    
-    // 1. Check blacklist status
+    _sosStartInFlight = true;
     try {
-      final blockStatus = await _service.checkBlocked();
-      if (blockStatus['blocked'] == true) {
-        debugPrint('[CallState] User is blocked. Not starting SOS.');
-        state = ActiveCallState(
-          status: ActiveCallStatus.blocked,
-          blockedExpiresAt: blockStatus['expires_at'] as String?,
-          blockedReason: blockStatus['reason'] as String?,
-        );
-        return;
-      }
-    } catch (e) {
-      debugPrint('[CallState] Blocked check failed, continuing... $e');
-    }
+      _endedResetTimer?.cancel();
+      state = state.copyWith(status: ActiveCallStatus.connecting);
 
-    try {
-      await _service.startEmergencyCall(lat: lat, lng: lng);
-      state = state.copyWith(
-        channelName: _service.currentChannelName,
-        incidentId: _service.currentIncidentId,
-        callHistoryId: _service.currentCallId,
-      );
-      if (_service.currentCallId != null) {
-        _listenForCallStatusChanges(_service.currentCallId!);
+      // 1. Check blacklist status
+      try {
+        final blockStatus = await _service.checkBlocked();
+        if (blockStatus['blocked'] == true) {
+          debugPrint('[CallState] User is blocked. Not starting SOS.');
+          state = ActiveCallState(
+            status: ActiveCallStatus.blocked,
+            blockedExpiresAt: blockStatus['expires_at'] as String?,
+            blockedReason: blockStatus['reason'] as String?,
+          );
+          return;
+        }
+      } catch (e) {
+        debugPrint('[CallState] Blocked check failed, continuing... $e');
       }
-      if (_service.currentChannelName != null) {
-        _location.startCitizenTracking(_service.currentChannelName!);
+
+      try {
+        await _service.startEmergencyCall(lat: lat, lng: lng);
+        state = state.copyWith(
+          channelName: _service.currentChannelName,
+          incidentId: _service.currentIncidentId,
+          callHistoryId: _service.currentCallId,
+        );
+        if (_service.currentCallId != null) {
+          _listenForCallStatusChanges(_service.currentCallId!);
+        }
+        if (_service.currentChannelName != null) {
+          _location.startCitizenTracking(_service.currentChannelName!);
+        }
+      } catch (e) {
+        state = const ActiveCallState(status: ActiveCallStatus.ended);
+        rethrow;
       }
-    } catch (e) {
-      state = const ActiveCallState(status: ActiveCallStatus.ended);
-      rethrow;
+    } finally {
+      _sosStartInFlight = false;
     }
   }
 

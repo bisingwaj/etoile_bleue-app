@@ -666,6 +666,15 @@ Base URL: `https://<PROJECT_URL>/functions/v1/`
 | `dhis2-tracker-export` | POST | JWT (admin) | Export tracker DHIS2 |
 | `api-gateway` | ALL | API Key | Passerelle API partenaires |
 
+**Webhooks / Edge (ce dépôt)** — Les fonctions sous `supabase/functions/` ne dupliquent pas les lignes SOS :
+
+| Fichier | Déclenché par | Effet sur `incidents` / `call_history` |
+|---|---|---|
+| `send-call-notification/index.ts` | Webhook sur **INSERT** `call_history` (`status = ringing`) | Aucun INSERT : envoi FCM uniquement ; ignore les canaux `SOS-*` / `CALLBACK-*` (appels citoyen → centrale). |
+| `send-dispatch-notification/index.ts` | Webhook sur mise à jour **dispatches** | Aucun INSERT sur incidents/call_history. |
+
+Les **triggers PostgreSQL** (ex. file `call_queue`, `on_call_history_status_change`, dédoublonnage incident) ne sont pas versionnés dans ce dépôt ; à contrôler dans le SQL Editor Supabase du projet.
+
 ---
 
 ## 7. Storage (Buckets)
@@ -756,6 +765,18 @@ api_access_logs.partner_id     → api_partners.id
 api_key_scopes.api_key_id      → api_keys.id
 api_keys.partner_id            → api_partners.id
 ```
+
+---
+
+## 11. SOS — « Deux entrées » sur le dashboard centrale
+
+**Modèle attendu côté app citoyenne** : un SOS crée **une** ligne `incidents` et **une** ligne `call_history` liée (`incident_id`), canal Agora = `incidents.reference`.
+
+**Pourquoi la centrale peut afficher deux lignes pour un seul SOS**
+
+1. **Aggregation / UI** : une vue qui liste ou compte à la fois des **incidents** et des **lignes `call_history`** sans les fusionner par `incident_id` peut montrer **deux lignes** pour le **même** événement. Vérifier la requête ou l’API du dashboard (projet hors app mobile).
+2. **Doublon réel dans `call_history`** : possible si un trigger ou un autre writer insère aussi un `call_history` après un `INSERT` sur `incidents` alors que le client en insère déjà un — à valider dans le SQL Supabase (voir § 6 ci‑dessus).
+3. **Données test** : comparer `incident_id` / `channel_name` / horodatage — distinguer **deux lignes `call_history`** identiques vs **une ligne incident + une ligne appel**.
 
 ---
 

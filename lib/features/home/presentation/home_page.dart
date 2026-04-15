@@ -92,6 +92,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(activeInterventionProvider.notifier).refreshInterventionTracking();
+    });
   }
 
   Future<void> _initCustomMarker() async {
@@ -364,9 +368,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   Widget _buildHomeTab() {
     final interventionState = ref.watch(activeInterventionProvider);
     final showBanner = interventionState.isVisible;
-    if (showBanner) {
-      debugPrint('[Intervention] Banner is visible for incident: ${interventionState.incidentId} status: ${interventionState.dispatchStatus}');
-    }
 
     return Stack(
       children: [
@@ -413,6 +414,16 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         icon = CupertinoIcons.car_detailed;
         label = 'Secours assignés — En attente de départ';
         accentColor = Colors.orange;
+        break;
+      case 'arrived':
+        icon = CupertinoIcons.location_solid;
+        label = 'Équipe sur les lieux';
+        accentColor = Colors.deepPurple;
+        break;
+      case 'processing':
+        icon = CupertinoIcons.hourglass;
+        label = 'Dossier en cours de traitement';
+        accentColor = const Color(0xFF003580);
         break;
       default:
         icon = CupertinoIcons.doc_text_search;
@@ -502,6 +513,19 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<ActiveInterventionState>(activeInterventionProvider, (prev, next) {
+      if (!next.isVisible) return;
+      debugPrint(
+        '[Intervention][Popup] Alerte affichée — '
+        'incidentId=${next.incidentId}, '
+        'incidentStatus=${next.incidentStatus}, '
+        'archivedAt=${next.incidentArchivedAt}, '
+        'resolvedAt=${next.incidentResolvedAt}, '
+        'dispatchStatus=${next.dispatchStatus}, '
+        'rescuerName=${next.rescuerName}',
+      );
+    });
+
     ref.listen<AsyncValue<List<Map<String, dynamic>>>>(notificationsProvider, (prev, next) {
       final prevCount = prev?.valueOrNull?.length ?? 0;
       final nextList = next.valueOrNull ?? [];

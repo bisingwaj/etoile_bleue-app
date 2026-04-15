@@ -14,6 +14,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
 import 'package:etoile_bleue_mobile/core/services/fcm_service.dart';
 import 'package:etoile_bleue_mobile/core/services/cache_service.dart';
+import 'package:etoile_bleue_mobile/core/providers/active_intervention_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/rescuer_gps_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/incoming_call_provider.dart';
@@ -237,6 +238,8 @@ class _EtoileBleuAppState extends ConsumerState<EtoileBleuApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      ref.read(activeInterventionProvider.notifier).refreshInterventionTracking();
+
       final callState = ref.read(callStateProvider);
       final isMinimized = ref.read(isCallMinimizedProvider);
       if (callState.isInCall && !isMinimized) {
