@@ -41,7 +41,7 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMixin {
+class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMixin, WidgetsBindingObserver {
   GoogleMapController? _mapController;
   String? _mapStyle;
   BitmapDescriptor? _customLocationMarker;
@@ -71,6 +71,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _sosAudioPlayer.setReleaseMode(ReleaseMode.stop);
     _loadMapStyle();
     _tryExtractLocation();
@@ -144,6 +145,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _vibrationTimer?.cancel();
     _positionStreamSubscription?.cancel();
     _mapController?.dispose();
@@ -153,7 +155,17 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _tryExtractLocation();
+    }
+  }
+
   Future<void> _tryExtractLocation() async {
+    await _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+
     debugPrint("=== GPS: Starting _tryExtractLocation ===");
     bool serviceEnabled;
     LocationPermission permission;
