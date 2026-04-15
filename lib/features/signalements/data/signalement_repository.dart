@@ -9,6 +9,10 @@ class SignalementRepository {
   SignalementRepository({SupabaseClient? db})
       : _db = db ?? Supabase.instance.client;
 
+  /// Même bucket que les médias SOS ; les fichiers signalement utilisent le préfixe
+  /// de chemin `signalements/{signalement_id}/...` (voir SIGNALEMENTS_MOBILE_GUIDE.md).
+  static const String _storageBucketSignalementMedia = 'incidents';
+
   String? get _uid => _db.auth.currentUser?.id;
 
   // ─── REFERENCE ──────────────────────────────────────────────────────────────
@@ -151,12 +155,12 @@ class SignalementRepository {
     int attempt = 0;
     while (true) {
       try {
-        await _db.storage.from('signalements').uploadBinary(
+        await _db.storage.from(_storageBucketSignalementMedia).uploadBinary(
               storagePath,
               bytes,
               fileOptions: FileOptions(contentType: contentType, upsert: true),
             );
-        final url = _db.storage.from('signalements').getPublicUrl(storagePath);
+        final url = _db.storage.from(_storageBucketSignalementMedia).getPublicUrl(storagePath);
         debugPrint('[Signalement] Upload OK: $storagePath');
         return url;
       } catch (e) {
