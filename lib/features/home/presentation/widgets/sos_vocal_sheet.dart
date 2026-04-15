@@ -176,13 +176,11 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
     showCupertinoModalPopup<void>(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: const Text(
-          'Sélectionnez le type d\'appel',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        title: Text(
+          'sos_vocal.call_type_title'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        message: const Text(
-          'Souhaitez-vous déclencher un appel d\'urgence interne (Vidéo) ou contacter les secours par réseau mobile classique ?',
-        ),
+        message: Text('sos_vocal.call_type_message'.tr()),
         actions: <CupertinoActionSheetAction>[
           CupertinoActionSheetAction(
             isDefaultAction: true,
@@ -190,12 +188,12 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
               Navigator.pop(context);
               _startLiveCall();
             },
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(CupertinoIcons.videocam_fill, color: AppColors.blue, size: 22),
-                SizedBox(width: 8),
-                Text('Appel Intégré (Recommandé)', style: TextStyle(color: AppColors.blue)),
+                const Icon(CupertinoIcons.videocam_fill, color: AppColors.blue, size: 22),
+                const SizedBox(width: 8),
+                Text('sos_vocal.integrated_call'.tr(), style: const TextStyle(color: AppColors.blue)),
               ],
             ),
           ),
@@ -204,12 +202,12 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
               Navigator.pop(context);
               _launchNormalCall();
             },
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(CupertinoIcons.phone_fill, color: AppColors.blue, size: 22),
-                SizedBox(width: 8),
-                Text('Appel Numéro d\'Urgence (112)', style: TextStyle(color: AppColors.blue)),
+                const Icon(CupertinoIcons.phone_fill, color: AppColors.blue, size: 22),
+                const SizedBox(width: 8),
+                Text('sos_vocal.emergency_number'.tr(), style: const TextStyle(color: AppColors.blue)),
               ],
             ),
           ),
@@ -257,6 +255,7 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
         await incidentRepo.submitIncident(
           file: file,
           isVideo: false, // c'est un audio, le repo utilise 'photo' ou 'video', mais on peut l'améliorer plus tard
+          // Textes alignés sur `fr.json` → sos_vocal.category_backend / details_backend (persist. FR)
           category: 'SOS Vocal',
           details: 'Alerte vocale émise depuis le bouton SOS',
           location: gpsLocation,
@@ -306,12 +305,12 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
               const Icon(CupertinoIcons.mic_fill, size: 40, color: AppColors.blue),
               const SizedBox(height: 12),
               Text(
-                'SOS Vocal',
+                'sos_vocal.sheet_title'.tr(),
                 style: AppTextStyles.headlineLarge.copyWith(fontSize: 22, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 4),
               Text(
-                'Touchez le micro pour commencer l\'enregistrement.',
+                'sos_vocal.tap_mic_hint'.tr(),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
@@ -427,7 +426,7 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
               
               const SizedBox(height: 24),
               if (!_isRecording) ...[
-                const Text('Appuyez et parlez', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600, fontSize: 13)),
+                Text('sos_vocal.tap_speak'.tr(), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 32),
                 
                 // NEW: Direct Call Button
@@ -444,9 +443,9 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
                       elevation: 0,
                     ),
                     icon: const Icon(CupertinoIcons.phone_fill, size: 20),
-                    label: const Text(
-                      'Appel direct (Vidéo/Audio)',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                    label: Text(
+                      'sos_vocal.direct_call'.tr(),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: -0.5),
                     ),
                   ),
                 ),
@@ -462,12 +461,12 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
               const Icon(CupertinoIcons.waveform, size: 40, color: AppColors.blue),
               const SizedBox(height: 12),
               Text(
-                'Réécouter le message',
+                'sos_vocal.rerecord'.tr(),
                 style: AppTextStyles.headlineLarge.copyWith(fontSize: 22, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 4),
               Text(
-                'Votre message a été compressé pour un envoi rapide.',
+                'sos_vocal.compressed_hint'.tr(),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
@@ -542,9 +541,9 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
                         elevation: 0,
                       ),
                       icon: const Icon(CupertinoIcons.paperplane_fill, size: 24),
-                      label: const Text(
-                        'Transmettre l\'urgence',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      label: Text(
+                        'sos_vocal.transmit'.tr(),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       onPressed: _sendRecording,
                     ),

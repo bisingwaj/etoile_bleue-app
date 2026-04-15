@@ -9,7 +9,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import '../../providers/signalement_draft_provider.dart';
 import '../../providers/signalement_providers.dart';
-import '../../models/signalement_models.dart';
 
 class SubmitStep extends ConsumerStatefulWidget {
   final VoidCallback onBack;
@@ -125,10 +124,10 @@ class _SubmitStepState extends ConsumerState<SubmitStep> {
                           onPressed: isSubmitting ? null : widget.onBack,
                         ),
                         const SizedBox(width: 8),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            "Dernière étape",
-                            style: TextStyle(
+                            'signalement.step_last'.tr(),
+                            style: const TextStyle(
                               fontFamily: 'Marianne',
                               fontSize: 24,
                               fontWeight: FontWeight.w800,
@@ -146,12 +145,12 @@ class _SubmitStepState extends ConsumerState<SubmitStep> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     color: AppColors.success.withValues(alpha: 0.1),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(CupertinoIcons.lock_shield_fill, color: AppColors.success, size: 16),
-                        SizedBox(width: 8),
-                        Text("Connexion chiffrée et sécurisée", style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w700, color: AppColors.success, fontSize: 13)),
+                        const Icon(CupertinoIcons.lock_shield_fill, color: AppColors.success, size: 16),
+                        const SizedBox(width: 8),
+                        Text('signalement.secured_connection'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w700, color: AppColors.success, fontSize: 13)),
                       ],
                     ),
                   ),
@@ -194,7 +193,7 @@ class _SubmitStepState extends ConsumerState<SubmitStep> {
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: Text(
-                              submitState.errorMessage ?? "Une erreur est survenue.",
+                              submitState.errorMessage ?? 'signalement.error_submit_generic'.tr(),
                               style: const TextStyle(fontFamily: 'Marianne', fontSize: 14, color: AppColors.error, fontWeight: FontWeight.w700),
                             ),
                           ).animate().shake(),
@@ -256,12 +255,12 @@ class _MassiveAnonymityCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Mode Anonyme",
+                    'signalement.anonymous_label'.tr(),
                     style: TextStyle(fontFamily: 'Marianne', fontSize: 18, fontWeight: FontWeight.w800, color: isAnonymous ? AppColors.success : AppColors.navy),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isAnonymous ? "Votre identité est totalement protégée." : "Votre profil sera visible par les autorités.",
+                    isAnonymous ? 'signalement.submit_anon_hidden'.tr() : 'signalement.submit_anon_visible'.tr(),
                     style: TextStyle(fontFamily: 'Marianne', fontSize: 13, fontWeight: FontWeight.w600, color: isAnonymous ? AppColors.success : AppColors.textSecondary),
                   ),
                 ],
@@ -295,13 +294,13 @@ class _SummaryCompact extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Résumé", style: TextStyle(fontFamily: 'Marianne', fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+          Text('signalement.summary_title'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
-          _row(CupertinoIcons.tag_fill, draft.category?.localizedLabel ?? "Aucune catégorie"),
-          if (draft.audioNotePath != null) _row(CupertinoIcons.mic_fill, "Audio joint"),
+          _row(CupertinoIcons.tag_fill, draft.category?.localizedLabel ?? 'signalement.summary_no_category'.tr()),
+          if (draft.audioNotePath != null) _row(CupertinoIcons.mic_fill, 'signalement.summary_audio'.tr()),
           // check if there's no media besides the audio Note by verifying we don't have images/videos, etc.
           if (draft.media.where((m) => m.type != 'audio').isNotEmpty)
-            _row(CupertinoIcons.photo_fill, "${draft.media.where((m) => m.type != 'audio').length} Fichier(s) joint(s)"),
+            _row(CupertinoIcons.photo_fill, 'signalement.summary_files'.tr(namedArgs: {'count': '${draft.media.where((m) => m.type != 'audio').length}'})),
           if (draft.commune?.isNotEmpty == true) _row(CupertinoIcons.location_solid, "${draft.commune}"),
         ],
       ),
@@ -355,18 +354,19 @@ class _HugeSubmitButton extends StatelessWidget {
                       ),
                     ),
                     Center(
-                      child: Text("Envoi en cours... ${(progress * 100).toInt()}%", 
-                        style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white)
-                      )
+                      child: Text(
+                        'signalement.submit_sending'.tr(namedArgs: {'percent': '${(progress * 100).toInt()}'}),
+                        style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white),
+                      ),
                     )
                   ],
                 )
-             : const Row(
+             : Row(
                  mainAxisAlignment: MainAxisAlignment.center,
                  children: [
-                   Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 22),
-                   SizedBox(width: 12),
-                   Text("Envoyer le signalement", style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w800, fontSize: 18, color: Colors.white)),
+                   const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 22),
+                   const SizedBox(width: 12),
+                   Text('signalement.submit'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w800, fontSize: 18, color: Colors.white)),
                  ],
                ),
       ),

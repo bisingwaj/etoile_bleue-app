@@ -5,6 +5,7 @@ import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/core/providers/dispatch_timeline_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class IncidentDetailPage extends ConsumerStatefulWidget {
   final String incidentId;
@@ -152,7 +153,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
 
   Widget _buildTerrainTimelineItem(Map<String, dynamic> item, bool isLast) {
     final type = item['type']?.toString() ?? 'info';
-    final title = item['title']?.toString() ?? 'Action terrain';
+    final title = item['title']?.toString() ?? 'incident_detail.action_default'.tr();
     final content = item['content']?.toString() ?? '';
     final createdAt = DateTime.tryParse(item['created_at']?.toString() ?? '')?.toLocal();
     final timeStr = createdAt != null 
@@ -225,7 +226,10 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
   Widget build(BuildContext context) {
     final timelineAsync = ref.watch(dispatchTimelineProvider(widget.incidentId));
     final status = _incidentData['status']?.toString();
-    final address = _incidentData['location_address']?.toString() ?? 'Adresse à préciser';
+    final rawLocation = _incidentData['location_address']?.toString().trim();
+    final timeline1Subtitle = (rawLocation != null && rawLocation.isNotEmpty)
+        ? 'incident_detail.timeline_1_meta'.tr(namedArgs: {'address': rawLocation})
+        : 'incident_detail.timeline_1_sub'.tr();
     
     int statusIndex = 0;
     if (status == 'dispatched' || status == 'en_route') statusIndex = 1;
@@ -246,7 +250,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
     final dispatchedAtStr = formatTime(_dispatchData?['dispatched_at']?.toString());
     final arrivedAtStr = formatTime(_dispatchData?['arrived_at']?.toString());
     
-    final unitName = _dispatchData?['assigned_structure_name']?.toString() ?? 'En cours de coordination...';
+    final unitName = _dispatchData?['assigned_structure_name']?.toString() ?? 'incident_detail.coordination_pending'.tr();
 
     // Step 2 : Prise en charge
     final step2Active = statusIndex >= 1 || _incidentData['assigned_operator_id'] != null;
@@ -263,7 +267,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Détails de l\'incident', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.navyDeep)),
+        title: Text('incident_detail.title'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.navyDeep)),
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.navyDeep),
@@ -283,7 +287,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                     children: [
                       const Icon(CupertinoIcons.heart_circle_fill, color: AppColors.red, size: 28),
                       const SizedBox(width: 8),
-                      Text('Étoile Bleue', style: AppTextStyles.headlineLarge.copyWith(fontWeight: FontWeight.bold, fontSize: 22)),
+                      Text('incident_detail.brand'.tr(), style: AppTextStyles.headlineLarge.copyWith(fontWeight: FontWeight.bold, fontSize: 22)),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -301,7 +305,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Unité de secours', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text('incident_detail.rescue_unit'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             Row(
                               children: [
                                 const Icon(Icons.verified_user, color: Colors.amber, size: 14),
@@ -322,8 +326,8 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            const Text('Délai est.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                            Text('Calcul...', style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text('incident_detail.delay_est'.tr(), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            Text('incident_detail.calculating'.tr(), style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold, fontSize: 14)),
                           ],
                         )
                     ],
@@ -338,11 +342,11 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(16)),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              Icon(CupertinoIcons.location_solid, color: AppColors.blue, size: 14),
-                              SizedBox(width: 4),
-                              Text('Véhicule GPS', style: TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const Icon(CupertinoIcons.location_solid, color: AppColors.blue, size: 14),
+                              const SizedBox(width: 4),
+                              Text('incident_detail.badge_gps'.tr(), style: const TextStyle(color: AppColors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -350,11 +354,11 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(16)),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              Icon(CupertinoIcons.waveform_path_ecg, color: Colors.green, size: 14),
-                              SizedBox(width: 4),
-                              Text('Liaison Médicale', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const Icon(CupertinoIcons.waveform_path_ecg, color: Colors.green, size: 14),
+                              const SizedBox(width: 4),
+                              Text('incident_detail.badge_medical'.tr(), style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -364,12 +368,33 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                   const SizedBox(height: 32),
                   
                   // Trip Info equivalent (Timeline)
-                  const Text('Historique du suivi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('incident_detail.tracking_title'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 20),
-                  _buildTimelineStep('Appel de détresse reçu', address.isNotEmpty ? 'Localisation: $address' : 'Nous avons bien reçu votre signal', createdAtStr, 'Validé', true, false),
-                  _buildTimelineStep('Dossier en traitement', 'Un spécialiste étudie votre urgence', step2Time, '', step2Active, false),
-                  _buildTimelineStep('Secours en route', step3Active ? 'Votre équipe ($unitName) arrive' : 'Recherche de la meilleure équipe...', step3Time, '', step3Active, false),
-                  _buildTimelineStep(statusIndex >= 3 ? 'Intervention clôturée' : 'Les secours sont là', statusIndex >= 3 ? 'Vous êtes en sécurité' : 'L\'équipe est à vos côtés', step4Time, '', step4Active, true),
+                  _buildTimelineStep(
+                    'incident_detail.timeline_1_title'.tr(),
+                    timeline1Subtitle,
+                    createdAtStr,
+                    'incident_detail.validated'.tr(),
+                    true,
+                    false,
+                  ),
+                  _buildTimelineStep('incident_detail.timeline_2_title'.tr(), 'incident_detail.timeline_2_sub'.tr(), step2Time, '', step2Active, false),
+                  _buildTimelineStep(
+                    'incident_detail.timeline_3_title'.tr(),
+                    step3Active ? 'incident_detail.timeline_3_sub_active'.tr(namedArgs: {'unit': unitName}) : 'incident_detail.timeline_3_sub_wait'.tr(),
+                    step3Time,
+                    '',
+                    step3Active,
+                    false,
+                  ),
+                  _buildTimelineStep(
+                    statusIndex >= 3 ? 'incident_detail.timeline_4_done_title'.tr() : 'incident_detail.timeline_4_active_title'.tr(),
+                    statusIndex >= 3 ? 'incident_detail.timeline_4_done_sub'.tr() : 'incident_detail.timeline_4_active_sub'.tr(),
+                    step4Time,
+                    '',
+                    step4Active,
+                    true,
+                  ),
                   
                   const SizedBox(height: 32),
                   
@@ -384,7 +409,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                             children: [
                               const Icon(CupertinoIcons.waveform_path_ecg, color: AppColors.blue, size: 20),
                               const SizedBox(width: 8),
-                              const Text('Suivi médical & terrain', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text('incident_detail.terrain_title'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                               const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -392,7 +417,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                                   color: Colors.red.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Text('EN DIRECT', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                                child: Text('incident_detail.live_badge'.tr(), style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
                               ),
                             ],
                           ),
@@ -436,11 +461,11 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
-                              Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.orange, size: 18),
-                              SizedBox(width: 8),
-                              Text('Actions Recommandées', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                              const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.orange, size: 18),
+                              const SizedBox(width: 8),
+                              Text('incident_detail.recommended_actions'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -462,11 +487,11 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
-                              Icon(CupertinoIcons.building_2_fill, color: AppColors.blue, size: 18),
-                              SizedBox(width: 8),
-                              Text('Structure de santé orientée', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.blue)),
+                              const Icon(CupertinoIcons.building_2_fill, color: AppColors.blue, size: 18),
+                              const SizedBox(width: 8),
+                              Text('incident_detail.recommended_facility'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.blue)),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -498,11 +523,17 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                     ),
                     child: Column(
                       children: [
-                        Text('Alerte SOS', style: TextStyle(color: AppColors.blue, fontSize: 13, fontWeight: FontWeight.bold)),
+                        Text('incident_detail.sos_alert'.tr(), style: const TextStyle(color: AppColors.blue, fontSize: 13, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        const Text('Statut Actuel', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text('incident_detail.current_status'.tr(), style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
-                        Text(status == 'ended' || status == 'resolved' ? 'Intervention Terminée' : (status == 'dispatched' || status == 'en_route' ? 'Secours en Approche' : 'Analyse de la situation'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black87), textAlign: TextAlign.center),
+                        Text(
+                          status == 'ended' || status == 'resolved'
+                              ? 'incident_detail.status_done'.tr()
+                              : (status == 'dispatched' || status == 'en_route' ? 'incident_detail.status_approach'.tr() : 'incident_detail.status_analysis'.tr()),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black87),
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     ),
                   ),
@@ -525,7 +556,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       try {
-                        final uri = Uri.parse('sms:112?body=${Uri.encodeComponent("Urgence Etoile Bleue - Suivi Incident")}');
+                        final uri = Uri.parse('sms:112?body=${Uri.encodeComponent('incident_detail.sms_followup_body'.tr())}');
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri);
                         }
@@ -534,7 +565,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                       }
                     },
                     icon: const Icon(CupertinoIcons.chat_bubble_text_fill, size: 16, color: Colors.orange),
-                    label: const Text('SMS Normal', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                    label: Text('incident_detail.sms_normal'.tr(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
@@ -557,7 +588,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                       }
                     },
                     icon: const Icon(CupertinoIcons.phone_fill, size: 16, color: Colors.white),
-                    label: const Text('Appel Normal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    label: Text('incident_detail.call_normal'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.red,
                       padding: const EdgeInsets.symmetric(vertical: 14),

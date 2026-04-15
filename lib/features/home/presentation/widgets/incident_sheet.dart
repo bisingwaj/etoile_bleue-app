@@ -8,6 +8,7 @@ import 'package:video_compress/video_compress.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/utils/dynamic_island_toast.dart';
 
@@ -26,7 +27,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
   
   VideoPlayerController? _videoController;
   
-  String _selectedType = 'Accident';
+  String _selectedType = 'accident';
   bool _isCompressing = false;
   double _compressionProgress = 0.0;
   bool _isSending = false;
@@ -72,16 +73,16 @@ class _IncidentSheetState extends State<IncidentSheet> {
                 child: Container(width: 48, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
               ),
               const SizedBox(height: 32),
-              const Text('Sélectionnez la source', style: TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: AppColors.navyDeep)),
+              Text('incident_sheet.source_title'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: AppColors.navyDeep)),
               const SizedBox(height: 8),
-              Text('Capturez ou importez un média pour l\'envoi.', style: TextStyle(color: Colors.grey, fontSize: 15, fontFamily: 'Marianne')),
+              Text('incident_sheet.source_subtitle'.tr(), style: TextStyle(color: Colors.grey, fontSize: 15, fontFamily: 'Marianne')),
               const SizedBox(height: 32),
               
               // Camera
               _buildCleanListTile(
                 icon: CupertinoIcons.camera_fill, 
-                title: 'Prendre une photo', 
-                subtitle: 'Capture immédiate', 
+                title: 'incident_sheet.take_photo_title'.tr(), 
+                subtitle: 'incident_sheet.take_photo_sub'.tr(), 
                 color: AppColors.blue, 
                 onTap: () async {
                   Navigator.pop(ctx);
@@ -94,8 +95,8 @@ class _IncidentSheetState extends State<IncidentSheet> {
               // Video
               _buildCleanListTile(
                 icon: CupertinoIcons.video_camera_solid, 
-                title: 'Enregistrer une vidéo', 
-                subtitle: '30 secondes maximum', 
+                title: 'incident_sheet.record_video_title'.tr(), 
+                subtitle: 'incident_sheet.record_video_sub'.tr(), 
                 color: AppColors.red, 
                 onTap: () async {
                   Navigator.pop(ctx);
@@ -108,8 +109,8 @@ class _IncidentSheetState extends State<IncidentSheet> {
               // Galerie
               _buildCleanListTile(
                 icon: CupertinoIcons.photo_on_rectangle, 
-                title: 'Importer depuis la galerie', 
-                subtitle: 'Fichier existant', 
+                title: 'incident_sheet.gallery_title'.tr(), 
+                subtitle: 'incident_sheet.gallery_sub'.tr(), 
                 color: AppColors.navyDeep, 
                 onTap: () async {
                   Navigator.pop(ctx);
@@ -235,7 +236,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
         _isSending = false;
       });
       if (mounted) {
-        DynamicIslandToast.showError(context, 'Erreur de compression : $e');
+        DynamicIslandToast.showError(context, 'incident_sheet.compression_error'.tr(namedArgs: {'error': e.toString()}));
       }
     }
   }
@@ -302,7 +303,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
                       const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Colors.white, size: 14),
                       const SizedBox(width: 6),
                       Text(
-                        _selectedType.toUpperCase(),
+                        'incident_sheet.type_${_selectedType}'.tr().toUpperCase(),
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1),
                       ),
                     ],
@@ -315,11 +316,11 @@ class _IncidentSheetState extends State<IncidentSheet> {
                       color: Colors.black.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(CupertinoIcons.video_camera_solid, color: Colors.white, size: 14),
-                        SizedBox(width: 6),
-                        Text('VIDÉO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        const Icon(CupertinoIcons.video_camera_solid, color: Colors.white, size: 14),
+                        const SizedBox(width: 6),
+                        Text('incident_sheet.video_badge'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -383,19 +384,21 @@ class _IncidentSheetState extends State<IncidentSheet> {
                                       const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
                                       const SizedBox(width: 12),
                                       Text(
-                                        _isCompressing ? 'COMPRESSION ${(_compressionProgress * 100).toInt()}%' : 'ENVOI...',
+                                        _isCompressing
+                                            ? 'incident_sheet.compression'.tr(namedArgs: {'percent': '${(_compressionProgress * 100).toInt()}'})
+                                            : 'incident_sheet.sending'.tr(),
                                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                                       ),
                                     ],
                                   )
-                                : const Row(
+                                : Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 18),
-                                      SizedBox(width: 10),
+                                      const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 18),
+                                      const SizedBox(width: 10),
                                       Text(
-                                        'ENVOYER IMMÉDIATEMENT',
-                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 0.5),
+                                        'incident_sheet.send_now'.tr(),
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 0.5),
                                       ),
                                     ],
                                   ),
@@ -434,13 +437,13 @@ class _IncidentSheetState extends State<IncidentSheet> {
             const SizedBox(height: 32),
             
             if (_mediaFile == null) ...[
-              const Text('Signaler\nun incident', style: TextStyle(fontFamily: 'Marianne', fontSize: 36, fontWeight: FontWeight.w900, height: 1.0, letterSpacing: -1.0, color: AppColors.navyDeep)),
+              Text('incident_sheet.report_headline'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 36, fontWeight: FontWeight.w900, height: 1.0, letterSpacing: -1.0, color: AppColors.navyDeep)),
               const SizedBox(height: 12),
-              Text('Transmettez une preuve visuelle au centre de contrôle pour accélérer l\'intervention.', style: TextStyle(color: Colors.grey[600], fontSize: 15, fontFamily: 'Marianne')),
+              Text('incident_sheet.report_subtitle'.tr(), style: TextStyle(color: Colors.grey[600], fontSize: 15, fontFamily: 'Marianne')),
               const SizedBox(height: 32),
 
               // Type Dropdown
-              const Text('NATURE DE L\'INCIDENT', style: TextStyle(fontFamily: 'Marianne', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
+              Text('incident_sheet.nature_label'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -454,8 +457,11 @@ class _IncidentSheetState extends State<IncidentSheet> {
                     value: _selectedType,
                     isExpanded: true,
                     icon: const Icon(CupertinoIcons.chevron_down, color: AppColors.navyDeep, size: 20),
-                    items: ['Accident', 'Braquage', 'Incendie', 'Émeute', 'Autre']
-                        .map((String value) => DropdownMenuItem<String>(value: value, child: Text(value, style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.navyDeep))))
+                    items: ['accident', 'robbery', 'fire', 'riot', 'other']
+                        .map((String value) => DropdownMenuItem<String>(
+                              value: value,
+                              child: Text('incident_sheet.type_$value'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.navyDeep)),
+                            ))
                         .toList(),
                     onChanged: (val) => setState(() => _selectedType = val!),
                   ),
@@ -464,7 +470,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
               const SizedBox(height: 24),
 
               // Media Picker Button
-              const Text('MÉDIA (OBLIGATOIRE)', style: TextStyle(fontFamily: 'Marianne', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
+              Text('incident_sheet.media_label'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
               const SizedBox(height: 8),
               GestureDetector(
                 onTap: _pickMedia,
@@ -487,9 +493,9 @@ class _IncidentSheetState extends State<IncidentSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Ajouter une photo ou vidéo', style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.blue)),
+                            Text('incident_sheet.add_media_title'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.blue)),
                             const SizedBox(height: 4),
-                            Text('Sera compressé automatiquement', style: TextStyle(fontFamily: 'Marianne', fontSize: 13, color: Colors.grey[600]))
+                            Text('incident_sheet.add_media_sub'.tr(), style: TextStyle(fontFamily: 'Marianne', fontSize: 13, color: Colors.grey[600]))
                           ],
                         ),
                       ),
@@ -506,14 +512,14 @@ class _IncidentSheetState extends State<IncidentSheet> {
                     HapticFeedback.lightImpact();
                     Navigator.pop(context);
                   },
-                  child: const Text('ANNULER', style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14)),
+                  child: Text('incident_sheet.cancel'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14)),
                 ),
               ),
             ] else ...[
               // PREVIEW MODE WITH PREMIUM DESIGN OVERLAY
-              Text('Prévisualisation', textAlign: TextAlign.center, style: AppTextStyles.headlineLarge.copyWith(fontWeight: FontWeight.w900, fontSize: 24)),
+              Text('incident_sheet.preview_title'.tr(), textAlign: TextAlign.center, style: AppTextStyles.headlineLarge.copyWith(fontWeight: FontWeight.w900, fontSize: 24)),
               const SizedBox(height: 8),
-              Text('Vérifiez le média avant l\'envoi automatique.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600], fontSize: 15)),
+              Text('incident_sheet.preview_hint'.tr(), textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600], fontSize: 15)),
               const SizedBox(height: 24),
               _buildMediaPreview(),
             ]

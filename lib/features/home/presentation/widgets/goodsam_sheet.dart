@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 
@@ -58,15 +59,13 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
             ),
             const SizedBox(height: 24),
             Text(
-              _state == SamState.searching ? 'Recherche de Secouristes...' : 'Secouriste en Route !',
+              _state == SamState.searching ? 'goodsam.searching_title'.tr() : 'goodsam.rescuer_en_route_title'.tr(),
               textAlign: TextAlign.center,
               style: AppTextStyles.headlineLarge.copyWith(fontWeight: FontWeight.w900, fontSize: 24),
             ),
             const SizedBox(height: 8),
             Text(
-              _state == SamState.searching 
-                ? 'Alerte silencieuse envoyée aux volontaires certifiés dans un rayon de 500m.' 
-                : 'Un bénévole médical arrive pour vous faire les premiers soins avant l\'ambulance.',
+              _state == SamState.searching ? 'goodsam.searching_sub'.tr() : 'goodsam.found_sub'.tr(),
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[600], fontSize: 15),
             ),
@@ -181,15 +180,15 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Dr. Jonathan M.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                  Text('Médecin Urgentiste Volontaire', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                                  Text('goodsam.doctor_name'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                  Text('goodsam.role'.tr(), style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                                 ],
                               ),
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(12)),
-                              child: const Text('2 min', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                              child: Text('goodsam.eta'.tr(), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                             )
                           ],
                         ),
@@ -218,16 +217,16 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
                                             const SizedBox(height: 24),
                                             const CircleAvatar(radius: 40, backgroundColor: AppColors.blue, child: Icon(CupertinoIcons.person_fill, size: 40, color: Colors.white)),
                                             const SizedBox(height: 16),
-                                            const Text('Dr. Jonathan M.', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Marianne', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
+                                            Text('goodsam.doctor_name'.tr(), textAlign: TextAlign.center, style: const TextStyle(fontFamily: 'Marianne', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
                                             const SizedBox(height: 8),
-                                            const Text('Médecin Urgentiste Volontaire - CHU', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 16)),
+                                            Text('goodsam.role_full'.tr(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 16)),
                                             const SizedBox(height: 24),
-                                            const Row(
+                                            Row(
                                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                               children: [
-                                                Column(children: [Text('45', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)), Text('Interventions', style: TextStyle(color: Colors.grey))]),
-                                                Column(children: [Text('4.9', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)), Text('Évaluation', style: TextStyle(color: Colors.grey))]),
-                                                Column(children: [Text('200m', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)), Text('Distance', style: TextStyle(color: Colors.grey))]),
+                                                Column(children: [const Text('45', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)), Text('goodsam.stat_interventions'.tr(), style: const TextStyle(color: Colors.grey))]),
+                                                Column(children: [const Text('4.9', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)), Text('goodsam.stat_rating'.tr(), style: const TextStyle(color: Colors.grey))]),
+                                                Column(children: [const Text('200m', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.navyDeep)), Text('goodsam.stat_distance'.tr(), style: const TextStyle(color: Colors.grey))]),
                                               ],
                                             ),
                                             const SizedBox(height: 32),
@@ -237,7 +236,7 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
                                                 backgroundColor: AppColors.blue, padding: const EdgeInsets.symmetric(vertical: 16),
                                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                               ),
-                                              child: const Text('FERMER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                              child: Text('goodsam.close'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                             )
                                           ],
                                         ),
@@ -250,7 +249,7 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
                                   side: BorderSide(color: Colors.grey[300]!),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
-                                child: const Text('VOIR PROFIL', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                                child: Text('goodsam.view_profile'.tr(), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -271,7 +270,7 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
                                   elevation: 0,
                                 ),
                                 icon: const Icon(CupertinoIcons.phone_fill, size: 18),
-                                label: const Text('APPELER', style: TextStyle(fontWeight: FontWeight.bold)),
+                                label: Text('goodsam.call'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
                               ),
                             ),
                           ],
@@ -292,7 +291,7 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
                    Navigator.pop(context);
                  }
               },
-              child: Text(_state == SamState.searching ? 'ANNULER LA RECHERCHE' : 'FERMER', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+              child: Text(_state == SamState.searching ? 'goodsam.cancel_search'.tr() : 'goodsam.close'.tr(), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

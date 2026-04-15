@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:etoile_bleue_mobile/core/locale/app_locale.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/registration_provider.dart';
 import '../providers/auth_provider.dart';
@@ -159,12 +160,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   Future<void> _changeLocale(String lang) async {
     if (!mounted) return;
     switch (lang) {
-      case 'Anglais': await context.setLocale(const Locale('en', 'US')); break;
-      case 'Swahili': await context.setLocale(const Locale('sw', 'KE')); break;
-      case 'Lingala': await context.setLocale(const Locale('ln', 'CD')); break;
-      case 'Kikongo': await context.setLocale(const Locale('kg', 'CD')); break;
-      case 'Tshiluba': await context.setLocale(const Locale('lu', 'CD')); break;
-      default: await context.setLocale(const Locale('fr', 'FR'));
+      case 'Anglais':
+        await setAppLocale(context, const Locale('en', 'US'));
+        break;
+      case 'Swahili':
+        await setAppLocale(context, const Locale('sw', 'KE'));
+        break;
+      case 'Lingala':
+        await setAppLocale(context, const Locale('ln', 'CD'));
+        break;
+      case 'Kikongo':
+        await setAppLocale(context, const Locale('kg', 'CD'));
+        break;
+      case 'Tshiluba':
+        await setAppLocale(context, const Locale('lu', 'CD'));
+        break;
+      default:
+        await setAppLocale(context, const Locale('fr', 'FR'));
     }
   }
 

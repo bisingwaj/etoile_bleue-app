@@ -25,6 +25,32 @@ import 'package:etoile_bleue_mobile/features/signalements/domain/signalement_syn
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 
+/// Locales pour lesquels Flutter fournit [MaterialLocalizations] / [CupertinoLocalizations].
+/// ln, kg, lu ne sont pas pris en charge par le framework : on utilise le français pour les
+/// widgets natifs (dates, dialogs) ; les textes applicatifs viennent toujours d’[EasyLocalization].
+const List<Locale> kFlutterMaterialSupportedLocales = [
+  Locale('fr', 'FR'),
+  Locale('en', 'US'),
+  Locale('sw', 'KE'),
+];
+
+Locale materialLocaleForFlutterUi(Locale easyLocale) {
+  switch (easyLocale.languageCode) {
+    case 'ln':
+    case 'kg':
+    case 'lu':
+      return const Locale('fr', 'FR');
+    case 'fr':
+      return const Locale('fr', 'FR');
+    case 'en':
+      return const Locale('en', 'US');
+    case 'sw':
+      return const Locale('sw', 'KE');
+    default:
+      return const Locale('fr', 'FR');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -255,8 +281,8 @@ class _EtoileBleuAppState extends ConsumerState<EtoileBleuApp>
       themeMode: themeMode,
       routerConfig: router,
       localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
+      supportedLocales: kFlutterMaterialSupportedLocales,
+      locale: materialLocaleForFlutterUi(context.locale),
       builder: (context, child) {
         return EmergencyCallOverlay(
           child: OfflineBanner(child: child ?? const SizedBox.shrink()),

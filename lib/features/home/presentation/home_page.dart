@@ -92,35 +92,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.listen<AsyncValue<List<Map<String, dynamic>>>>(notificationsProvider, (prev, next) {
-        final prevCount = prev?.valueOrNull?.length ?? 0;
-        final nextList = next.valueOrNull ?? [];
-        if (nextList.length > prevCount && prevCount > 0) {
-          final latest = nextList.first;
-          final title = latest['title']?.toString() ?? 'Nouvelle notification';
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(CupertinoIcons.bell_fill, color: Colors.white, size: 18),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
-                  ],
-                ),
-                backgroundColor: AppColors.blue,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                duration: const Duration(seconds: 4),
-                margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
-              ),
-            );
-          }
-        }
-      });
-    });
-
   }
 
   Future<void> _initCustomMarker() async {
@@ -531,9 +502,37 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<Map<String, dynamic>>>>(notificationsProvider, (prev, next) {
+      final prevCount = prev?.valueOrNull?.length ?? 0;
+      final nextList = next.valueOrNull ?? [];
+      if (nextList.length > prevCount && prevCount > 0) {
+        final latest = nextList.first;
+        final title = latest['title']?.toString() ?? 'Nouvelle notification';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(CupertinoIcons.bell_fill, color: Colors.white, size: 18),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
+                ],
+              ),
+              backgroundColor: AppColors.blue,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 4),
+              margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+            ),
+          );
+        }
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.white,
       body: IndexedStack(
+        key: ValueKey(context.locale.toString()),
         index: _currentIndex,
         children: [
           _buildHomeTab(),

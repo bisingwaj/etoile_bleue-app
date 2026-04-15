@@ -10,6 +10,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/providers/emergency_contacts_provider.dart';
 import 'package:country_flags/country_flags.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:etoile_bleue_mobile/core/locale/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:etoile_bleue_mobile/features/profile/data/profile_repository.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -979,12 +980,23 @@ class _LanguageSheet extends StatelessWidget {
                 trailing: isSelected ? const Icon(CupertinoIcons.checkmark_alt_circle_fill, color: AppColors.blue) : null,
                 onTap: () async {
                   switch (l['code']) {
-                    case 'en': await context.setLocale(const Locale('en', 'US')); break;
-                    case 'sw': await context.setLocale(const Locale('sw', 'KE')); break;
-                    case 'ln': await context.setLocale(const Locale('ln', 'CD')); break;
-                    case 'kg': await context.setLocale(const Locale('kg', 'CD')); break;
-                    case 'lu': await context.setLocale(const Locale('lu', 'CD')); break;
-                    default: await context.setLocale(const Locale('fr', 'FR'));
+                    case 'en':
+                      await setAppLocale(context, const Locale('en', 'US'));
+                      break;
+                    case 'sw':
+                      await setAppLocale(context, const Locale('sw', 'KE'));
+                      break;
+                    case 'ln':
+                      await setAppLocale(context, const Locale('ln', 'CD'));
+                      break;
+                    case 'kg':
+                      await setAppLocale(context, const Locale('kg', 'CD'));
+                      break;
+                    case 'lu':
+                      await setAppLocale(context, const Locale('lu', 'CD'));
+                      break;
+                    default:
+                      await setAppLocale(context, const Locale('fr', 'FR'));
                   }
                   if (context.mounted) Navigator.pop(context);
                 },

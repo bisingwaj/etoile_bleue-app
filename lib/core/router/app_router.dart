@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:etoile_bleue_mobile/core/locale/app_locale.dart';
 import 'package:etoile_bleue_mobile/features/splash/presentation/splash_page.dart';
 import 'package:etoile_bleue_mobile/features/onboarding/presentation/onboarding_page.dart';
 import 'package:etoile_bleue_mobile/features/home/presentation/home_page.dart';
@@ -46,6 +47,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: false,
+    refreshListenable: appLocaleRefreshNotifier,
     redirect: (context, state) {
       final user = Supabase.instance.client.auth.currentUser;
       final loc = state.matchedLocation;

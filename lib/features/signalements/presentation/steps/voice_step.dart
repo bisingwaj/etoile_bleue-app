@@ -158,7 +158,7 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Description",
+                            'signalement.voice_page_title'.tr(),
                             style: const TextStyle(
                               fontFamily: 'Marianne',
                               fontSize: 24,
@@ -174,7 +174,7 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                              onPressed: () {
                                // Autoriser à passer quand même ? Pour l'instant non. La voix ou le texte sont requis.
                              },
-                             child: const Text("Requis", style: TextStyle(color: AppColors.textSecondary, fontFamily: 'Marianne', fontWeight: FontWeight.normal)),
+                             child: Text('signalement.voice_required'.tr(), style: const TextStyle(color: AppColors.textSecondary, fontFamily: 'Marianne', fontWeight: FontWeight.normal)),
                            )
                       ],
                     ),
@@ -189,14 +189,14 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 8),
-                            const Text(
-                              "Message vocal (Recommandé)",
-                              style: TextStyle(fontFamily: 'Marianne', fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.navy),
+                            Text(
+                              'signalement.voice_msg_recommended'.tr(),
+                              style: const TextStyle(fontFamily: 'Marianne', fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.navy),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
-                              "Expliquez la situation de vive voix, c'est plus rapide.",
-                              style: TextStyle(fontFamily: 'Marianne', fontSize: 14, color: AppColors.textSecondary),
+                            Text(
+                              'signalement.voice_msg_explain'.tr(),
+                              style: const TextStyle(fontFamily: 'Marianne', fontSize: 14, color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 16),
 
@@ -220,7 +220,7 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Text("Message enregistré", style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.navy, fontSize: 16)),
+                                          Text('signalement.voice_recorded'.tr(), style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.navy, fontSize: 16)),
                                           Text(_formatDuration(_audioSeconds), style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w700)),
                                         ],
                                       ),
@@ -257,8 +257,8 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                                       const SizedBox(height: 12),
                                       Text(
                                         _isRecordingAudio 
-                                          ? "Enregistrement... ${_formatDuration(_audioSeconds)}" 
-                                          : "Appuyez pour parler",
+                                          ? 'signalement.voice_recording_progress'.tr(namedArgs: {'duration': _formatDuration(_audioSeconds)}) 
+                                          : 'signalement.voice_tap_to_speak'.tr(),
                                         style: TextStyle(
                                           fontFamily: 'Marianne',
                                           fontSize: 18,
@@ -275,9 +275,9 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                             Container(height: 1, color: AppColors.border.withValues(alpha: 0.3)),
                             const SizedBox(height: 24),
 
-                            const Text(
-                              "Ou décrivez par écrit",
-                              style: TextStyle(fontFamily: 'Marianne', fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.navy),
+                            Text(
+                              'signalement.voice_or_write'.tr(),
+                              style: const TextStyle(fontFamily: 'Marianne', fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.navy),
                             ),
                             const SizedBox(height: 12),
 
@@ -295,8 +295,8 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                                   setState(() {});
                                 },
                                 style: const TextStyle(fontFamily: 'Marianne', fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.navy),
-                                decoration: const InputDecoration(
-                                  hintText: "Titre court (ex: Vente illicite Gombe)",
+                                decoration: InputDecoration(
+                                  hintText: 'signalement.voice_title_hint'.tr(),
                                   hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 15),
                                   border: InputBorder.none,
                                   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -321,8 +321,8 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                                   setState(() {});
                                 },
                                 style: const TextStyle(fontFamily: 'Marianne', fontSize: 15, color: AppColors.navy, height: 1.5),
-                                decoration: const InputDecoration(
-                                  hintText: "Détails (Qui, où, quand, comment...)",
+                                decoration: InputDecoration(
+                                  hintText: 'signalement.voice_details_hint'.tr(),
                                   hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 15),
                                   border: InputBorder.none,
                                   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -358,7 +358,7 @@ class _VoiceStepState extends ConsumerState<VoiceStep> {
                           elevation: 0,
                         ),
                         child: Text(
-                          "Continuer",
+                          'auth.continue_btn'.tr(),
                           style: TextStyle(
                             fontFamily: 'Marianne',
                             fontSize: 18,

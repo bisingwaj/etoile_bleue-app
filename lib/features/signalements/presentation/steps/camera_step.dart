@@ -196,9 +196,9 @@ class _CameraStepState extends ConsumerState<CameraStep> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _glassButton(CupertinoIcons.xmark, () => Navigator.of(context).maybePop()),
-                  const Text(
-                    "Preuves (Optionnel)",
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    'signalement.camera_header_optional'.tr(),
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(width: 44),
                 ],
@@ -213,19 +213,19 @@ class _CameraStepState extends ConsumerState<CameraStep> {
                     children: [
                       Icon(CupertinoIcons.camera_viewfinder, size: 72, color: AppColors.blue.withValues(alpha: 0.8)).animate().scale(delay: 100.ms, duration: 400.ms, curve: Curves.easeOutBack),
                       const SizedBox(height: 24),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 32),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
                         child: Text(
-                          "Ajoutez des photos ou de courtes vidéos pour aider les secours à mieux évaluer la situation.",
+                          'signalement.camera_intro'.tr(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.4),
+                          style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.4),
                         ),
                       ),
                       const SizedBox(height: 48),
 
                       _buildBigButton(
                         icon: CupertinoIcons.camera_fill,
-                        label: "Prendre une photo",
+                        label: 'signalement.camera_take_photo'.tr(),
                         color: AppColors.blue,
                         onTap: _takePhoto,
                       ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
@@ -234,7 +234,7 @@ class _CameraStepState extends ConsumerState<CameraStep> {
                       
                       _buildBigButton(
                         icon: CupertinoIcons.videocam_fill,
-                        label: "Filmer la scène",
+                        label: 'signalement.camera_record_scene'.tr(),
                         color: AppColors.error,
                         onTap: _startVideo,
                       ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1, end: 0),
@@ -243,7 +243,7 @@ class _CameraStepState extends ConsumerState<CameraStep> {
                       
                       _buildBigButton(
                         icon: CupertinoIcons.photo_fill_on_rectangle_fill,
-                        label: "Choisir dans la galerie",
+                        label: 'signalement.camera_choose_gallery'.tr(),
                         color: Colors.white60,
                         onTap: _pickFromGallery,
                         isSecondary: true,
@@ -271,11 +271,11 @@ class _CameraStepState extends ConsumerState<CameraStep> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          mediaCount > 0 ? "$mediaCount média(s) ajouté(s)" : "Aucune preuve",
+                          mediaCount > 0 ? 'signalement.camera_media_added'.tr(namedArgs: {'count': '$mediaCount'}) : 'signalement.camera_no_proof'.tr(),
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         if (mediaCount > 0)
-                          const Text("Prêt à continuer", style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
+                          Text('signalement.camera_ready'.tr(), style: const TextStyle(color: Colors.greenAccent, fontSize: 13)),
                       ],
                     ),
                     ElevatedButton(
@@ -293,7 +293,7 @@ class _CameraStepState extends ConsumerState<CameraStep> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(mediaCount > 0 ? "Suivant" : "Passer", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text(mediaCount > 0 ? 'signalement.camera_next'.tr() : 'signalement.camera_skip'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           const SizedBox(width: 8),
                           const Icon(CupertinoIcons.arrow_right, size: 18),
                         ],

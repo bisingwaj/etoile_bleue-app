@@ -159,10 +159,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   Color color;
                   String label;
                   switch (str) {
-                    case 'new': icon = CupertinoIcons.waveform_path_ecg; color = AppColors.red; label = 'En attente'; break;
-                    case 'dispatched': icon = CupertinoIcons.car_detailed; color = Colors.green; label = 'En cours'; break;
-                    case 'ended': icon = CupertinoIcons.checkmark_circle_fill; color = AppColors.blue; label = 'Terminé'; break;
-                    default: icon = CupertinoIcons.list_bullet; color = Colors.grey[800]!; label = 'Tous';
+                    case 'new': icon = CupertinoIcons.waveform_path_ecg; color = AppColors.red; label = 'history.filter_pending'.tr(); break;
+                    case 'dispatched': icon = CupertinoIcons.car_detailed; color = Colors.green; label = 'history.filter_in_progress'.tr(); break;
+                    case 'ended': icon = CupertinoIcons.checkmark_circle_fill; color = AppColors.blue; label = 'history.filter_completed'.tr(); break;
+                    default: icon = CupertinoIcons.list_bullet; color = Colors.grey[800]!; label = 'history.filter_all'.tr();
                   }
                   return GestureDetector(
                     onTap: () { setState(() => _currentFilter = str); Navigator.pop(ctx); },
@@ -204,9 +204,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         toolbarHeight: 70,
-        title: const Padding(
-          padding: EdgeInsets.only(top: 10.0),
-          child: Text('Historique', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, fontFamily: 'Marianne', color: AppColors.navyDeep, letterSpacing: -1.0)),
+        title: Padding(
+          padding: const EdgeInsets.only(top: 10.0),
+          child: Text('history.title'.tr(), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, fontFamily: 'Marianne', color: AppColors.navyDeep, letterSpacing: -1.0)),
         ),
         centerTitle: false,
         actions: [
@@ -226,7 +226,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       ),
       body: historyAsync.when(
         loading: () => const Center(child: CupertinoActivityIndicator()),
-        error: (e, _) => Center(child: Text('Erreur: $e')),
+        error: (e, _) => Center(child: Text('errors.detail'.tr(namedArgs: {'error': e.toString()}))),
         data: (allCalls) {
           final filtered = _currentFilter == 'Tous'
               ? allCalls

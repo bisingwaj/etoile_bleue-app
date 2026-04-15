@@ -11,6 +11,7 @@ import 'package:video_compress/video_compress.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/utils/dynamic_island_toast.dart';
@@ -26,6 +27,17 @@ class IncidentCameraPage extends ConsumerStatefulWidget {
 }
 
 class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with SingleTickerProviderStateMixin {
+  /// Libellés français pour la persistance (alignés sur `fr.json`).
+  static const Map<String, String> _categoryIdToFr = {
+    'cat_hospital': 'Abus hospitalier',
+    'cat_fees': 'Frais illégaux',
+    'cat_negligence': 'Négligence',
+    'cat_accident': 'Accident',
+    'cat_fire': 'Incendie',
+    'cat_assault': 'Agression',
+    'cat_other': 'Autre',
+  };
+
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
@@ -35,15 +47,15 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
   int _recordDuration = 0;
   Timer? _recordTimer;
   
-  String _selectedCategory = 'Abus hospitalier';
+  String _selectedCategoryId = 'cat_hospital';
   final List<Map<String, dynamic>> _categories = [
-    {'name': 'Abus hospitalier', 'icon': CupertinoIcons.building_2_fill},
-    {'name': 'Frais illégaux', 'icon': CupertinoIcons.money_dollar_circle_fill},
-    {'name': 'Négligence', 'icon': CupertinoIcons.exclamationmark_triangle_fill},
-    {'name': 'Accident', 'icon': CupertinoIcons.car_detailed},
-    {'name': 'Incendie', 'icon': CupertinoIcons.flame_fill},
-    {'name': 'Agression', 'icon': CupertinoIcons.shield_fill},
-    {'name': 'Autre', 'icon': CupertinoIcons.question_circle_fill},
+    {'id': 'cat_hospital', 'icon': CupertinoIcons.building_2_fill},
+    {'id': 'cat_fees', 'icon': CupertinoIcons.money_dollar_circle_fill},
+    {'id': 'cat_negligence', 'icon': CupertinoIcons.exclamationmark_triangle_fill},
+    {'id': 'cat_accident', 'icon': CupertinoIcons.car_detailed},
+    {'id': 'cat_fire', 'icon': CupertinoIcons.flame_fill},
+    {'id': 'cat_assault', 'icon': CupertinoIcons.shield_fill},
+    {'id': 'cat_other', 'icon': CupertinoIcons.question_circle_fill},
   ];
 
   late AnimationController _pulseController;
@@ -104,10 +116,10 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
       if (_cameras != null && _cameras!.isNotEmpty) {
         _setCamera(_cameras![_selectedCameraIndex]);
       } else {
-        if (mounted) DynamicIslandToast.showError(context, "Aucune caméra trouvée.");
+        if (mounted) DynamicIslandToast.showError(context, 'incident_camera.err_no_camera'.tr());
       }
     } catch (e) {
-      if (mounted) DynamicIslandToast.showError(context, "Erreur d'accès à la caméra.");
+      if (mounted) DynamicIslandToast.showError(context, 'incident_camera.err_camera_access'.tr());
     }
   }
 
@@ -123,7 +135,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
       await _cameraController!.initialize();
       if (mounted) setState(() => _isInit = true);
     } catch (e) {
-      if (mounted) DynamicIslandToast.showError(context, "Erreur caméra : $e");
+      if (mounted) DynamicIslandToast.showError(context, 'incident_camera.err_camera_init'.tr(namedArgs: {'error': '$e'}));
     }
   }
 
@@ -161,7 +173,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
       final XFile pic = await _cameraController!.takePicture();
       _loadPreview(File(pic.path), false);
     } catch (e) {
-      DynamicIslandToast.showError(context, "Erreur lors de la capture.");
+      DynamicIslandToast.showError(context, 'incident_camera.err_capture'.tr());
     }
   }
 
@@ -181,7 +193,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
         }
       });
     } catch (e) {
-      DynamicIslandToast.showError(context, "Erreur d'enregistrement vidéo.");
+      DynamicIslandToast.showError(context, 'incident_camera.err_video_record'.tr());
     }
   }
 
@@ -197,7 +209,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
       _loadPreview(File(video.path), true);
     } catch (e) {
       setState(() => _isRecording = false);
-      DynamicIslandToast.showError(context, "Erreur d'arrêt vidéo.");
+      DynamicIslandToast.showError(context, 'incident_camera.err_video_stop'.tr());
     }
   }
 
@@ -283,7 +295,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
       final result = await repo.submitIncident(
         file: finalFile,
         isVideo: _isVideo,
-        category: _selectedCategory,
+        category: _categoryIdToFr[_selectedCategoryId]!,
         details: _detailsController.text.trim().isNotEmpty
             ? _detailsController.text.trim()
             : null,
@@ -302,7 +314,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
           context,
           MaterialPageRoute(
             builder: (_) => IncidentSuccessPage(
-              category: _selectedCategory,
+              category: 'incident_camera.$_selectedCategoryId'.tr(),
               mediaUrl: result.mediaUrl,
             ),
           ),
@@ -314,7 +326,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
           _isCompressing = false;
           _isSending = false;
         });
-        DynamicIslandToast.showError(context, 'Erreur d\'envoi : $e');
+        DynamicIslandToast.showError(context, 'incident_camera.send_error'.tr(namedArgs: {'error': '$e'}));
       }
     }
   }
@@ -326,21 +338,21 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
   }
 
   String _getDetailsPrompt() {
-    switch (_selectedCategory) {
-      case 'Abus hospitalier':
-        return 'Quel hôpital ? Précisez les faits.';
-      case 'Frais illégaux':
-        return 'Montant exigé et par qui ?';
-      case 'Négligence':
-        return 'Décrivez le manquement médical observé.';
-      case 'Accident':
-        return 'Y a-t-il des blessés graves ?';
-      case 'Agression':
-        return 'Les agresseurs sont-ils sur place ?';
-      case 'Incendie':
-        return 'Y a-t-il un risque de propagation ?';
+    switch (_selectedCategoryId) {
+      case 'cat_hospital':
+        return 'incident_camera.prompt_hospital'.tr();
+      case 'cat_fees':
+        return 'incident_camera.prompt_fees'.tr();
+      case 'cat_negligence':
+        return 'incident_camera.prompt_negligence'.tr();
+      case 'cat_accident':
+        return 'incident_camera.prompt_accident'.tr();
+      case 'cat_assault':
+        return 'incident_camera.prompt_assault'.tr();
+      case 'cat_fire':
+        return 'incident_camera.prompt_fire'.tr();
       default:
-        return 'Avez-vous d\'autres détails à transmettre ?';
+        return 'incident_camera.prompt_default'.tr();
     }
   }
 
@@ -379,7 +391,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                     child: const Icon(CupertinoIcons.star_fill, color: Colors.white, size: 12),
                   ),
                   const SizedBox(width: 8),
-                  const Text('SIGNALEMENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0)),
+                  Text('incident_camera.badge_report'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.0)),
                 ],
               ),
             ),
@@ -408,11 +420,12 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
         itemCount: _categories.length,
         itemBuilder: (context, index) {
           final cat = _categories[index];
-          final isSelected = _selectedCategory == cat['name'];
+          final id = cat['id'] as String;
+          final isSelected = _selectedCategoryId == id;
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
-              setState(() => _selectedCategory = cat['name'] as String);
+              setState(() => _selectedCategoryId = id);
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -430,7 +443,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                   Icon(cat['icon'] as IconData, color: isSelected ? Colors.white : Colors.white70, size: 16),
                   const SizedBox(width: 8),
                   Text(
-                    cat['name'] as String,
+                    'incident_camera.$id'.tr(),
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
@@ -555,7 +568,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                 if (_isRecording) _buildRecordingIndicator(),
                 _buildCaptureButton(),
                 const SizedBox(height: 16),
-                const Text('Appui = Photo • Maintien = Vidéo', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                Text('incident_camera.tap_hint'.tr(), style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
@@ -603,17 +616,17 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(color: AppColors.red.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(12)),
-                      child: Text(_selectedCategory, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+                      child: Text('incident_camera.$_selectedCategoryId'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
                     ),
                     if (_isVideo)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(12)),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(CupertinoIcons.video_camera_solid, color: Colors.white, size: 16),
-                            SizedBox(width: 8),
-                            Text('VIDÉO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                            const Icon(CupertinoIcons.video_camera_solid, color: Colors.white, size: 16),
+                            const SizedBox(width: 8),
+                            Text('incident_camera.video_label'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                           ],
                         ),
                       ),
@@ -653,13 +666,13 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                         color: isBusy ? Colors.grey[800] : AppColors.blue,
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(CupertinoIcons.arrow_right, color: Colors.white, size: 20),
-                            SizedBox(width: 12),
-                            Text('Continuer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                            const Icon(CupertinoIcons.arrow_right, color: Colors.white, size: 20),
+                            const SizedBox(width: 12),
+                            Text('incident_camera.continue_btn'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                           ],
                         ),
                       ),
@@ -681,24 +694,26 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
     
     Widget content;
     String title;
-    String getNextLabel() => _currentStep == 3 ? (isBusy ? 'Envoi...' : 'Confirmer l\'envoi') : 'Suivant';
-    
+    String getNextLabel() => _currentStep == 3
+        ? (isBusy ? 'incident_camera.sending_short'.tr() : 'incident_camera.confirm_send'.tr())
+        : 'incident_camera.next'.tr();
+
     switch (_currentStep) {
       case 1:
-        title = 'Où cela se passe-t-il ?';
+        title = 'incident_camera.wizard_where_title'.tr();
         content = Column(
           children: [
             _buildOptionCard(
-              title: 'Je suis sur place',
-              subtitle: 'Utiliser ma position GPS actuelle',
+              title: 'incident_camera.wizard_on_site_title'.tr(),
+              subtitle: 'incident_camera.wizard_on_site_sub'.tr(),
               icon: CupertinoIcons.location_fill,
               isSelected: _locationOption == 'sur_place',
               onTap: () => setState(() => _locationOption = 'sur_place'),
             ),
             const SizedBox(height: 12),
             _buildOptionCard(
-              title: 'Saisir l\'adresse',
-              subtitle: 'Préciser manuellement le lieu',
+              title: 'incident_camera.wizard_address_title'.tr(),
+              subtitle: 'incident_camera.wizard_address_sub'.tr(),
               icon: CupertinoIcons.map_pin_ellipse,
               isSelected: _locationOption == 'manuel',
               onTap: () => setState(() => _locationOption = 'manuel'),
@@ -709,7 +724,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                 controller: _addressController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Ex: Croisement Boulevard du 30 juin...',
+                  hintText: 'incident_camera.wizard_address_hint'.tr(),
                   hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.1),
@@ -721,20 +736,20 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
         );
         break;
       case 2:
-        title = 'Quand cela se passe-t-il ?';
+        title = 'incident_camera.wizard_when_title'.tr();
         content = Column(
           children: [
             _buildOptionCard(
-              title: 'C\'est en cours (À l\'instant)',
-              subtitle: 'L\'incident se déroule sous mes yeux',
+              title: 'incident_camera.wizard_now_title'.tr(),
+              subtitle: 'incident_camera.wizard_now_sub'.tr(),
               icon: CupertinoIcons.timer,
               isSelected: _timeOption == 'maintenant',
               onTap: () => setState(() => _timeOption = 'maintenant'),
             ),
             const SizedBox(height: 12),
             _buildOptionCard(
-              title: 'Plus tôt / Autre moment',
-              subtitle: 'Définir une date et une heure',
+              title: 'incident_camera.wizard_time_other_title'.tr(),
+              subtitle: 'incident_camera.wizard_time_other_sub'.tr(),
               icon: CupertinoIcons.calendar,
               isSelected: _timeOption == 'manuel',
               onTap: () => setState(() => _timeOption = 'manuel'),
@@ -751,7 +766,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                 ),
                 child: Localizations.override(
                   context: context,
-                  locale: const Locale('fr', 'FR'),
+                  locale: context.locale,
                   child: CupertinoTheme(
                     data: const CupertinoThemeData(
                       textTheme: CupertinoTextThemeData(
@@ -782,7 +797,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
         break;
       case 3:
       default:
-        title = 'Détails Optionnels';
+        title = 'incident_camera.wizard_details_title'.tr();
         content = Column(
           children: [
             Text(
@@ -803,7 +818,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(color: !_isDetailsAudio ? AppColors.blue : Colors.transparent, borderRadius: BorderRadius.circular(20)),
-                        child: Center(child: Text('Texte', style: TextStyle(color: !_isDetailsAudio ? Colors.white : Colors.white54, fontWeight: FontWeight.bold))),
+                        child: Center(child: Text('incident_camera.tab_text'.tr(), style: TextStyle(color: !_isDetailsAudio ? Colors.white : Colors.white54, fontWeight: FontWeight.bold))),
                       ),
                     ),
                   ),
@@ -814,7 +829,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(color: _isDetailsAudio ? AppColors.blue : Colors.transparent, borderRadius: BorderRadius.circular(20)),
-                        child: Center(child: Text('Vocal', style: TextStyle(color: _isDetailsAudio ? Colors.white : Colors.white54, fontWeight: FontWeight.bold))),
+                        child: Center(child: Text('incident_camera.tab_voice'.tr(), style: TextStyle(color: _isDetailsAudio ? Colors.white : Colors.white54, fontWeight: FontWeight.bold))),
                       ),
                     ),
                   ),
@@ -828,7 +843,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                 maxLines: 4,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Tapez votre message ou ajoutez une note vocale.',
+                  hintText: 'incident_camera.details_hint'.tr(),
                   hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.1),
@@ -924,7 +939,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                                 child: const Icon(CupertinoIcons.mic_fill, size: 32, color: AppColors.blue),
                               ),
                               const SizedBox(height: 8),
-                              const Text('Appuyez pour enregistrer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+                              Text('incident_camera.tap_to_record'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
                             ],
                           ),
                         ),
@@ -954,7 +969,7 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                       });
                     },
                   ),
-                  Text('Étape $_currentStep sur 3', style: const TextStyle(color: Colors.white54, fontSize: 14, fontWeight: FontWeight.bold)),
+                  Text('incident_camera.step_of'.tr(namedArgs: {'current': '$_currentStep', 'total': '3'}), style: const TextStyle(color: Colors.white54, fontSize: 14, fontWeight: FontWeight.bold)),
                   const SizedBox(width: 48), // balance back button
                 ],
               ),
@@ -999,7 +1014,12 @@ class _IncidentCameraPageState extends ConsumerState<IncidentCameraPage> with Si
                               children: [
                                 const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
                                 const SizedBox(width: 12),
-                                Text(_isCompressing ? '${(_compressionProgress * 100).toInt()}% Comp...' : 'Envoi...', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                Text(
+                                  _isCompressing
+                                      ? 'incident_camera.compressing'.tr(namedArgs: {'percent': '${(_compressionProgress * 100).toInt()}'})
+                                      : 'incident_camera.sending_short'.tr(),
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
                               ],
                             )
                           : Text(getNextLabel(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
