@@ -614,9 +614,25 @@
     "disconnect": "Déconnexion",
     "disconnecting": "Déconnexion en cours...",
     "offline": "Hors connexion — les données seront synchronisées au retour du réseau",
+    "no_internet_title": "Pas de connexion Internet",
+    "no_internet_subtitle": "Vérifiez le Wi‑Fi ou les données mobiles. Les données locales restent disponibles.",
     "syncing": "Synchronisation en cours...",
     "pending_sync": "En attente de synchronisation",
     "sms": "SMS"
+  },
+  "permissions_gate": {
+    "title": "Autorisations requises",
+    "subtitle": "Pour utiliser l’application, activez les accès ci-dessous. Vous pouvez les modifier dans les réglages du téléphone.",
+    "location": "Localisation",
+    "location_desc": "Urgences, carte et annuaire sanitaire",
+    "microphone": "Microphone",
+    "microphone_desc": "Appels d’urgence audio",
+    "camera": "Caméra",
+    "camera_desc": "Appels vidéo et signalements",
+    "notifications": "Notifications",
+    "notifications_desc": "Appels SOS et alertes",
+    "open_settings": "Ouvrir les réglages",
+    "location_service_disabled": "Le service de localisation est désactivé sur cet appareil."
   },
   "incident_sheet": {
     "source_title": "Sélectionnez la source",

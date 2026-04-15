@@ -614,9 +614,25 @@
     "disconnect": "Logout",
     "disconnecting": "Logging out...",
     "offline": "Hors connexion — bakozongisa données tango réseau ekozonga",
+    "no_internet_title": "Internet ezali te",
+    "no_internet_subtitle": "Tala Wi‑Fi to données mobiles. Données locales ezali.",
     "syncing": "Syncing...",
     "pending_sync": "Pending sync",
     "sms": "SMS"
+  },
+  "permissions_gate": {
+    "title": "Autorisations requises",
+    "subtitle": "Activer les accès ci-dessous. Modifiable dans les réglages du téléphone.",
+    "location": "Localisation",
+    "location_desc": "Urgences, carte et annuaire",
+    "microphone": "Microphone",
+    "microphone_desc": "Appels d’urgence",
+    "camera": "Caméra",
+    "camera_desc": "Appels vidéo et signalements",
+    "notifications": "Notifications",
+    "notifications_desc": "Appels SOS",
+    "open_settings": "Ouvrir les réglages",
+    "location_service_disabled": "Service de localisation désactivé sur l’appareil."
   },
   "incident_sheet": {
     "source_title": "Select source",

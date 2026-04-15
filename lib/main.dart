@@ -20,6 +20,7 @@ import 'package:etoile_bleue_mobile/core/providers/rescuer_gps_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/incoming_call_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/sos_questions_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
+import 'package:etoile_bleue_mobile/core/widgets/app_permissions_gate.dart';
 import 'package:etoile_bleue_mobile/core/widgets/offline_banner.dart';
 import 'package:etoile_bleue_mobile/features/calls/presentation/widgets/emergency_call_overlay.dart';
 import 'package:etoile_bleue_mobile/features/signalements/domain/signalement_sync_service.dart';
@@ -288,7 +289,11 @@ class _EtoileBleuAppState extends ConsumerState<EtoileBleuApp>
       locale: materialLocaleForFlutterUi(context.locale),
       builder: (context, child) {
         return EmergencyCallOverlay(
-          child: OfflineBanner(child: child ?? const SizedBox.shrink()),
+          child: OfflineBanner(
+            child: AppPermissionsGate(
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
         );
       },
     );

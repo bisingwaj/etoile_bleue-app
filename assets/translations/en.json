@@ -614,9 +614,25 @@
     "disconnect": "Logout",
     "disconnecting": "Logging out...",
     "offline": "Offline — data will sync when connection returns",
+    "no_internet_title": "No Internet connection",
+    "no_internet_subtitle": "Check Wi‑Fi or mobile data. Local data remains available.",
     "syncing": "Syncing...",
     "pending_sync": "Pending sync",
     "sms": "SMS"
+  },
+  "permissions_gate": {
+    "title": "Permissions required",
+    "subtitle": "Enable the following access to use the app. You can change them in your phone settings.",
+    "location": "Location",
+    "location_desc": "Emergencies, map and health directory",
+    "microphone": "Microphone",
+    "microphone_desc": "Emergency voice calls",
+    "camera": "Camera",
+    "camera_desc": "Video calls and reports",
+    "notifications": "Notifications",
+    "notifications_desc": "SOS calls and alerts",
+    "open_settings": "Open settings",
+    "location_service_disabled": "Location services are turned off on this device."
   },
   "incident_sheet": {
     "source_title": "Select source",

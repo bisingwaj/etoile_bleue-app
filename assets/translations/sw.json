@@ -614,9 +614,25 @@
     "disconnect": "Logout",
     "disconnecting": "Logging out...",
     "offline": "Nje ya mtandao — data itasawazishwa mtandao ukurudi",
+    "no_internet_title": "Hakuna muunganisho wa mtandao",
+    "no_internet_subtitle": "Angalia Wi‑Fi au data ya simu. Data ya ndani bado inapatikana.",
     "syncing": "Inasawazisha...",
     "pending_sync": "Inasubiri kusawazisha",
     "sms": "SMS"
+  },
+  "permissions_gate": {
+    "title": "Ruhusa zinazohitajika",
+    "subtitle": "Washa ufikiaji ufuatao kutumia programu. Unaweza kubadilisha katika mipangilio ya simu.",
+    "location": "Mahali",
+    "location_desc": "Dharura, ramani na orodha ya afya",
+    "microphone": "Kipaza sauti",
+    "microphone_desc": "Simu za dharura za sauti",
+    "camera": "Kamera",
+    "camera_desc": "Simu za video na ripoti",
+    "notifications": "Arifa",
+    "notifications_desc": "Simu za SOS na tahadhari",
+    "open_settings": "Fungua mipangilio",
+    "location_service_disabled": "Huduma ya mahali imezimwa kwenye kifaa hiki."
   },
   "incident_sheet": {
     "source_title": "Select source",
