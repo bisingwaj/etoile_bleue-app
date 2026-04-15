@@ -127,9 +127,10 @@ class _AppPermissionsGateState extends ConsumerState<AppPermissionsGate> with Wi
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontFamily: 'Marianne',
-                                fontSize: 22,
+                                fontSize: 26,
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.navyDeep,
+                                height: 1.2,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -137,9 +138,11 @@ class _AppPermissionsGateState extends ConsumerState<AppPermissionsGate> with Wi
                               'permissions_gate.subtitle'.tr(),
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 14,
-                                height: 1.35,
-                                color: Colors.grey[700],
+                                fontFamily: 'Marianne',
+                                fontSize: 16,
+                                height: 1.45,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[800],
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -200,8 +203,15 @@ class _AppPermissionsGateState extends ConsumerState<AppPermissionsGate> with Wi
                             ),
                             TextButton.icon(
                               onPressed: _busy ? null : () => _exec(AppPermissionsService.openSystemSettings()),
-                              icon: const Icon(CupertinoIcons.gear, size: 18),
-                              label: Text('permissions_gate.open_settings'.tr()),
+                              icon: const Icon(CupertinoIcons.gear, size: 22),
+                              label: Text(
+                                'permissions_gate.open_settings'.tr(),
+                                style: const TextStyle(
+                                  fontFamily: 'Marianne',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                             if (_busy)
                               const Padding(
@@ -249,7 +259,7 @@ class _PermissionRow extends StatelessWidget {
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -257,11 +267,28 @@ class _PermissionRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.2)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Marianne',
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontFamily: 'Marianne',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[800],
+                      height: 1.35,
+                    ),
+                  ),
                   if (onOpenSettings != null) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     TextButton(
                       onPressed: onOpenSettings,
                       style: TextButton.styleFrom(
@@ -269,7 +296,14 @@ class _PermissionRow extends StatelessWidget {
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: Text('permissions_gate.open_settings'.tr()),
+                      child: Text(
+                        'permissions_gate.open_settings'.tr(),
+                        style: const TextStyle(
+                          fontFamily: 'Marianne',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
                 ],
