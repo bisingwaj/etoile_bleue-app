@@ -1,33 +1,69 @@
-import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'dart:io' show Platform;
+import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-/// Clés stables pour filtrer les onglets (doivent correspondre à `directory.tab_<key>` dans les JSON).
+import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:etoile_bleue_mobile/features/directory/data/health_structures_repository.dart';
+
+/// Types `health_structures.type` côté API (voir PATIENT_APP_STRUCTURES_PROXIMITY.md).
 const List<String> _tabCategoryKeys = [
-  'hospitals',
-  'centers',
-  'dispensaries',
+  'hopital',
+  'centre_sante',
+  'maternite',
+  'pharmacie',
   'police',
-  'rapid',
+  'pompier',
 ];
 
+String _tabTranslationKey(String categoryKey) {
+  return switch (categoryKey) {
+    'hopital' => 'directory.tab_hospitals',
+    'centre_sante' => 'directory.tab_centers',
+    'maternite' => 'directory.tab_maternite',
+    'pharmacie' => 'directory.tab_pharmacies',
+    'police' => 'directory.tab_police',
+    'pompier' => 'directory.tab_fire',
+    _ => 'directory.tab_hospitals',
+  };
+}
+
+String _categoryKeyFromApiType(String? type) {
+  return switch (type) {
+    'hopital' => 'hopital',
+    'centre_sante' => 'centre_sante',
+    'pharmacie' => 'pharmacie',
+    'police' => 'police',
+    'maternite' => 'maternite',
+    'pompier' => 'pompier',
+    _ => 'centre_sante',
+  };
+}
+
+(IconData, Color) _iconAndColorForCategory(String categoryKey) {
+  return switch (categoryKey) {
+    'hopital' => (CupertinoIcons.building_2_fill, AppColors.blue),
+    'centre_sante' => (CupertinoIcons.heart_fill, AppColors.red),
+    'maternite' => (CupertinoIcons.person_2_fill, Colors.pink),
+    'pharmacie' => (CupertinoIcons.capsule_fill, Colors.teal),
+    'police' => (CupertinoIcons.shield_fill, AppColors.navyDeep),
+    'pompier' => (CupertinoIcons.flame_fill, Colors.deepOrange),
+    _ => (CupertinoIcons.building_2_fill, AppColors.blue),
+  };
+}
+
 class Institution {
-  /// Aligné sur [tab_hospitals], [tab_centers], etc. (sans préfixe `tab_`).
+  final String id;
   final String categoryKey;
-  /// Nom officiel tel qu’en base (non traduit).
   final String name;
-  /// Clés `directory.*` pour type, adresse et spécialités.
-  final String typeKey;
-  final String addressKey;
-  /// Spécialités séparées par `|` (chaîne unique traduite).
-  final String specsKey;
-  final double lat;
-  final double lng;
+  final String rawType;
+  final String address;
+  final List<String> specs;
+  final double? lat;
+  final double? lng;
   final String phone;
   final IconData icon;
   final Color color;
@@ -36,28 +72,79 @@ class Institution {
   double distanceInMeters = 0;
 
   Institution({
+    required this.id,
     required this.categoryKey,
     required this.name,
-    required this.typeKey,
-    required this.addressKey,
-    required this.specsKey,
+    required this.rawType,
+    required this.address,
+    required this.specs,
     required this.lat,
     required this.lng,
     required this.phone,
     required this.icon,
     required this.color,
-    this.isAffiliated = false,
+    required this.isAffiliated,
   });
 
-  String get _typeText => typeKey.tr();
-  String get _addressText => addressKey.tr();
+  bool get hasValidCoords => lat != null && lng != null;
 
-  List<String> get _specsList =>
-      specsKey.tr().split('|').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+  String get _typeLabel {
+    final key = 'directory.structure_type_$rawType';
+    final t = key.tr();
+    if (t == key) return rawType;
+    return t;
+  }
 
-  /// Texte agrégé pour recherche (nom brut + champs traduits).
   String get _searchBlob =>
-      '${name.toLowerCase()} ${_typeText.toLowerCase()} ${_addressText.toLowerCase()} ${specsKey.tr().toLowerCase()}';
+      '${name.toLowerCase()} ${address.toLowerCase()} ${rawType.toLowerCase()} ${specs.join(' ').toLowerCase()}';
+
+  factory Institution.fromApiRow(Map<String, dynamic> row) {
+    final rawType = (row['type'] as String?) ?? 'centre_sante';
+    final cat = _categoryKeyFromApiType(rawType);
+    final (icon, color) = _iconAndColorForCategory(cat);
+
+    final specsRaw = row['specialties'];
+    final specs = <String>[];
+    if (specsRaw is List) {
+      for (final e in specsRaw) {
+        if (e != null && e.toString().trim().isNotEmpty) {
+          specs.add(e.toString());
+        }
+      }
+    }
+
+    final n = (row['name'] as String?)?.trim();
+    final official = (row['official_name'] as String?)?.trim();
+    final displayName = (n != null && n.isNotEmpty) ? n : (official ?? '');
+
+    final lat = _parseDouble(row['lat']);
+    final lng = _parseDouble(row['lng']);
+    final phone = (row['phone'] as String?)?.trim() ?? '';
+
+    final linked = row['linked_user_id'];
+    final isAffiliated = linked != null;
+
+    return Institution(
+      id: '${row['id'] ?? ''}',
+      categoryKey: cat,
+      name: displayName.isEmpty ? '—' : displayName,
+      rawType: rawType,
+      address: (row['address'] as String?)?.trim() ?? '',
+      specs: specs,
+      lat: lat,
+      lng: lng,
+      phone: phone,
+      icon: icon,
+      color: color,
+      isAffiliated: isAffiliated,
+    );
+  }
+
+  static double? _parseDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
 }
 
 class DirectoryPage extends StatefulWidget {
@@ -71,7 +158,6 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
   late TabController _tabController;
 
   bool _isLoadingLocation = true;
-  bool _hasLoadedGps = false;
   Position? _currentPosition;
   int _selectedDistanceFilter = 5;
   final List<int> _distanceOptions = [1, 5, 10, 20];
@@ -80,152 +166,25 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  final List<Institution> _allInstitutions = [
-    Institution(
-      categoryKey: 'hospitals',
-      name: 'Hôpital Général (Ex-Maman Yemo)',
-      typeKey: 'directory.demo_maman_yemo_type',
-      addressKey: 'directory.demo_maman_yemo_address',
-      specsKey: 'directory.demo_maman_yemo_specs',
-      lat: -4.310,
-      lng: 15.315,
-      phone: '112',
-      icon: CupertinoIcons.building_2_fill,
-      color: AppColors.blue,
-      isAffiliated: true,
-    ),
-    Institution(
-      categoryKey: 'centers',
-      name: 'Centre Médical Diamant',
-      typeKey: 'directory.demo_diamant_type',
-      addressKey: 'directory.demo_diamant_address',
-      specsKey: 'directory.demo_diamant_specs',
-      lat: -4.312,
-      lng: 15.310,
-      phone: '112',
-      icon: CupertinoIcons.heart_fill,
-      color: AppColors.red,
-      isAffiliated: true,
-    ),
-    Institution(
-      categoryKey: 'police',
-      name: 'Commissariat Provincial',
-      typeKey: 'directory.demo_commissariat_gombe_type',
-      addressKey: 'directory.demo_commissariat_gombe_address',
-      specsKey: 'directory.demo_commissariat_gombe_specs',
-      lat: -4.311,
-      lng: 15.311,
-      phone: '112',
-      icon: CupertinoIcons.shield_fill,
-      color: AppColors.navyDeep,
-      isAffiliated: true,
-    ),
-    Institution(
-      categoryKey: 'hospitals',
-      name: 'Clinique Ngaliema',
-      typeKey: 'directory.demo_ngaliema_type',
-      addressKey: 'directory.demo_ngaliema_address',
-      specsKey: 'directory.demo_ngaliema_specs',
-      lat: -4.341,
-      lng: 15.263,
-      phone: '112',
-      icon: CupertinoIcons.building_2_fill,
-      color: AppColors.blue,
-      isAffiliated: false,
-    ),
-    Institution(
-      categoryKey: 'rapid',
-      name: 'Croix-Rouge - Base Ngaliema',
-      typeKey: 'directory.demo_croix_rouge_type',
-      addressKey: 'directory.demo_croix_rouge_address',
-      specsKey: 'directory.demo_croix_rouge_specs',
-      lat: -4.345,
-      lng: 15.260,
-      phone: '112',
-      icon: CupertinoIcons.heart_circle_fill,
-      color: AppColors.red,
-      isAffiliated: true,
-    ),
-    Institution(
-      categoryKey: 'hospitals',
-      name: 'HJ Hospitals',
-      typeKey: 'directory.demo_hj_hospitals_type',
-      addressKey: 'directory.demo_hj_hospitals_address',
-      specsKey: 'directory.demo_hj_hospitals_specs',
-      lat: -4.375,
-      lng: 15.334,
-      phone: '112',
-      icon: CupertinoIcons.building_2_fill,
-      color: AppColors.blue,
-      isAffiliated: false,
-    ),
-    Institution(
-      categoryKey: 'dispensaries',
-      name: 'Centre de Santé Limete',
-      typeKey: 'directory.demo_limete_css_type',
-      addressKey: 'directory.demo_limete_css_address',
-      specsKey: 'directory.demo_limete_css_specs',
-      lat: -4.372,
-      lng: 15.330,
-      phone: '112',
-      icon: CupertinoIcons.bandage_fill,
-      color: Colors.green,
-      isAffiliated: true,
-    ),
-    Institution(
-      categoryKey: 'hospitals',
-      name: 'Hôpital du Cinquantenaire',
-      typeKey: 'directory.demo_hosp_cinq_type',
-      addressKey: 'directory.demo_hosp_cinq_address',
-      specsKey: 'directory.demo_hosp_cinq_specs',
-      lat: -4.340,
-      lng: 15.300,
-      phone: '112',
-      icon: CupertinoIcons.building_2_fill,
-      color: AppColors.blue,
-      isAffiliated: false,
-    ),
-    Institution(
-      categoryKey: 'police',
-      name: 'Sous-Commissariat Kalamu',
-      typeKey: 'directory.demo_kalamu_police_type',
-      addressKey: 'directory.demo_kalamu_police_address',
-      specsKey: 'directory.demo_kalamu_police_specs',
-      lat: -4.348,
-      lng: 15.316,
-      phone: '112',
-      icon: CupertinoIcons.shield_fill,
-      color: AppColors.navyDeep,
-      isAffiliated: false,
-    ),
-  ];
+  final HealthStructuresRepository _structuresRepo = HealthStructuresRepository();
 
+  List<Institution> _allInstitutions = [];
   List<Institution> _filteredInstitutions = [];
+  String? _structuresError;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabCategoryKeys.length, vsync: this);
-    _currentPosition = Position(
-      latitude: -4.316,
-      longitude: 15.311,
-      timestamp: DateTime.now(),
-      accuracy: 0,
-      altitude: 0,
-      altitudeAccuracy: 0,
-      heading: 0,
-      headingAccuracy: 0,
-      speed: 0,
-      speedAccuracy: 0,
-    );
-    _isLoadingLocation = false;
-    _filterAndSortInstitutions();
+    _loadInitialData();
   }
 
+  /// Ne relance pas le chargement Supabase ; met seulement à jour le GPS (voir [PATIENT_APP_STRUCTURES_PROXIMITY.md]).
   void refreshLocation() {
-    if (_hasLoadedGps) return;
-    _hasLoadedGps = true;
-    _getUserLocationAndFilter();
+    Future.microtask(() async {
+      if (!mounted || _allInstitutions.isEmpty) return;
+      await _refreshGpsAndRecalculateDistances();
+    });
   }
 
   @override
@@ -235,40 +194,79 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
     super.dispose();
   }
 
-  Future<void> _getUserLocationAndFilter() async {
-    setState(() => _isLoadingLocation = true);
-
-    final prefs = await SharedPreferences.getInstance();
-    final bool hasCache = prefs.getBool('has_directory_cache') ?? false;
-    if (!hasCache) {
-      debugPrint("First load: caching directory...");
-      await prefs.setBool('has_directory_cache', true);
-    } else {
-      debugPrint("Loaded from local cache instantly!");
-    }
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoadingLocation = true;
+      _structuresError = null;
+    });
 
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final posFuture = _obtainPosition();
+      final rowsFuture = _structuresRepo.fetchAllOpenStructures();
+      final out = await Future.wait([posFuture, rowsFuture]);
+      final pos = out[0] as Position;
+      final rows = out[1] as List<Map<String, dynamic>>;
+
+      _currentPosition = pos;
+      _structuresRepo.sortByProximity(rows, userLat: pos.latitude, userLng: pos.longitude);
+
+      _allInstitutions = rows.map(Institution.fromApiRow).toList();
+      _applyDistancesFromPosition(pos);
+      _filterAndSortInstitutions();
+    } catch (e, st) {
+      debugPrint('Directory load error: $e\n$st');
+      setState(() {
+        _structuresError = e.toString();
+        _allInstitutions = [];
+        _filteredInstitutions = [];
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLocation = false);
+      }
+    }
+  }
+
+  /// Met à jour le GPS sans relancer la récupération des structures (filtre km inchangé côté API).
+  Future<void> _refreshGpsAndRecalculateDistances() async {
+    if (_allInstitutions.isEmpty) return;
+    setState(() => _isLoadingLocation = true);
+    try {
+      final pos = await _obtainPosition();
+      _currentPosition = pos;
+      _applyDistancesFromPosition(pos);
+      _filterAndSortInstitutions();
+    } catch (e) {
+      debugPrint('Directory GPS refresh: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingLocation = false);
+    }
+  }
+
+  Future<Position> _obtainPosition() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) throw Exception('Location services disabled.');
 
-      LocationPermission permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) throw Exception('Location permissions denied.');
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions denied.');
+        }
       }
-
       if (permission == LocationPermission.deniedForever) {
         throw Exception('Location permissions permanently denied.');
       }
 
-      _currentPosition = await Geolocator.getCurrentPosition(
+      return await Geolocator.getCurrentPosition(
         locationSettings: Platform.isAndroid
             ? AndroidSettings(accuracy: LocationAccuracy.high, forceLocationManager: true)
             : const LocationSettings(accuracy: LocationAccuracy.high),
       );
     } catch (e) {
-      debugPrint('Geolocation error: $e');
-      _currentPosition = Position(
+      debugPrint('Geolocation fallback: $e');
+      return Position(
         latitude: -4.316,
         longitude: 15.311,
         timestamp: DateTime.now(),
@@ -281,46 +279,57 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
         speedAccuracy: 0,
       );
     }
+  }
 
-    _filterAndSortInstitutions();
+  void _applyDistancesFromPosition(Position pos) {
+    for (final inst in _allInstitutions) {
+      if (inst.hasValidCoords) {
+        inst.distanceInMeters = Geolocator.distanceBetween(
+          pos.latitude,
+          pos.longitude,
+          inst.lat!,
+          inst.lng!,
+        );
+      } else {
+        inst.distanceInMeters = double.infinity;
+      }
+    }
   }
 
   void _filterAndSortInstitutions() {
     if (_currentPosition == null) return;
 
-    List<Institution> withinRadius = [];
+    final radiusM = _selectedDistanceFilter * 1000.0;
 
-    for (var inst in _allInstitutions) {
-      double distance = Geolocator.distanceBetween(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-        inst.lat,
-        inst.lng,
-      );
+    final withCoordsInRadius = <Institution>[];
+    final withoutCoords = <Institution>[];
 
-      inst.distanceInMeters = distance;
-
-      if (distance <= (_selectedDistanceFilter * 1000)) {
-        withinRadius.add(inst);
+    for (final inst in _allInstitutions) {
+      if (inst.hasValidCoords) {
+        if (inst.distanceInMeters <= radiusM) {
+          withCoordsInRadius.add(inst);
+        }
+      } else {
+        withoutCoords.add(inst);
       }
     }
 
+    var combined = [...withCoordsInRadius, ...withoutCoords];
+
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      withinRadius = withinRadius.where((inst) {
-        return inst._searchBlob.contains(q);
-      }).toList();
+      combined = combined.where((inst) => inst._searchBlob.contains(q)).toList();
     }
 
-    withinRadius.sort((a, b) {
-      if (a.isAffiliated && !b.isAffiliated) return -1;
-      if (!a.isAffiliated && b.isAffiliated) return 1;
+    combined.sort((a, b) {
+      if (a.hasValidCoords && !b.hasValidCoords) return -1;
+      if (!a.hasValidCoords && b.hasValidCoords) return 1;
+      if (!a.hasValidCoords && !b.hasValidCoords) return a.name.compareTo(b.name);
       return a.distanceInMeters.compareTo(b.distanceInMeters);
     });
 
     setState(() {
-      _filteredInstitutions = withinRadius;
-      _isLoadingLocation = false;
+      _filteredInstitutions = combined;
     });
   }
 
@@ -332,6 +341,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
   }
 
   Future<void> _callNumber(String number) async {
+    if (number.trim().isEmpty) return;
     final uri = Uri.parse('tel:$number');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -339,6 +349,9 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
   }
 
   String _formatDistance(Institution inst) {
+    if (!inst.hasValidCoords) {
+      return 'directory.distance_unknown'.tr();
+    }
     if (inst.distanceInMeters < 1000) {
       return 'directory.distance_m'.tr(namedArgs: {
         'value': inst.distanceInMeters.toStringAsFixed(0),
@@ -351,6 +364,39 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
+    if (_structuresError != null && _allInstitutions.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          title: Text('directory.title'.tr(), style: const TextStyle(color: AppColors.navyDeep)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.exclamationmark_triangle, size: 48, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'directory.load_structures_error'.tr(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _loadInitialData,
+                  child: Text('directory.retry'.tr()),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -478,15 +524,13 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
                 borderRadius: BorderRadius.circular(20),
                 color: AppColors.blue,
                 boxShadow: [
-                  BoxShadow(color: AppColors.blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
+                  BoxShadow(color: AppColors.blue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))
                 ],
               ),
               indicatorSize: TabBarIndicatorSize.tab,
               labelPadding: const EdgeInsets.symmetric(horizontal: 20),
               labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Marianne'),
-              tabs: _tabCategoryKeys
-                  .map((k) => Tab(text: 'directory.tab_$k'.tr()))
-                  .toList(),
+              tabs: _tabCategoryKeys.map((k) => Tab(text: _tabTranslationKey(k).tr())).toList(),
             ),
           ),
         ),
@@ -511,9 +555,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
             Icon(CupertinoIcons.location_slash_fill, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
             Text(
-              _searchQuery.isNotEmpty
-                  ? 'directory.no_results'.tr()
-                  : 'directory.no_structures'.tr(),
+              _searchQuery.isNotEmpty ? 'directory.no_results'.tr() : 'directory.no_structures'.tr(),
               style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 16),
             ),
             if (_searchQuery.isNotEmpty) ...[
@@ -521,7 +563,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
               ElevatedButton.icon(
                 onPressed: () => _openGoogleMaps(_searchQuery),
                 icon: const Icon(CupertinoIcons.map_fill, size: 18),
-                label: Text("directory.search_hint".tr()),
+                label: Text('directory.search_hint'.tr()),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.blue,
                   foregroundColor: Colors.white,
@@ -548,17 +590,17 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
 
   Widget _buildInstitutionCard({required Institution inst}) {
     final formattedDistance = _formatDistance(inst);
-    final typeDisplay = inst._typeText;
-    final addressDisplay = inst._addressText;
+    final typeDisplay = inst._typeLabel;
+    final addressDisplay = inst.address.isEmpty ? '—' : inst.address;
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: inst.isAffiliated ? Border.all(color: AppColors.blue.withOpacity(0.3), width: 2) : Border.all(color: Colors.transparent),
+        border: inst.isAffiliated ? Border.all(color: AppColors.blue.withValues(alpha: 0.3), width: 2) : Border.all(color: Colors.transparent),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -571,7 +613,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.blue.withOpacity(0.1),
+                color: AppColors.blue.withValues(alpha: 0.1),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
               ),
               child: Row(
@@ -592,7 +634,7 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: inst.color.withOpacity(0.1),
+                    color: inst.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(inst.icon, color: inst.color, size: 28),
@@ -643,27 +685,29 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: inst._specsList
-                  .map(
-                    (s) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        border: Border.all(color: Colors.grey[200]!),
-                        borderRadius: BorderRadius.circular(8),
+          if (inst.specs.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: inst.specs
+                    .map(
+                      (s) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          border: Border.all(color: Colors.grey[200]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(s, style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600)),
                       ),
-                      child: Text(s, style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600)),
-                    ),
-                  )
-                  .toList(),
+                    )
+                    .toList(),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+          if (inst.specs.isNotEmpty) const SizedBox(height: 20),
+          if (inst.specs.isEmpty) const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: Colors.grey[100]!)),
@@ -676,9 +720,12 @@ class DirectoryPageState extends State<DirectoryPage> with SingleTickerProviderS
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20))),
                     ),
-                    onPressed: () => _callNumber(inst.phone),
-                    icon: const Icon(CupertinoIcons.phone_fill, color: Colors.black87, size: 18),
-                    label: Text('directory.call'.tr(), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                    onPressed: inst.phone.trim().isEmpty ? null : () => _callNumber(inst.phone),
+                    icon: Icon(CupertinoIcons.phone_fill, color: inst.phone.trim().isEmpty ? Colors.grey : Colors.black87, size: 18),
+                    label: Text(
+                      'directory.call'.tr(),
+                      style: TextStyle(color: inst.phone.trim().isEmpty ? Colors.grey : Colors.black87, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
                 Container(width: 1, height: 30, color: Colors.grey[200]),
