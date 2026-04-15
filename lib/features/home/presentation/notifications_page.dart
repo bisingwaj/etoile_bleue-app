@@ -53,7 +53,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       ),
       body: notificationsAsync.when(
         loading: () => const Center(child: CupertinoActivityIndicator()),
-        error: (error, _) => Center(child: Text('Erreur de chargement des notifications\n$error')),
+        error: (error, _) => Center(
+              child: Text(
+                'notifications.load_error'.tr(namedArgs: {'error': error.toString()}),
+                textAlign: TextAlign.center,
+              ),
+            ),
         data: (notifications) {
           if (notifications.isEmpty) {
             return Center(
@@ -62,7 +67,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 children: [
                   Icon(CupertinoIcons.bell_slash, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
-                  Text('Aucune notification', style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                  Text(
+                    'notifications.empty_list'.tr(),
+                    style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             );

@@ -371,7 +371,7 @@ class _ActiveTrackingPageState extends State<ActiveTrackingPage> {
                   _fetchActiveIncident();
                 },
                 icon: const Icon(CupertinoIcons.refresh, size: 18),
-                label: const Text('Réessayer', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: Text('common.retry'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.blue,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -649,7 +649,7 @@ class _ActiveTrackingPageState extends State<ActiveTrackingPage> {
                   child: TextButton.icon(
                     onPressed: () => _launchAction('sms:112?body=${Uri.encodeComponent("Urgence Etoile Bleue - Suivi Incident")}'),
                     icon: const Icon(CupertinoIcons.chat_bubble_text_fill, size: 22, color: Colors.orange),
-                    label: const Text('SMS', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w800, fontSize: 16)),
+                    label: Text('common.sms'.tr(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w800, fontSize: 16)),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       backgroundColor: Colors.orange.withValues(alpha: 0.1),

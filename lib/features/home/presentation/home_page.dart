@@ -1043,10 +1043,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     if (callState.isInCall || callState.status == ActiveCallStatus.connecting) {
       debugPrint('[SOS] Appel déjà en cours, redirection vers l\'écran actif');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Un appel est déjà en cours'),
+        SnackBar(
+          content: Text('calls.call_already_active'.tr()),
           backgroundColor: Colors.orange,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
       // Redirige vers l'écran de l'appel en cours
@@ -1083,7 +1083,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         // En cas d'échec critique, la page d'appel verra son statut passer à `ended`
         // et pop(), la SnackBar affichera la raison sur le Home.
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur de connexion urgence: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('home.emergency_connection_error'.tr(namedArgs: {'error': e.toString()})),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {

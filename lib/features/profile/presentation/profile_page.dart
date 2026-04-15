@@ -60,7 +60,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(ctx),
           isDestructiveAction: true,
-          child: const Text('Annuler', style: TextStyle(fontFamily: 'Marianne')),
+          child: Text('common.cancel'.tr(), style: const TextStyle(fontFamily: 'Marianne')),
         ),
       ),
     );
@@ -143,7 +143,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
                               return Column(
                                 children: [
-                                  Text(pdName.isEmpty ? 'Utilisateur' : pdName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
+                                  Text(pdName.isEmpty ? 'profile.user_display_default'.tr() : pdName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
                                   const SizedBox(height: 4),
                                   Text(pdPhone, style: const TextStyle(fontSize: 14, color: Colors.grey)),
                                   const SizedBox(height: 2),
@@ -342,7 +342,7 @@ class _BloodTypeSheetState extends ConsumerState<_BloodTypeSheet> {
                 backgroundColor: AppColors.blue, padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0,
               ),
-              child: Text(_saving ? 'Enregistrement...' : 'profile.save_btn'.tr(), style: TextStyle(fontFamily: 'Marianne', color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+              child: Text(_saving ? 'profile.saving_in_progress'.tr() : 'profile.save_btn'.tr(), style: TextStyle(fontFamily: 'Marianne', color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
             ),
             const SizedBox(height: 16),
             Center(
@@ -550,11 +550,11 @@ class _ContactsSheetState extends ConsumerState<_ContactsSheet> {
               Expanded(
                 child: contactsStream.when(
                   loading: () => const Center(child: CupertinoActivityIndicator()),
-                  error: (e, _) => Center(child: Text('Erreur: $e')),
+                  error: (e, _) => Center(child: Text('errors.detail'.tr(namedArgs: {'error': e.toString()}))),
                   data: (contact) {
                     final hasContact = contact['name'] != null && contact['name']!.isNotEmpty;
                     if (!hasContact) {
-                      return Center(child: Text("Aucun contact d'urgence défini.", style: TextStyle(color: Colors.grey[600], fontFamily: 'Marianne')));
+                      return Center(child: Text('profile.no_emergency_contacts'.tr(), style: TextStyle(color: Colors.grey[600], fontFamily: 'Marianne')));
                     }
                     return ListView(
                       children: [
@@ -781,14 +781,14 @@ class _PhoneEditSheetState extends ConsumerState<_PhoneEditSheet> {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Numéro de téléphone mis à jour avec succès'),
+        SnackBar(
+          content: Text('errors.phone_updated'.tr()),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() { _isVerifying = false; _error = 'Code invalide ou expiré. Réessayez.'; });
+      setState(() { _isVerifying = false; _error = 'errors.invalid_code'.tr(); });
     }
   }
 
@@ -852,7 +852,7 @@ class _PhoneEditSheetState extends ConsumerState<_PhoneEditSheet> {
       children: [
         Text('profile.glance_sms'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
         const SizedBox(height: 8),
-        Text('Entrez le code à 6 chiffres envoyé au $_fullPhone', style: TextStyle(color: Colors.grey[600], fontSize: 15, fontFamily: 'Marianne')),
+        Text('profile.enter_otp_6_hint'.tr(namedArgs: {'phone': _fullPhone}), style: TextStyle(color: Colors.grey[600], fontSize: 15, fontFamily: 'Marianne')),
         const SizedBox(height: 32),
         GestureDetector(
           onTap: () => FocusScope.of(context).requestFocus(_otpFocusNode),
@@ -914,7 +914,7 @@ class _PhoneEditSheetState extends ConsumerState<_PhoneEditSheet> {
             else
               GestureDetector(
                 onTap: _sendOtp,
-                child: const Text('Renvoyer le code', style: TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: AppColors.blue, fontSize: 14)),
+                child: Text('auth.resend_btn'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: AppColors.blue, fontSize: 14)),
               ),
           ],
         ),

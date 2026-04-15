@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -165,7 +166,7 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
+          SnackBar(content: Text('errors.detail'.tr(namedArgs: {'error': e.toString()}))),
         );
       }
     }
@@ -218,7 +219,7 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
           onPressed: () {
             Navigator.pop(context);
           },
-          child: const Text('Annuler'),
+          child: Text('common.cancel'.tr()),
         ),
       ),
     );
@@ -453,7 +454,7 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
                 const SizedBox(height: 16),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Annuler', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                  child: Text('common.cancel'.tr(), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
                 ),
               ],
             ] else ...[

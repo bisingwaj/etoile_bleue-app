@@ -271,7 +271,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                           children: [
                             _buildStatCard(title: 'history.alerts_issued'.tr(), value: '$sosCount', icon: CupertinoIcons.waveform_path_ecg, color: AppColors.red),
                             const SizedBox(width: 12),
-                            _buildStatCard(title: 'Appels terminés', value: '$endedCount', icon: CupertinoIcons.checkmark_circle_fill, color: AppColors.blue),
+                            _buildStatCard(title: 'history.calls_completed'.tr(), value: '$endedCount', icon: CupertinoIcons.checkmark_circle_fill, color: AppColors.blue),
                             const SizedBox(width: 12),
                             _buildStatCard(title: 'history.badges_earned'.tr(), value: '3', icon: CupertinoIcons.rosette, color: Colors.orangeAccent),
                           ],
@@ -292,7 +292,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(32.0),
-                      child: Center(child: Text('Aucun événement', style: const TextStyle(fontFamily: 'Marianne', color: Colors.grey))),
+                      child: Center(child: Text('history.timeline_empty'.tr(), style: const TextStyle(fontFamily: 'Marianne', color: Colors.grey))),
                     ),
                   )
                 else

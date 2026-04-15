@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/missed_calls_provider.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
@@ -58,7 +59,7 @@ class MissedCallsBanner extends ConsumerWidget {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      'Appels manqués',
+                      'calls.missed_calls_title'.tr(),
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -103,18 +104,27 @@ class _MissedCallTile extends ConsumerWidget {
     required this.isLast,
   });
 
-  String _formatTime(dynamic ts) {
+  String _formatTime(BuildContext context, dynamic ts) {
     if (ts == null) return '';
     try {
       final date = DateTime.parse(ts.toString()).toLocal();
       final now = DateTime.now();
       final diff = now.difference(date);
 
-      if (diff.inMinutes < 1) return "À l'instant";
-      if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
-      if (diff.inHours < 24) return 'Il y a ${diff.inHours}h';
-      if (diff.inDays == 1) return 'Hier';
-      return '${date.day}/${date.month} à ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      if (diff.inMinutes < 1) return 'calls.time_now'.tr();
+      if (diff.inMinutes < 60) {
+        return 'calls.time_minutes_ago'.tr(args: [diff.inMinutes.toString()]);
+      }
+      if (diff.inHours < 24) {
+        return 'calls.time_hours_ago'.tr(args: [diff.inHours.toString()]);
+      }
+      if (diff.inDays == 1) return 'calls.time_yesterday'.tr();
+      return 'calls.time_date_at'.tr(namedArgs: {
+        'day': '${date.day}',
+        'month': '${date.month}',
+        'hour': date.hour.toString().padLeft(2, '0'),
+        'minute': date.minute.toString().padLeft(2, '0'),
+      });
     } catch (_) {
       return '';
     }
@@ -123,10 +133,13 @@ class _MissedCallTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final channelName = call['channel_name'] as String? ?? '';
+    final isFromUrgentiste = channelName.startsWith('RESCUER-');
     final rawCallerName = call['caller_name'] as String?;
     // Default name based on call source
-    final callerName = rawCallerName ?? 
-        (channelName.startsWith('RESCUER-') ? 'Urgentiste' : 'Centre d\'appels');
+    final callerName = rawCallerName ??
+        (channelName.startsWith('RESCUER-')
+            ? 'calls.source_urgentiste'.tr()
+            : 'calls.caller_fallback_centrale'.tr());
     final status = call['status'] as String? ?? 'missed';
     final callId = call['id'] as String;
     final createdAt = call['created_at'];
@@ -136,11 +149,11 @@ class _MissedCallTile extends ConsumerWidget {
     IconData sourceIcon;
     Color sourceColor;
     if (channelName.startsWith('RESCUER-')) {
-      sourceLabel = 'Urgentiste';
+      sourceLabel = 'calls.source_urgentiste'.tr();
       sourceIcon = CupertinoIcons.person_badge_plus_fill;
       sourceColor = Colors.orange;
     } else {
-      sourceLabel = 'Centrale';
+      sourceLabel = 'calls.source_centrale_short'.tr();
       sourceIcon = CupertinoIcons.building_2_fill;
       sourceColor = AppColors.blue;
     }
@@ -195,9 +208,9 @@ class _MissedCallTile extends ConsumerWidget {
                           color: Colors.red.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          'Manqué',
-                          style: TextStyle(
+                        child: Text(
+                          'calls.missed_status'.tr(),
+                          style: const TextStyle(
                             color: Colors.red,
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -212,7 +225,7 @@ class _MissedCallTile extends ConsumerWidget {
                     Icon(CupertinoIcons.clock, size: 12, color: Colors.grey[400]),
                     const SizedBox(width: 4),
                     Text(
-                      _formatTime(createdAt),
+                      _formatTime(context, createdAt),
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[500],
@@ -234,76 +247,77 @@ class _MissedCallTile extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(width: 8),
+          if (!isFromUrgentiste) ...[
+            const SizedBox(width: 8),
 
-          // Callback button
-          GestureDetector(
-            onTap: () async {
-              final callState = ref.read(callStateProvider);
-              if (callState.isInCall || callState.status == ActiveCallStatus.connecting) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Un appel est déjà en cours'),
-                    backgroundColor: Colors.orange,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-                return;
-              }
-
-              try {
-                await ref.read(callStateProvider.notifier).startCallbackCall(callId);
-                if (context.mounted) {
-                  context.go('/call/active');
-                }
-              } catch (e) {
-                if (context.mounted) {
+            GestureDetector(
+              onTap: () async {
+                final callState = ref.read(callStateProvider);
+                if (callState.isInCall || callState.status == ActiveCallStatus.connecting) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Erreur: $e'),
-                      backgroundColor: Colors.red,
+                      content: Text('calls.call_already_active'.tr()),
+                      backgroundColor: Colors.orange,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   );
+                  return;
                 }
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.green,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    CupertinoIcons.phone_fill,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    'Rappeler',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+
+                try {
+                  await ref.read(callStateProvider.notifier).startCallbackCall(callId);
+                  if (context.mounted) {
+                    context.go('/call/active');
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('errors.detail'.tr(namedArgs: {'error': e.toString()})),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      CupertinoIcons.phone_fill,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'calls.callback'.tr(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

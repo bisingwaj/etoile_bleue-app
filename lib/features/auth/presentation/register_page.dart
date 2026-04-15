@@ -71,7 +71,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: Text('common.confirm'.tr()),
-        content: const Text('Vous serez déconnecté et pourrez vous reconnecter avec un autre numéro de téléphone.'),
+        content: Text('register.change_phone_dialog'.tr()),
         actions: [
           CupertinoDialogAction(
             isDefaultAction: true,

@@ -86,17 +86,18 @@ class FcmService {
 
   /// Récupère le jeton actuel et l'envoie à Supabase
   static Future<void> syncToken() async {
+    debugPrint('[PUSH] syncToken() started...');
     try {
       final token = await FirebaseMessaging.instance.getToken();
-      debugPrint('[PUSH] FCM Token: ${token ?? "NULL"}');
+      debugPrint('[PUSH] Firebase Token status: ${token != null ? "OBTAINED" : "NULL"}');
       if (token != null) {
+        debugPrint('[PUSH] Token: $token');
         await _updateTokenInDatabase(token);
-        debugPrint('[PUSH] ✅ Token synced to database');
       } else {
-        debugPrint('[PUSH] ⚠️ FCM token is null — push won\'t work');
+        debugPrint('[PUSH] ⚠️ FCM token is null — check google-services.json');
       }
     } catch (e) {
-      debugPrint('[PUSH] ❌ Erreur lors de la récupération du token: $e');
+      debugPrint('[PUSH] ❌ Erreur critique lors de la récupération du token: $e');
     }
   }
 
@@ -105,14 +106,23 @@ class FcmService {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
-        await Supabase.instance.client
+        debugPrint('[PUSH] Updating database for userId: ${user.id}');
+        final res = await Supabase.instance.client
             .from('users_directory')
             .update({'fcm_token': token})
-            .eq('auth_user_id', user.id);
-        debugPrint('[PUSH] Token FCM synchronisé pour ${user.id}');
+            .eq('auth_user_id', user.id)
+            .select();
+        
+        if (res.isEmpty) {
+          debugPrint('[PUSH] ⚠️ No row updated in users_directory. check if auth_user_id exists.');
+        } else {
+          debugPrint('[PUSH] ✅ Token FCM synchronisé avec succès dans Supabase');
+        }
+      } else {
+        debugPrint('[PUSH] ℹ️ Token non synchronisé: aucun utilisateur connecté');
       }
     } catch (e) {
-      debugPrint('[PUSH] Echec synchro Supabase token FCM: $e');
+      debugPrint('[PUSH] ❌ Echec synchro Supabase token FCM: $e');
     }
   }
 

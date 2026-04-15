@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 
 class IncidentSuccessPage extends StatefulWidget {
@@ -167,7 +168,7 @@ class _IncidentSuccessPageState extends State<IncidentSuccessPage> with SingleTi
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                       elevation: 0,
                     ),
-                    child: const Text('Retour à l\'accueil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: Text('common.back_home'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),

@@ -23,7 +23,8 @@
     "lastname_title": "Quel est votre nom de famille ?",
     "lastname_label": "Nom de famille",
     "birth_title": "Année de naissance",
-    "birth_hint": "Ex: 1990"
+    "birth_hint": "Ex: 1990",
+    "change_phone_dialog": "Vous serez déconnecté et pourrez vous reconnecter avec un autre numéro de téléphone."
   },
   "profile": {
     "title": "Mon profil",
@@ -76,7 +77,11 @@
     "profile_photo": "Photo de profil",
     "take_photo": "Prendre une photo",
     "choose_gallery": "Choisir depuis la galerie",
-    "change_lang": "Changement de langue"
+    "change_lang": "Changement de langue",
+    "enter_otp_6_hint": "Entrez le code à 6 chiffres envoyé au {phone}",
+    "no_emergency_contacts": "Aucun contact d'urgence défini.",
+    "user_display_default": "Utilisateur",
+    "saving_in_progress": "Enregistrement..."
   },
   "home": {
     "nav_home": "Accueil",
@@ -183,7 +188,8 @@
     "triage_dk": "JE NE SAIS PAS",
     "triage_dk_sub": "Impossible\nà juger",
     "triage_back": "RETOUR",
-    "hold_cancel_hint": "Maintenir pour annuler l'alerte"
+    "hold_cancel_hint": "Maintenir pour annuler l'alerte",
+    "emergency_connection_error": "Erreur de connexion urgence : {error}"
   },
   "notifications": {
     "title": "Centre de notifications",
@@ -198,7 +204,9 @@
     "course_title": "Nouveau cours disponible",
     "course_body": "Apprenez les gestes qui sauvent en cas d'étouffement (Manœuvre de Heimlich).",
     "time_3d": "Il y a 3 jours",
-    "start_course": "Lancer le cours"
+    "start_course": "Lancer le cours",
+    "load_error": "Erreur de chargement des notifications\n{error}",
+    "empty_list": "Aucune notification"
   },
   "directory": {
     "title": "Annuaire santé",
@@ -252,7 +260,9 @@
     "badges_earned": "Badges obtenus",
     "event_history": "Historique d'événements",
     "see_all": "Tout voir",
-    "no_events": "Aucun événement trouvé."
+    "no_events": "Aucun événement trouvé.",
+    "calls_completed": "Appels terminés",
+    "timeline_empty": "Aucun événement"
   },
   "onboarding": {
     "slide1_title": "Alerte vitale\nimmédiate",
@@ -452,7 +462,19 @@
     "emergency_center": "Centre d'appel d'urgence",
     "reject": "Rejeter",
     "answer": "Décrocher",
-    "tap_to_return": "Appuyez pour revenir"
+    "tap_to_return": "Appuyez pour revenir",
+    "missed_calls_title": "Appels manqués",
+    "missed_status": "Manqué",
+    "callback": "Rappeler",
+    "source_urgentiste": "Urgentiste",
+    "source_centrale_short": "Centrale",
+    "caller_fallback_centrale": "Centre d'appels",
+    "call_already_active": "Un appel est déjà en cours",
+    "time_now": "À l'instant",
+    "time_minutes_ago": "Il y a {} min",
+    "time_hours_ago": "Il y a {}h",
+    "time_yesterday": "Hier",
+    "time_date_at": "{day}/{month} à {hour}:{minute}"
   },
   "quiz": {
     "title": "Quiz : {module}",
@@ -480,7 +502,8 @@
     "generic": "Une erreur est survenue",
     "loading": "Erreur de chargement",
     "phone_updated": "Numéro de téléphone mis à jour avec succès",
-    "number_verified": "Numéro vérifié"
+    "number_verified": "Numéro vérifié",
+    "detail": "Erreur : {error}"
   },
   "common": {
     "cancel": "Annuler",
@@ -499,6 +522,7 @@
     "disconnecting": "Déconnexion en cours...",
     "offline": "Hors connexion — les données seront synchronisées au retour du réseau",
     "syncing": "Synchronisation en cours...",
-    "pending_sync": "En attente de synchronisation"
+    "pending_sync": "En attente de synchronisation",
+    "sms": "SMS"
   }
 }

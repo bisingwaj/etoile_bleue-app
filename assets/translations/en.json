@@ -23,7 +23,8 @@
     "lastname_title": "What is your last name?",
     "lastname_label": "Last name",
     "birth_title": "Year of birth",
-    "birth_hint": "E.g., 1990"
+    "birth_hint": "E.g., 1990",
+    "change_phone_dialog": "You will be logged out and can sign in again with another phone number."
   },
   "profile": {
     "title": "My Profile",
@@ -76,7 +77,11 @@
     "profile_photo": "Profile Photo",
     "take_photo": "Take a photo",
     "choose_gallery": "Choose from gallery",
-    "change_lang": "Change Language"
+    "change_lang": "Change Language",
+    "enter_otp_6_hint": "Enter the 6-digit code sent to {phone}",
+    "no_emergency_contacts": "No emergency contact defined.",
+    "user_display_default": "User",
+    "saving_in_progress": "Saving..."
   },
   "home": {
     "nav_home": "Home",
@@ -183,7 +188,8 @@
     "triage_dk": "I DON'T KNOW",
     "triage_dk_sub": "Impossible\nto judge",
     "triage_back": "BACK",
-    "hold_cancel_hint": "Hold to cancel the alert"
+    "hold_cancel_hint": "Hold to cancel the alert",
+    "emergency_connection_error": "Emergency connection error: {error}"
   },
   "notifications": {
     "title": "Notification Center",
@@ -198,7 +204,9 @@
     "course_title": "New course available",
     "course_body": "Learn life-saving gestures in case of choking (Heimlich Maneuver).",
     "time_3d": "3 days ago",
-    "start_course": "Start course"
+    "start_course": "Start course",
+    "load_error": "Failed to load notifications\n{error}",
+    "empty_list": "No notifications"
   },
   "directory": {
     "title": "Emergency Directory",
@@ -252,7 +260,9 @@
     "badges_earned": "Badges earned",
     "event_history": "Event history",
     "see_all": "See all",
-    "no_events": "No events found."
+    "no_events": "No events found.",
+    "calls_completed": "Completed calls",
+    "timeline_empty": "No events"
   },
   "onboarding": {
     "slide1_title": "Immediate\nVital Alert",
@@ -452,7 +462,19 @@
     "emergency_center": "Emergency call center",
     "reject": "Reject",
     "answer": "Answer",
-    "tap_to_return": "Tap to return"
+    "tap_to_return": "Tap to return",
+    "missed_calls_title": "Missed calls",
+    "missed_status": "Missed",
+    "callback": "Call back",
+    "source_urgentiste": "Emergency physician",
+    "source_centrale_short": "Dispatch",
+    "caller_fallback_centrale": "Call center",
+    "call_already_active": "A call is already in progress",
+    "time_now": "Just now",
+    "time_minutes_ago": "{} min ago",
+    "time_hours_ago": "{}h ago",
+    "time_yesterday": "Yesterday",
+    "time_date_at": "{day}/{month} at {hour}:{minute}"
   },
   "quiz": {
     "title": "Quiz: {module}",
@@ -480,7 +502,8 @@
     "generic": "An error occurred",
     "loading": "Loading error",
     "phone_updated": "Phone number updated successfully",
-    "number_verified": "Number verified"
+    "number_verified": "Number verified",
+    "detail": "Error: {error}"
   },
   "common": {
     "cancel": "Cancel",
@@ -499,6 +522,7 @@
     "disconnecting": "Logging out...",
     "offline": "Offline — data will sync when connection returns",
     "syncing": "Syncing...",
-    "pending_sync": "Pending sync"
+    "pending_sync": "Pending sync",
+    "sms": "SMS"
   }
 }
