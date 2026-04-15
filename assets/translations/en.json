@@ -464,6 +464,7 @@
     "answer": "Answer",
     "tap_to_return": "Tap to return",
     "missed_calls_title": "Missed calls",
+    "missed_list_empty": "No missed calls",
     "missed_status": "Missed",
     "callback": "Call back",
     "source_urgentiste": "Emergency physician",

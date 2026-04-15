@@ -474,7 +474,8 @@
     "time_minutes_ago": "Mutango {} miniti",
     "time_hours_ago": "Mutango {} ngonga",
     "time_yesterday": "Lobi",
-    "time_date_at": "{day}/{month} tango {hour}:{minute}"
+    "time_date_at": "{day}/{month} tango {hour}:{minute}",
+    "missed_list_empty": "Ba appels oyo epesami te ezali te"
   },
   "quiz": {
     "title": "Quiz: {module}",

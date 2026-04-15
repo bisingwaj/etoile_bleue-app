@@ -3,27 +3,75 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/missed_calls_provider.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 
 /// Widget affichant les appels manqués avec possibilité de rappeler.
-/// Intégré dans la HomePage ou le HistoryPage.
+/// [embedded] : sans marge ni en-tête interne (ex. onglet Historique).
 class MissedCallsBanner extends ConsumerWidget {
-  const MissedCallsBanner({super.key});
+  const MissedCallsBanner({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final missedCallsAsync = ref.watch(missedCallsProvider);
 
     return missedCallsAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (e, _) => const SizedBox.shrink(),
+      loading: () => embedded
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CupertinoActivityIndicator()),
+            )
+          : const SizedBox.shrink(),
+      error: (e, _) => embedded
+          ? Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Text(
+                  'errors.detail'.tr(namedArgs: {'error': e.toString()}),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
       data: (calls) {
-        if (calls.isEmpty) return const SizedBox.shrink();
+        if (calls.isEmpty) {
+          if (embedded) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Text(
+                  'calls.missed_list_empty'.tr(),
+                  style: TextStyle(fontSize: 15, color: Colors.grey[600], fontFamily: 'Marianne'),
+                ),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }
 
-        // Show only the most recent missed calls (max 3)
-        final recentCalls = calls.take(3).toList();
+        // Mode onglet Historique : même liste que les incidents ; mode bannière : max 3
+        final rows = embedded ? calls : calls.take(3).toList();
+
+        final list = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: rows.asMap().entries.map((entry) {
+            final call = entry.value;
+            final isLast = entry.key == rows.length - 1;
+            return _MissedCallTile(
+              call: call,
+              isLast: isLast,
+            );
+          }).toList(),
+        );
+
+        if (embedded) {
+          return list;
+        }
 
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -39,7 +87,7 @@ class MissedCallsBanner extends ConsumerWidget {
             ],
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -79,14 +127,7 @@ class MissedCallsBanner extends ConsumerWidget {
                 ),
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
-              ...recentCalls.asMap().entries.map((entry) {
-                final call = entry.value;
-                final isLast = entry.key == recentCalls.length - 1;
-                return _MissedCallTile(
-                  call: call,
-                  isLast: isLast,
-                );
-              }),
+              list,
             ],
           ),
         );
@@ -130,21 +171,68 @@ class _MissedCallTile extends ConsumerWidget {
     }
   }
 
+  Future<void> _onRowTap(BuildContext context, WidgetRef ref) async {
+    final channelName = call['channel_name'] as String? ?? '';
+    final isFromUrgentiste = channelName.startsWith('RESCUER-');
+    if (isFromUrgentiste) return;
+
+    final citizenId = call['citizen_id'] as String?;
+    final currentUid = Supabase.instance.client.auth.currentUser?.id;
+    if (citizenId == null || currentUid == null || citizenId != currentUid) {
+      return;
+    }
+
+    final callId = call['id'] as String;
+    final callState = ref.read(callStateProvider);
+    if (callState.isInCall || callState.status == ActiveCallStatus.connecting) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('calls.call_already_active'.tr()),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await ref.read(callStateProvider.notifier).startCallbackCall(callId);
+      if (context.mounted) {
+        context.go('/call/active');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('errors.detail'.tr(namedArgs: {'error': e.toString()})),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final channelName = call['channel_name'] as String? ?? '';
     final isFromUrgentiste = channelName.startsWith('RESCUER-');
+    final citizenId = call['citizen_id'] as String?;
+    final currentUid = Supabase.instance.client.auth.currentUser?.id;
+    final isOwnCall =
+        citizenId != null && currentUid != null && citizenId == currentUid;
+    final canRappel = isOwnCall && !isFromUrgentiste;
+
     final rawCallerName = call['caller_name'] as String?;
-    // Default name based on call source
     final callerName = rawCallerName ??
         (channelName.startsWith('RESCUER-')
             ? 'calls.source_urgentiste'.tr()
             : 'calls.caller_fallback_centrale'.tr());
     final status = call['status'] as String? ?? 'missed';
-    final callId = call['id'] as String;
     final createdAt = call['created_at'];
 
-    // Determine the source type
     String sourceLabel;
     IconData sourceIcon;
     Color sourceColor;
@@ -158,167 +246,77 @@ class _MissedCallTile extends ConsumerWidget {
       sourceColor = AppColors.blue;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : Border(
-                bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
-              ),
-      ),
-      child: Row(
-        children: [
-          // Avatar / source icon
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: sourceColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(sourceIcon, color: sourceColor, size: 22),
-          ),
-          const SizedBox(width: 12),
+    final statusPrefix =
+        status == 'missed' ? 'calls.missed_status'.tr() : status;
+    final subtitle = '$statusPrefix · $sourceLabel';
 
-          // Caller info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        callerName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    if (status == 'missed')
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
+    // Même disposition que [HistoryPage._buildHistoryTile]
+    return GestureDetector(
+      onTap: canRappel ? () => _onRowTap(context, ref) : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: isLast ? const BorderRadius.vertical(bottom: Radius.circular(20)) : null,
+          border: isLast ? null : Border(bottom: BorderSide(color: Colors.grey[100]!)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: sourceColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(sourceIcon, color: sourceColor, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
                         child: Text(
-                          'calls.missed_status'.tr(),
+                          callerName,
                           style: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: Colors.black87,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Icon(CupertinoIcons.clock, size: 12, color: Colors.grey[400]),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatTime(context, createdAt),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[500],
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatTime(context, createdAt),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[500],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '· $sourceLabel',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: sourceColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          if (!isFromUrgentiste) ...[
-            const SizedBox(width: 8),
-
-            GestureDetector(
-              onTap: () async {
-                final callState = ref.read(callStateProvider);
-                if (callState.isInCall || callState.status == ActiveCallStatus.connecting) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('calls.call_already_active'.tr()),
-                      backgroundColor: Colors.orange,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
-                  return;
-                }
-
-                try {
-                  await ref.read(callStateProvider.notifier).startCallbackCall(callId);
-                  if (context.mounted) {
-                    context.go('/call/active');
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('errors.detail'.tr(namedArgs: {'error': e.toString()})),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  }
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withValues(alpha: 0.35),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      CupertinoIcons.phone_fill,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'calls.callback'.tr(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              CupertinoIcons.chevron_right,
+              color: canRappel ? Colors.grey : Colors.grey.withValues(alpha: 0.35),
+              size: 16,
             ),
           ],
-        ],
+        ),
       ),
     );
   }

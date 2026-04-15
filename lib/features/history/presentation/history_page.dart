@@ -98,6 +98,8 @@ class HistoryPage extends ConsumerStatefulWidget {
 
 class _HistoryPageState extends ConsumerState<HistoryPage> {
   String _currentFilter = 'Tous';
+  /// 0 = historique d'événements, 1 = appels manqués
+  int _historyTab = 0;
 
   String _formatDate(dynamic ts) {
     if (ts == null) return '—';
@@ -251,11 +253,6 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             },
             child: CustomScrollView(
               slivers: [
-                // Missed calls banner (callback functionality)
-                const SliverToBoxAdapter(
-                  child: MissedCallsBanner(),
-                ),
-                // Stats header
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 16),
@@ -277,63 +274,111 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                           ],
                         )),
                         const SizedBox(height: 32),
-                        Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            Text("history.event_history".tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
-                            Text("history.see_all".tr(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.blue)),
-                          ])),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 22,
+                                  runSpacing: 8,
+                                  children: [
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () => setState(() => _historyTab = 0),
+                                      child: Text(
+                                        'history.event_history'.tr(),
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: _historyTab == 0 ? FontWeight.bold : FontWeight.w600,
+                                          color: _historyTab == 0 ? AppColors.navyDeep : Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () => setState(() => _historyTab = 1),
+                                      child: Text(
+                                        'calls.missed_calls_title'.tr(),
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: _historyTab == 1 ? FontWeight.bold : FontWeight.w600,
+                                          color: _historyTab == 1 ? AppColors.navyDeep : Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (_historyTab == 0)
+                                Text(
+                                  'history.see_all'.tr(),
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.blue),
+                                ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 16),
                       ],
                     ),
                   ),
                 ),
-                // Timeline list
-                if (filtered.isEmpty)
+                if (_historyTab == 0) ...[
+                  if (filtered.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Center(child: Text('history.timeline_empty'.tr(), style: const TextStyle(fontFamily: 'Marianne', color: Colors.grey))),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverList.builder(
+                        itemCount: filtered.length + (ref.read(callHistoryProvider.notifier).hasMore ? 1 : 0),
+                        itemBuilder: (context, i) {
+                          if (i >= filtered.length) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              ref.read(callHistoryProvider.notifier).loadMore();
+                            });
+                            return const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CupertinoActivityIndicator()),
+                            );
+                          }
+                          final c = filtered[i];
+                          final status = c['status'] as String? ?? 'unknown';
+                          final icon = status == 'ended' || status == 'resolved' ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.waveform_path_ecg;
+                          final color = status == 'ended' || status == 'resolved' ? AppColors.blue : AppColors.red;
+                          final duration = _formatDuration(c['created_at'], c['resolved_at']);
+                          return _buildHistoryTile(
+                            title: c['title'] ?? 'Incident',
+                            subtitle: status == 'ended' || status == 'resolved' ? 'Terminé${duration.isNotEmpty ? " ($duration)" : ""}' : 'Statut: $status',
+                            date: _formatDate(c['created_at']),
+                            icon: icon, color: color,
+                            isLast: i == filtered.length - 1,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                CupertinoPageRoute(
+                                  builder: (context) => IncidentDetailPage(
+                                    incidentId: c['id'].toString(),
+                                    initialData: c,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ] else
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Center(child: Text('history.timeline_empty'.tr(), style: const TextStyle(fontFamily: 'Marianne', color: Colors.grey))),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverList.builder(
-                      itemCount: filtered.length + (ref.read(callHistoryProvider.notifier).hasMore ? 1 : 0),
-                      itemBuilder: (context, i) {
-                        if (i >= filtered.length) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            ref.read(callHistoryProvider.notifier).loadMore();
-                          });
-                          return const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CupertinoActivityIndicator()),
-                          );
-                        }
-                        final c = filtered[i];
-                        final status = c['status'] as String? ?? 'unknown';
-                        final icon = status == 'ended' || status == 'resolved' ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.waveform_path_ecg;
-                        final color = status == 'ended' || status == 'resolved' ? AppColors.blue : AppColors.red;
-                        final duration = _formatDuration(c['created_at'], c['resolved_at']);
-                        return _buildHistoryTile(
-                          title: c['title'] ?? 'Incident',
-                          subtitle: status == 'ended' || status == 'resolved' ? 'Terminé${duration.isNotEmpty ? " ($duration)" : ""}' : 'Statut: $status',
-                          date: _formatDate(c['created_at']),
-                          icon: icon, color: color,
-                          isLast: i == filtered.length - 1,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              CupertinoPageRoute(
-                                builder: (context) => IncidentDetailPage(
-                                  incidentId: c['id'].toString(),
-                                  initialData: c,
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: MissedCallsBanner(embedded: true),
                     ),
                   ),
                 const SliverToBoxAdapter(child: SizedBox(height: 40)),

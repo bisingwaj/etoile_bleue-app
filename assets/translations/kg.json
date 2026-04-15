@@ -474,7 +474,8 @@
     "time_minutes_ago": "Mutango {} minutu",
     "time_hours_ago": "Mutango {} ngonzi",
     "time_yesterday": "Lumbu yina",
-    "time_date_at": "{day}/{month} kuzingile {hour}:{minute}"
+    "time_date_at": "{day}/{month} kuzingile {hour}:{minute}",
+    "missed_list_empty": "Ba appels ozo keba te ke zwa te"
   },
   "quiz": {
     "title": "Quiz: {module}",

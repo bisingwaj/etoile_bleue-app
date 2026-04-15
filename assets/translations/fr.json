@@ -464,6 +464,7 @@
     "answer": "Décrocher",
     "tap_to_return": "Appuyez pour revenir",
     "missed_calls_title": "Appels manqués",
+    "missed_list_empty": "Aucun appel manqué",
     "missed_status": "Manqué",
     "callback": "Rappeler",
     "source_urgentiste": "Urgentiste",

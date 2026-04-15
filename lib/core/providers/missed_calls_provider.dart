@@ -2,9 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Provider that fetches the recent missed/completed incoming calls
-/// (calls FROM the centrale/rescuer TO the citizen that were missed or completed).
-/// This enables the "Rappeler" (callback) feature.
+/// Provider that fetches recent incoming missed calls (centrale / rescuer → citoyen)
+/// for **all** citizens — flux global. Le rappel n’est possible que pour les lignes
+/// dont [citizen_id] est l’utilisateur connecté (voir UI).
+///
+/// Nécessite une politique RLS Supabase autorisant la lecture des lignes `call_history`
+/// correspondantes pour les utilisateurs authentifiés (selon votre modèle de sécurité).
 class MissedCallsNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
   final String? _uid;
 
@@ -18,24 +21,19 @@ class MissedCallsNotifier extends StateNotifier<AsyncValue<List<Map<String, dyna
       return;
     }
     try {
-      // Fetch calls directed TO this citizen (incoming calls) that are either
-      // missed, completed, or failed — these are the ones the patient can call back.
       final data = await Supabase.instance.client
           .from('call_history')
           .select()
-          .eq('citizen_id', _uid)
           .inFilter('status', ['missed', 'completed', 'failed'])
           .order('created_at', ascending: false)
-          .limit(20);
+          .limit(100);
 
       final items = (data as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .where((call) {
-            // Only show calls where the channel was initiated by someone else
-            // (CENTRALE- or RESCUER- prefix indicates incoming calls)
             final channelName = call['channel_name'] as String? ?? '';
             return channelName.startsWith('CENTRALE-') ||
-                   channelName.startsWith('RESCUER-');
+                channelName.startsWith('RESCUER-');
           })
           .toList();
 

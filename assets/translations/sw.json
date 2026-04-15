@@ -474,7 +474,8 @@
     "time_minutes_ago": "Dakika {} zilizopita",
     "time_hours_ago": "Saa {} zilizopita",
     "time_yesterday": "Jana",
-    "time_date_at": "{day}/{month} saa {hour}:{minute}"
+    "time_date_at": "{day}/{month} saa {hour}:{minute}",
+    "missed_list_empty": "Hakuna simu zisizopokelewa"
   },
   "quiz": {
     "title": "Quiz: {module}",

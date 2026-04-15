@@ -474,7 +474,8 @@
     "time_minutes_ago": "Dakika {} ikulile",
     "time_hours_ago": "Saa {} ikulile",
     "time_yesterday": "Munu",
-    "time_date_at": "{day}/{month} ku {hour}:{minute}"
+    "time_date_at": "{day}/{month} ku {hour}:{minute}",
+    "missed_list_empty": "Bifwe bitabishi ke zwa te"
   },
   "quiz": {
     "title": "Quiz: {module}",
