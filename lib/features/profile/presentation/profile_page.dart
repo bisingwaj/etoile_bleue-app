@@ -188,8 +188,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     Consumer(
                       builder: (context, ref, _) {
                         final phone = ref.watch(userProvider).value?['phone'] as String? ?? '+243 ...';
+                        final contactsAsync = ref.watch(emergencyContactsProvider);
+                        final emergencySubtitle = contactsAsync.when(
+                          data: (c) {
+                            final hasContact = (c['name']?.trim().isNotEmpty == true) &&
+                                (c['phone']?.trim().isNotEmpty == true);
+                            return hasContact
+                                ? 'profile.configured_contacts_one'.tr()
+                                : 'profile.configured_contacts_none'.tr();
+                          },
+                          loading: () => 'common.loading'.tr(),
+                          error: (_, _) => 'profile.configured_contacts_none'.tr(),
+                        );
                         return _buildCardGroup([
-                          _buildListTile(context, icon: CupertinoIcons.person_2_fill, color: AppColors.navy, title: 'profile.trusted_contacts'.tr(), subtitle: 'profile.configured_contacts'.tr(), onTap: () => _openSheet(context, const _ContactsSheet())),
+                          _buildListTile(context, icon: CupertinoIcons.person_2_fill, color: AppColors.navy, title: 'profile.trusted_contacts'.tr(), subtitle: emergencySubtitle, onTap: () => _openSheet(context, const _ContactsSheet())),
                           _buildListTile(context, icon: CupertinoIcons.phone_fill, color: Colors.green, title: 'profile.phone_number'.tr(), subtitle: phone, isLast: true, onTap: () => _openSheet(context, const _PhoneEditSheet())),
                         ]);
                       },
