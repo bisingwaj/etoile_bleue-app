@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:etoile_bleue_mobile/core/providers/dispatch_timeline_provider.dart';
+import 'package:etoile_bleue_mobile/features/history/models/patient_timeline_models.dart';
+import 'package:etoile_bleue_mobile/features/history/providers/patient_timeline_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -23,9 +26,14 @@ class IncidentDetailPage extends ConsumerStatefulWidget {
 
 class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
   Map<String, dynamic> _incidentData = {};
-  Map<String, dynamic>? _dispatchData;
   RealtimeChannel? _incidentSub;
-  RealtimeChannel? _dispatchSub;
+  RealtimeChannel? _timelineRealtimeSub;
+
+  /// `null` = afficher toutes les sources ; sinon filtre sur `TimelineEvent.source`.
+  String? _eventSourceFilter;
+
+  /// Clés d’événements dont les détails (description, vitaux…) sont dépliés.
+  final Set<String> _expandedTimelineEventKeys = {};
 
   @override
   void initState() {
@@ -54,8 +62,9 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
         )
         .subscribe();
 
-    _dispatchSub = Supabase.instance.client
-        .channel('public:dispatches:${widget.incidentId}')
+    // Rafraîchit la chronologie unifiée (centrale / terrain / hôpital).
+    _timelineRealtimeSub = Supabase.instance.client
+        .channel('public:patient_timeline:${widget.incidentId}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -65,154 +74,389 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
             column: 'incident_id',
             value: widget.incidentId,
           ),
-          callback: (payload) {
-            if (mounted && payload.newRecord.isNotEmpty) {
-              setState(() => _dispatchData = payload.newRecord);
+          callback: (_) {
+            if (mounted) {
+              ref.invalidate(patientTimelineProvider(widget.incidentId));
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'hospital_reports',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'incident_id',
+            value: widget.incidentId,
+          ),
+          callback: (_) {
+            if (mounted) {
+              ref.invalidate(patientTimelineProvider(widget.incidentId));
             }
           },
         )
         .subscribe();
-
-    _fetchDispatchData();
-  }
-
-  Future<void> _fetchDispatchData() async {
-    try {
-      final data = await Supabase.instance.client
-          .from('dispatches')
-          .select()
-          .eq('incident_id', widget.incidentId)
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-      if (data != null && mounted) {
-        setState(() => _dispatchData = data);
-      }
-    } catch (_) {}
   }
 
   @override
   void dispose() {
     _incidentSub?.unsubscribe();
-    _dispatchSub?.unsubscribe();
+    _timelineRealtimeSub?.unsubscribe();
     super.dispose();
   }
 
-  Widget _buildTimelineStep(String title, String subtitle, String time, String subtime, bool isActive, bool isLast) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isActive ? AppColors.blue : Colors.transparent,
-                border: Border.all(
-                  color: isActive ? AppColors.blue.withValues(alpha: 0.2) : Colors.grey[300]!,
-                  width: isActive ? 4 : 2,
-                ),
-              ),
-            ),
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 40,
-                color: isActive ? AppColors.blue.withValues(alpha: 0.3) : Colors.grey[200],
-              ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title, 
-                style: TextStyle(fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: isActive ? Colors.black87 : Colors.grey[600], fontSize: 15)
-              ),
-              if (subtitle.isNotEmpty)
-                Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-              if (!isLast) const SizedBox(height: 16),
-            ],
+  /// Couleurs désaturées pour une chronologie lisible sans effet « alarme ».
+  (Color, IconData) _sourceStyle(String source) {
+    switch (source) {
+      case 'centrale':
+        return (const Color(0xFF5C7A99), CupertinoIcons.antenna_radiowaves_left_right);
+      case 'terrain':
+        return (const Color(0xFF6D8F7E), CupertinoIcons.car_fill);
+      case 'hopital':
+        return (const Color(0xFF8E86A3), CupertinoIcons.building_2_fill);
+      case 'systeme':
+      default:
+        return (AppColors.textSecondary, CupertinoIcons.gear_alt_fill);
+    }
+  }
+
+  String _sourceLabel(String source) {
+    switch (source) {
+      case 'centrale':
+        return 'incident_detail.timeline_source_centrale'.tr();
+      case 'terrain':
+        return 'incident_detail.timeline_source_terrain'.tr();
+      case 'hopital':
+        return 'incident_detail.timeline_source_hopital'.tr();
+      case 'systeme':
+      default:
+        return 'incident_detail.timeline_source_systeme'.tr();
+    }
+  }
+
+  static const List<String> _filterSourceOrder = ['centrale', 'terrain', 'hopital', 'systeme'];
+
+  /// Sources présentes dans la chronologie (ordre : centrale → terrain → hôpital → système → autres).
+  List<String> _sourcesInEvents(List<TimelineEvent> events) {
+    final set = <String>{};
+    for (final e in events) {
+      set.add(e.source);
+    }
+    final ordered = <String>[];
+    for (final s in _filterSourceOrder) {
+      if (set.contains(s)) ordered.add(s);
+    }
+    final rest = set.where((s) => !_filterSourceOrder.contains(s)).toList()..sort();
+    ordered.addAll(rest);
+    return ordered;
+  }
+
+  String _filterEntityLabel(String source) {
+    switch (source) {
+      case 'centrale':
+        return 'incident_detail.filter_label_centrale'.tr();
+      case 'terrain':
+        return 'incident_detail.filter_label_terrain'.tr();
+      case 'hopital':
+        return 'incident_detail.filter_label_hopital'.tr();
+      case 'systeme':
+        return 'incident_detail.filter_label_systeme'.tr();
+      default:
+        return source;
+    }
+  }
+
+  List<TimelineEvent> _filteredEvents(List<TimelineEvent> all) {
+    if (_eventSourceFilter == null) return all;
+    return all.where((e) => e.source == _eventSourceFilter).toList();
+  }
+
+  Widget _buildEntityFilterBar(List<String> sourcesPresent) {
+    if (sourcesPresent.isEmpty) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildEntityFilterChip(
+            label: 'incident_detail.filter_all'.tr(),
+            selected: _eventSourceFilter == null,
+            accent: AppColors.textPrimary,
+            onTap: () => setState(() => _eventSourceFilter = null),
           ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            if (subtime.isNotEmpty)
-              Text(subtime, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-          ],
-        )
-      ],
+          for (final source in sourcesPresent)
+            _buildEntityFilterChip(
+              label: _filterEntityLabel(source),
+              selected: _eventSourceFilter == source,
+              accent: _sourceStyle(source).$1,
+              onTap: () => setState(() => _eventSourceFilter = source),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _buildTerrainTimelineItem(Map<String, dynamic> item, bool isLast) {
-    final type = item['type']?.toString() ?? 'info';
-    final title = item['title']?.toString() ?? 'incident_detail.action_default'.tr();
-    final content = item['content']?.toString() ?? '';
-    final createdAt = DateTime.tryParse(item['created_at']?.toString() ?? '')?.toLocal();
-    final timeStr = createdAt != null 
-        ? "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}"
-        : '--:--';
+  Widget _buildEntityFilterChip({
+    required String label,
+    required bool selected,
+    required Color accent,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8, bottom: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          splashColor: accent.withValues(alpha: 0.08),
+          highlightColor: accent.withValues(alpha: 0.05),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: selected ? accent.withValues(alpha: 0.1) : const Color(0xFFF2F2F7),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? accent.withValues(alpha: 0.32) : AppColors.border,
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: selected ? accent : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-    IconData icon;
-    Color color;
-    switch (type) {
-      case 'vitals':
-        icon = CupertinoIcons.waveform_path_ecg;
-        color = Colors.blue;
-        break;
-      case 'care':
-        icon = CupertinoIcons.bandage;
-        color = Colors.green;
-        break;
-      case 'decision':
-        icon = CupertinoIcons.checkmark_circle_fill;
-        color = Colors.orange;
-        break;
-      case 'evaluation':
-        icon = CupertinoIcons.doc_text_viewfinder;
-        color = Colors.purple;
-        break;
-      default:
-        icon = CupertinoIcons.info_circle_fill;
-        color = Colors.grey;
+  String _formatEventTime(DateTime at) {
+    final local = at.toLocal();
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} '
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildVitalsCard(Map<String, dynamic> vitals) {
+    final entries = vitals.entries.where((e) => e.value != null && e.value.toString().isNotEmpty).toList();
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F2F7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'incident_detail.vitals_title'.tr(),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.2,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: entries.map((e) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border.withValues(alpha: 0.85)),
+                ),
+                child: Text(
+                  '${e.key}: ${e.value}',
+                  style: const TextStyle(fontSize: 12, height: 1.25, color: AppColors.textPrimary),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _timelineEventKey(TimelineEvent e) {
+    return '${e.at.toIso8601String()}|${e.source}|${e.category}|${e.title.hashCode}';
+  }
+
+  bool _eventHasExpandableDetail(TimelineEvent e) {
+    final hasDesc = e.description != null && e.description!.trim().isNotEmpty;
+    final hasVitals =
+        (e.category == 'triage' || e.category == 'assessment') && e.vitalsFromMetadata != null;
+    return hasDesc || hasVitals;
+  }
+
+  void _toggleTimelineEventExpanded(String key) {
+    setState(() {
+      if (_expandedTimelineEventKeys.contains(key)) {
+        _expandedTimelineEventKeys.remove(key);
+      } else {
+        _expandedTimelineEventKeys.add(key);
+      }
+    });
+  }
+
+  Widget _buildTimelineEventItem(TimelineEvent e, bool isLast) {
+    final (color, icon) = _sourceStyle(e.source);
+    final title = e.title.trim().isEmpty ? 'incident_detail.timeline_event_fallback'.tr() : e.title;
+    final showVitals = (e.category == 'triage' || e.category == 'assessment') && e.vitalsFromMetadata != null;
+    final eventKey = _timelineEventKey(e);
+    final expanded = _expandedTimelineEventKeys.contains(eventKey);
+    final canExpand = _eventHasExpandableDetail(e);
+    final hasDesc = e.description != null && e.description!.trim().isNotEmpty;
+
+    final titleText = Text(
+      title,
+      style: const TextStyle(
+        fontWeight: FontWeight.w500,
+        fontSize: 15,
+        height: 1.25,
+        color: AppColors.textPrimary,
+      ),
+      maxLines: canExpand && !expanded ? 2 : null,
+      overflow: canExpand && !expanded ? TextOverflow.ellipsis : null,
+    );
+
+    Widget titleRow;
+    if (canExpand) {
+      titleRow = Semantics(
+        button: true,
+        label: 'incident_detail.timeline_expand_a11y'.tr(),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _toggleTimelineEventExpanded(eventKey),
+            borderRadius: BorderRadius.circular(10),
+            splashColor: color.withValues(alpha: 0.08),
+            highlightColor: color.withValues(alpha: 0.05),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: titleText),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, top: 0),
+                    child: AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 22,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      titleRow = titleText;
     }
 
+    final detailColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasDesc)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              e.description!,
+              style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.textSecondary),
+            ),
+          ),
+        if (showVitals) _buildVitalsCard(e.vitalsFromMetadata!),
+      ],
+    );
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 18),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 16),
+          Column(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.09),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color.withValues(alpha: 0.88), size: 17),
+              ),
+              if (!isLast)
+                Container(
+                  width: 1,
+                  height: 28,
+                  margin: const EdgeInsets.only(top: 6),
+                  color: AppColors.border,
+                ),
+            ],
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    Text(timeStr, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _sourceLabel(e.source),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.1,
+                          color: color.withValues(alpha: 0.95),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _formatEventTime(e.at),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textLight),
+                    ),
                   ],
                 ),
-                if (content.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(content, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                const SizedBox(height: 6),
+                titleRow,
+                if (!canExpand) detailColumn,
+                if (canExpand)
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.topCenter,
+                    child: expanded
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: detailColumn,
+                          )
+                        : const SizedBox(width: double.infinity),
                   ),
               ],
             ),
@@ -222,47 +466,120 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
     );
   }
 
+  void _openReportSheet(HospitalReportSummary r) {
+    final pretty = r.reportData != null
+        ? const JsonEncoder.withIndent('  ').convert(r.reportData)
+        : '';
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.65,
+          minChildSize: 0.35,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'incident_detail.hospital_report_title'.tr(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 17,
+                              letterSpacing: -0.3,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                          tooltip: 'incident_detail.report_close'.tr(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                      children: [
+                        if (r.summary != null && r.summary!.isNotEmpty) ...[
+                          Text(
+                            r.summary!,
+                            style: const TextStyle(fontSize: 15, height: 1.5, color: AppColors.textPrimary),
+                          ),
+                          if (pretty.isNotEmpty) const SizedBox(height: 20),
+                        ],
+                        if (pretty.isNotEmpty)
+                          SelectableText(
+                            pretty,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                              height: 1.45,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        if ((r.summary == null || r.summary!.isEmpty) && pretty.isEmpty)
+                          Text(
+                            'incident_detail.report_empty'.tr(),
+                            style: const TextStyle(color: AppColors.textSecondary),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final timelineAsync = ref.watch(dispatchTimelineProvider(widget.incidentId));
+    final timelineAsync = ref.watch(patientTimelineProvider(widget.incidentId));
     final status = _incidentData['status']?.toString();
-    final rawLocation = _incidentData['location_address']?.toString().trim();
-    final timeline1Subtitle = (rawLocation != null && rawLocation.isNotEmpty)
-        ? 'incident_detail.timeline_1_meta'.tr(namedArgs: {'address': rawLocation})
-        : 'incident_detail.timeline_1_sub'.tr();
-    
-    int statusIndex = 0;
-    if (status == 'dispatched' || status == 'en_route') statusIndex = 1;
-    if (status == 'arrived' || status == 'investigating') statusIndex = 2;
-    if (status == 'ended' || status == 'resolved') statusIndex = 3;
 
-    String formatTime(String? isoString) {
-      if (isoString == null) return '--:--';
-      final dt = DateTime.tryParse(isoString)?.toLocal();
-      if (dt == null) return '--:--';
-      return "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
-    }
-
-    final createdAtStr = formatTime(_incidentData['created_at']?.toString());
-    final updatedAtStr = formatTime(_incidentData['updated_at']?.toString());
-    final resolvedAtStr = formatTime(_incidentData['resolved_at']?.toString());
-
-    final dispatchedAtStr = formatTime(_dispatchData?['dispatched_at']?.toString());
-    final arrivedAtStr = formatTime(_dispatchData?['arrived_at']?.toString());
-    
-    final unitName = _dispatchData?['assigned_structure_name']?.toString() ?? 'incident_detail.coordination_pending'.tr();
-
-    // Step 2 : Prise en charge
-    final step2Active = statusIndex >= 1 || _incidentData['assigned_operator_id'] != null;
-    final step2Time = step2Active ? (dispatchedAtStr != '--:--' ? dispatchedAtStr : updatedAtStr) : '--:--';
-
-    // Step 3 : En route
-    final step3Active = _dispatchData != null || statusIndex >= 1;
-    final step3Time = _dispatchData?['dispatched_at'] != null ? dispatchedAtStr : '--:--';
-
-    // Step 4 : Sur place / Résolu
-    final step4Active = statusIndex >= 2 || _dispatchData?['arrived_at'] != null;
-    final step4Time = _dispatchData?['arrived_at'] != null ? arrivedAtStr : (statusIndex >= 3 ? resolvedAtStr : '--:--');
+    final unitName = timelineAsync.maybeWhen(
+      data: (pt) {
+        if (pt == null) return null;
+        for (final d in pt.dispatches) {
+          final n = d.structureName;
+          if (n != null && n.isNotEmpty) return n;
+        }
+        return null;
+      },
+      orElse: () => null,
+    ) ??
+        'incident_detail.coordination_pending'.tr();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -276,11 +593,17 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(patientTimelineProvider(widget.incidentId));
+                await ref.read(patientTimelineProvider(widget.incidentId).future);
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   // Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -366,88 +689,214 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
-                  // Trip Info equivalent (Timeline)
-                  Text('incident_detail.tracking_title'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 20),
-                  _buildTimelineStep(
-                    'incident_detail.timeline_1_title'.tr(),
-                    timeline1Subtitle,
-                    createdAtStr,
-                    'incident_detail.validated'.tr(),
-                    true,
-                    false,
+
+                  Text(
+                    'incident_detail.chronology_title'.tr(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      letterSpacing: -0.2,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                  _buildTimelineStep('incident_detail.timeline_2_title'.tr(), 'incident_detail.timeline_2_sub'.tr(), step2Time, '', step2Active, false),
-                  _buildTimelineStep(
-                    'incident_detail.timeline_3_title'.tr(),
-                    step3Active ? 'incident_detail.timeline_3_sub_active'.tr(namedArgs: {'unit': unitName}) : 'incident_detail.timeline_3_sub_wait'.tr(),
-                    step3Time,
-                    '',
-                    step3Active,
-                    false,
-                  ),
-                  _buildTimelineStep(
-                    statusIndex >= 3 ? 'incident_detail.timeline_4_done_title'.tr() : 'incident_detail.timeline_4_active_title'.tr(),
-                    statusIndex >= 3 ? 'incident_detail.timeline_4_done_sub'.tr() : 'incident_detail.timeline_4_active_sub'.tr(),
-                    step4Time,
-                    '',
-                    step4Active,
-                    true,
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // Live terrain actions from dispatch_timeline
+                  const SizedBox(height: 12),
                   timelineAsync.when(
-                    data: (terrainActions) {
-                      if (terrainActions.isEmpty) return const SizedBox.shrink();
+                    data: (pt) {
+                      if (pt == null) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Text(
+                            'incident_detail.timeline_load_error'.tr(),
+                            style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+                          ),
+                        );
+                      }
+                      final events = pt.events;
+                      if (events.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Text(
+                            'incident_detail.timeline_empty'.tr(),
+                            style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+                          ),
+                        );
+                      }
+                      final sourcesPresent = _sourcesInEvents(events);
+                      if (_eventSourceFilter != null && !sourcesPresent.contains(_eventSourceFilter)) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) setState(() => _eventSourceFilter = null);
+                        });
+                      }
+                      final filtered = _filteredEvents(events);
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(CupertinoIcons.waveform_path_ecg, color: AppColors.blue, size: 20),
-                              const SizedBox(width: 8),
-                              Text('incident_detail.terrain_title'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text('incident_detail.live_badge'.tr(), style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
+                          _buildEntityFilterBar(sourcesPresent),
+                          const SizedBox(height: 12),
                           Container(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppColors.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey[200]!),
-                            ),
-                            child: Column(
-                              children: [
-                                for (int i = 0; i < terrainActions.length; i++)
-                                  _buildTerrainTimelineItem(terrainActions[i], i == terrainActions.length - 1),
+                              border: Border.all(color: AppColors.border),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.shadowColor,
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 2),
+                                ),
                               ],
                             ),
+                            child: filtered.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    child: Text(
+                                      'incident_detail.timeline_filter_empty'.tr(),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+                                    ),
+                                  )
+                                : Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      for (int i = 0; i < filtered.length; i++)
+                                        _buildTimelineEventItem(filtered[i], i == filtered.length - 1),
+                                    ],
+                                  ),
                           ),
-                          const SizedBox(height: 24),
                         ],
                       );
                     },
                     loading: () => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Center(child: CupertinoActivityIndicator()),
+                      padding: EdgeInsets.symmetric(vertical: 28),
+                      child: Center(
+                        child: CupertinoActivityIndicator(color: AppColors.textLight, radius: 12),
+                      ),
                     ),
-                    error: (e, _) => const SizedBox.shrink(),
+                    error: (_, _) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        'incident_detail.timeline_load_error'.tr(),
+                        style: TextStyle(color: AppColors.error.withValues(alpha: 0.85), height: 1.4),
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 24),
+
+                  timelineAsync.maybeWhen(
+                    data: (pt) {
+                      if (pt == null || pt.reports.isEmpty) return const SizedBox.shrink();
+                      // Rapports hospitaliers : visibles pour « Tout » ou filtre Hôpital uniquement.
+                      if (_eventSourceFilter != null && _eventSourceFilter != 'hopital') {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'incident_detail.reports_section_title'.tr(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              letterSpacing: -0.2,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...pt.reports.map(
+                            (r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () => _openReportSheet(r),
+                                  borderRadius: BorderRadius.circular(14),
+                                  splashColor: AppColors.blue.withValues(alpha: 0.06),
+                                  highlightColor: AppColors.blue.withValues(alpha: 0.04),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surface,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: AppColors.border),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.shadowColor,
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF2F2F7),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: const Icon(
+                                            CupertinoIcons.doc_text_fill,
+                                            size: 20,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                r.summary?.trim().isNotEmpty == true
+                                                    ? r.summary!
+                                                    : 'incident_detail.hospital_report_title'.tr(),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 15,
+                                                  height: 1.25,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'incident_detail.view_report'.tr(),
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                              ),
+                                              if (r.sentAt != null)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(top: 2),
+                                                  child: Text(
+                                                    _formatEventTime(r.sentAt!),
+                                                    style: const TextStyle(fontSize: 12, color: AppColors.textLight),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        const Icon(Icons.chevron_right_rounded, color: AppColors.textLight, size: 22),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      );
+                    },
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+
+                  const SizedBox(height: 16),
 
                   // Recommandations Center
                   if (_incidentData['recommended_actions'] != null && _incidentData['recommended_actions'].toString().isNotEmpty) ...[
@@ -540,6 +989,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                   const SizedBox(height: 24),
                 ],
               ),
+            ),
             ),
           ),
           
