@@ -438,19 +438,21 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           ),
         ),
 
-        // Bannière d'intervention en cours
+        // Dynamic Island - Intervention en cours
         if (showBanner)
           Positioned(
-            bottom: 16,
-            left: 16,
-            right: 16,
-            child: _buildInterventionBanner(interventionState),
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _buildDynamicIsland(interventionState),
+            ),
           ),
       ],
     );
   }
 
-  Widget _buildInterventionBanner(ActiveInterventionState intervention) {
+  Widget _buildDynamicIsland(ActiveInterventionState intervention) {
     final status = intervention.dispatchStatus;
     final IconData icon;
     final String label;
@@ -459,105 +461,104 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     switch (status) {
       case 'en_route':
         icon = CupertinoIcons.location_fill;
-        label = 'Équipe en route vers vous';
-        accentColor = Colors.green;
+        label = 'En route';
+        accentColor = Colors.greenAccent;
         break;
       case 'dispatched':
         icon = CupertinoIcons.car_detailed;
-        label = 'Secours assignés — En attente de départ';
-        accentColor = Colors.orange;
+        label = 'Assigné';
+        accentColor = Colors.orangeAccent;
         break;
       case 'arrived':
         icon = CupertinoIcons.location_solid;
-        label = 'Équipe sur les lieux';
-        accentColor = Colors.deepPurple;
+        label = 'Sur place';
+        accentColor = Colors.deepPurpleAccent;
         break;
       case 'processing':
         icon = CupertinoIcons.hourglass;
-        label = 'Dossier en cours de traitement';
-        accentColor = const Color(0xFF003580);
+        label = 'Traitement';
+        accentColor = AppColors.blue;
         break;
       default:
-        icon = CupertinoIcons.doc_text_search;
-        label = 'Dossier en cours de traitement';
-        accentColor = const Color(0xFF003580);
+        icon = CupertinoIcons.info_circle_fill;
+        label = 'Intervention';
+        accentColor = Colors.blueAccent;
     }
 
     return GestureDetector(
       onTap: () {
-        final id = intervention.incidentId;
-        if (id != null) {
-          context.push('/incident/$id');
+        HapticFeedback.lightImpact();
+        final incidentId = intervention.incidentId;
+        if (incidentId != null) {
+          context.push(
+            AppRoutes.incidentDetail.replaceAll(':id', incidentId),
+          );
         }
       },
-      child: Material(
-        color: Colors.transparent,
-        elevation: 8,
-        borderRadius: BorderRadius.circular(18),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 400),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFF0D1421),
-                accentColor.withValues(alpha: 0.4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        constraints: const BoxConstraints(minWidth: 240),
+        decoration: BoxDecoration(
+          color: Colors.black, // True Dynamic Island black
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+            BoxShadow(
+              color: accentColor.withOpacity(0.2),
+              blurRadius: 2,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Status Icon with Pulse-like glow
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: accentColor, size: 16),
+            ),
+            const SizedBox(width: 12),
+            // Text Info
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '🚨 Mission active',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: accentColor.withValues(alpha: 0.5),
+            const SizedBox(width: 16),
+            // Minimalist chevron
+            Icon(
+              CupertinoIcons.chevron_right,
+              color: Colors.white.withOpacity(0.4),
+              size: 14,
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: accentColor, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      '🚨 Intervention en cours',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  CupertinoIcons.chevron_right,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -782,7 +783,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   }
 
   Widget _buildMapSection(ActiveInterventionState interventionState) {
-    final hasRescuer = interventionState.rescuerLat != null && interventionState.rescuerLng != null;
+    final hasRescuer = interventionState.isVisible && interventionState.rescuerLat != null && interventionState.rescuerLng != null;
     
     if (hasRescuer) {
       debugPrint('[TRACKING_DEBUG] Rendering map with Rescuer at: ${interventionState.rescuerLat}, ${interventionState.rescuerLng}');

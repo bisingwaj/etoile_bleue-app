@@ -53,6 +53,9 @@ bool _isTerminalDispatchStatus(String status) {
     'completed',
     'cancelled',
     'returned',
+    'on_site',
+    'on_side',
+    'arrived',
   }.contains(status);
 }
 
@@ -94,11 +97,18 @@ class ActiveInterventionState {
     return dispatchStatus == 'processing' ||
         dispatchStatus == 'dispatched' ||
         dispatchStatus == 'en_route' ||
-        dispatchStatus == 'arrived' ||
         dispatchStatus == 'en_route_hospital' ||
         dispatchStatus == 'arrived_hospital' ||
         dispatchStatus == 'transferring' ||
         dispatchStatus == 'at_hospital';
+  }
+
+  /// Est-ce qu'on doit afficher le marqueur du secouriste sur la carte ?
+  bool get shouldShowRescuer {
+    if (!isVisible) return false;
+    // Si on est déjà à l'hôpital ou en transfert, on peut encore montrer ? 
+    // L'utilisateur a dit "disparait quand il est sur place"
+    return true; 
   }
 
   ActiveInterventionState copyWith({

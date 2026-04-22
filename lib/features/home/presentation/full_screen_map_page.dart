@@ -84,7 +84,7 @@ class _FullScreenMapPageState extends ConsumerState<FullScreenMapPage> {
   @override
   Widget build(BuildContext context) {
     final interventionState = ref.watch(activeInterventionProvider);
-    final hasRescuer = interventionState.rescuerLat != null && interventionState.rescuerLng != null;
+    final hasRescuer = interventionState.isVisible && interventionState.rescuerLat != null && interventionState.rescuerLng != null;
     final userPos = widget.initialUserPosition;
 
     // Polyline
