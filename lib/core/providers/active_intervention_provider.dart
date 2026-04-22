@@ -63,6 +63,10 @@ class ActiveInterventionState {
   final DateTime? incidentResolvedAt;
   final String dispatchStatus; // 'processing', 'dispatched', 'en_route', …
   final String? rescuerName;
+  final String? rescuerId;
+  final String? unitId;
+  final double? rescuerLat;
+  final double? rescuerLng;
 
   const ActiveInterventionState({
     this.incidentId,
@@ -71,6 +75,10 @@ class ActiveInterventionState {
     this.incidentResolvedAt,
     this.dispatchStatus = 'processing',
     this.rescuerName,
+    this.rescuerId,
+    this.unitId,
+    this.rescuerLat,
+    this.rescuerLng,
   });
 
   /// Visible seulement si le statut incident est explicitement « en cours » (liste blanche).
@@ -93,9 +101,14 @@ class ActiveInterventionState {
     DateTime? incidentResolvedAt,
     String? dispatchStatus,
     String? rescuerName,
+    String? rescuerId,
+    String? unitId,
+    double? rescuerLat,
+    double? rescuerLng,
     bool clearIncident = false,
     bool clearIncidentStatus = false,
     bool clearClosureDates = false,
+    bool clearRescuer = false,
   }) {
     return ActiveInterventionState(
       incidentId: clearIncident ? null : (incidentId ?? this.incidentId),
@@ -108,7 +121,11 @@ class ActiveInterventionState {
           ? null
           : (incidentResolvedAt ?? this.incidentResolvedAt),
       dispatchStatus: dispatchStatus ?? this.dispatchStatus,
-      rescuerName: rescuerName ?? this.rescuerName,
+      rescuerName: clearRescuer ? null : (rescuerName ?? this.rescuerName),
+      rescuerId: clearRescuer ? null : (rescuerId ?? this.rescuerId),
+      unitId: clearRescuer ? null : (unitId ?? this.unitId),
+      rescuerLat: clearRescuer ? null : (rescuerLat ?? this.rescuerLat),
+      rescuerLng: clearRescuer ? null : (rescuerLng ?? this.rescuerLng),
     );
   }
 }
@@ -116,6 +133,7 @@ class ActiveInterventionState {
 class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> {
   RealtimeChannel? _dispatchChannel;
   RealtimeChannel? _incidentChannel;
+  RealtimeChannel? _rescuerGpsChannel;
 
   ActiveInterventionNotifier() : super(const ActiveInterventionState()) {
     // Au démarrage, chercher automatiquement les interventions actives
@@ -179,6 +197,7 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
 
     _dispatchChannel?.unsubscribe();
     _incidentChannel?.unsubscribe();
+    _rescuerGpsChannel?.unsubscribe();
 
     debugPrint('[Intervention] Début du suivi pour incident=$incidentId');
     state = ActiveInterventionState(incidentId: incidentId);
@@ -207,18 +226,16 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
         stopTracking();
         return;
       }
-      state = ActiveInterventionState(
+      state = state.copyWith(
         incidentId: incidentId,
         incidentStatus: incStatus,
         incidentArchivedAt: archAt,
         incidentResolvedAt: resAt,
-        dispatchStatus: state.dispatchStatus,
-        rescuerName: state.rescuerName,
       );
 
       final dispatches = await Supabase.instance.client
           .from('dispatches')
-          .select('status, rescuer_name')
+          .select('status, rescuer_name, rescuer_id, unit_id')
           .eq('incident_id', incidentId)
           .order('created_at', ascending: false)
           .limit(1)
@@ -227,11 +244,24 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
       if (dispatches != null) {
         final status = dispatches['status'] as String? ?? 'processing';
         final rescuerName = dispatches['rescuer_name'] as String?;
-        debugPrint('[Intervention] Sync dispatch status: $status');
+        final rescuerId = dispatches['rescuer_id'] as String?;
+        final unitId = dispatches['unit_id'] as String?;
+        debugPrint('[Intervention] Sync dispatch: status=$status, rescuerId=$rescuerId, unitId=$unitId');
+        
         state = state.copyWith(
           dispatchStatus: status,
           rescuerName: rescuerName,
+          rescuerId: rescuerId,
+          unitId: unitId,
         );
+
+        if (rescuerId != null) {
+          _subscribeRescuerGpsRealtime(rescuerId);
+        } else if (unitId != null) {
+          _subscribeUnitGpsRealtime(unitId);
+        }
+      } else {
+        debugPrint('[Intervention] No dispatch found for incident $incidentId');
       }
     } catch (e) {
       debugPrint('[Intervention] Erreur fetch incident/dispatch: $e');
@@ -254,12 +284,23 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
             final dispatch = payload.newRecord;
             final status = dispatch['status'] as String?;
             final rescuerName = dispatch['rescuer_name'] as String?;
+            final rescuerId = dispatch['rescuer_id'] as String?;
+            final unitId = dispatch['unit_id'] as String?;
+            
+            debugPrint('[Intervention] Dispatch update (realtime): status=$status, rescuerId=$rescuerId, unitId=$unitId');
+
             if (status != null) {
-              debugPrint('[Intervention] Dispatch status update: $status');
               state = state.copyWith(
                 dispatchStatus: status,
                 rescuerName: rescuerName,
+                rescuerId: rescuerId,
+                unitId: unitId,
               );
+              if (rescuerId != null) {
+                _subscribeRescuerGpsRealtime(rescuerId);
+              } else if (unitId != null) {
+                _subscribeUnitGpsRealtime(unitId);
+              }
             }
             unawaited(_fetchIncidentAndDispatch(incidentId));
           },
@@ -287,11 +328,85 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
         .subscribe();
   }
 
+  void _subscribeRescuerGpsRealtime(String rescuerId) {
+    if (_rescuerGpsChannel != null && _rescuerGpsChannel?.topic == 'rescuer-gps-$rescuerId') {
+      return; // Already subscribed
+    }
+    _rescuerGpsChannel?.unsubscribe();
+
+    debugPrint('[Intervention] Subscribing to rescuer GPS: $rescuerId');
+    _rescuerGpsChannel = Supabase.instance.client
+        .channel('rescuer-gps-$rescuerId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'active_rescuers',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: rescuerId,
+          ),
+          callback: (payload) {
+            final record = payload.newRecord;
+            if (record.isNotEmpty) {
+              final lat = (record['lat'] as num?)?.toDouble();
+              final lng = (record['lng'] as num?)?.toDouble();
+              debugPrint('[TRACKING_DEBUG] Rescuer position received: lat=$lat, lng=$lng');
+              if (lat != null && lng != null) {
+                state = state.copyWith(
+                  rescuerLat: lat,
+                  rescuerLng: lng,
+                );
+              }
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  void _subscribeUnitGpsRealtime(String unitId) {
+    if (_rescuerGpsChannel != null && _rescuerGpsChannel?.topic == 'unit-gps-$unitId') {
+      return; // Already subscribed
+    }
+    _rescuerGpsChannel?.unsubscribe();
+
+    debugPrint('[Intervention] Fallback: Subscribing to unit GPS: $unitId');
+    _rescuerGpsChannel = Supabase.instance.client
+        .channel('unit-gps-$unitId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'units',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: unitId,
+          ),
+          callback: (payload) {
+            final record = payload.newRecord;
+            if (record.isNotEmpty) {
+              final lat = (record['location_lat'] as num?)?.toDouble();
+              final lng = (record['location_lng'] as num?)?.toDouble();
+              debugPrint('[TRACKING_DEBUG] Unit position received: lat=$lat, lng=$lng');
+              if (lat != null && lng != null) {
+                state = state.copyWith(
+                  rescuerLat: lat,
+                  rescuerLng: lng,
+                );
+              }
+            }
+          },
+        )
+        .subscribe();
+  }
+
   void stopTracking() {
     _dispatchChannel?.unsubscribe();
     _dispatchChannel = null;
     _incidentChannel?.unsubscribe();
     _incidentChannel = null;
+    _rescuerGpsChannel?.unsubscribe();
+    _rescuerGpsChannel = null;
     state = const ActiveInterventionState();
   }
 
@@ -299,6 +414,7 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
   void dispose() {
     _dispatchChannel?.unsubscribe();
     _incidentChannel?.unsubscribe();
+    _rescuerGpsChannel?.unsubscribe();
     super.dispose();
   }
 }

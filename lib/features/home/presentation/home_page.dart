@@ -45,10 +45,12 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   GoogleMapController? _mapController;
   String? _mapStyle;
   BitmapDescriptor? _customLocationMarker;
+  BitmapDescriptor? _rescuerMarkerIcon;
   late AnimationController _sosAnimationController;
   late AnimationController _radarAnimationController;
   Position? _currentPosition;
   String _currentAddress = "Recherche position...";
+  bool _isMapFullScreen = false;
   
   bool _isLocationGranted = false;
   bool _isSosTriggered = false;
@@ -60,7 +62,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   final GlobalKey<DirectoryPageState> _directoryKey = GlobalKey<DirectoryPageState>();
 
   // Tracking-related state (kept for _buildSOSButton and _buildTrackingShazamWave)
-  final bool _isTracking = false;
   bool _isTrackerMinimized = false;
   final SosTrackingState _trackingState = SosTrackingState.processing;
   final int _ambulanceEtaMinutes = 8;
@@ -120,6 +121,45 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       if (mounted) {
         setState(() {
           _customLocationMarker = BitmapDescriptor.fromBytes(uint8List);
+        });
+      }
+    }
+
+    // Initialize Rescuer Marker Icon (Ambulance style: Square with cross or distinct shape)
+    final ui.PictureRecorder rescuerRecorder = ui.PictureRecorder();
+    final Canvas rescuerCanvas = Canvas(rescuerRecorder);
+    
+    // Draw a square-ish base for ambulance (Red/Orange body)
+    final Paint bodyPaint = Paint()..color = Colors.redAccent;
+    final RRect bodyRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset(size / 2, size / 2), width: size * 0.9, height: size * 0.7),
+      const Radius.circular(8),
+    );
+    rescuerCanvas.drawRRect(bodyRect, bodyPaint);
+
+    // Draw a white cross
+    final Paint crossPaint = Paint()..color = Colors.white;
+    rescuerCanvas.drawRect(
+      Rect.fromCenter(center: Offset(size / 2, size / 2), width: size * 0.15, height: size * 0.5),
+      crossPaint,
+    );
+    rescuerCanvas.drawRect(
+      Rect.fromCenter(center: Offset(size / 2, size / 2), width: size * 0.5, height: size * 0.15),
+      crossPaint,
+    );
+    
+    // Add a blue siren on top
+    final Paint lightPaint = Paint()..color = Colors.blue;
+    rescuerCanvas.drawCircle(Offset(size * 0.7, size * 0.2), size * 0.12, lightPaint);
+
+    final ui.Image rescuerImage = await rescuerRecorder.endRecording().toImage(size, size);
+    final ByteData? rescuerByteData = await rescuerImage.toByteData(format: ui.ImageByteFormat.png);
+    if (rescuerByteData != null) {
+      final Uint8List uint8List = rescuerByteData.buffer.asUint8List();
+      if (mounted) {
+        setState(() {
+          _rescuerMarkerIcon = BitmapDescriptor.fromBytes(uint8List);
+          debugPrint('[Map] Rescuer marker icon initialized');
         });
       }
     }
@@ -387,13 +427,13 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildAppBar(),
-              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 24),
-              if (!_isTracking || _isTrackerMinimized) _buildGreeting(),
-              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: AppSpacing.sm),
-              Expanded(child: RepaintBoundary(child: _buildMapSection())),
-              if (!_isTracking || _isTrackerMinimized) _buildQuickActions(),
-              if (!_isTracking || _isTrackerMinimized) const SizedBox(height: 32),
+              if (!_isMapFullScreen) _buildAppBar(),
+              if (!_isMapFullScreen) const SizedBox(height: 24),
+              if (!_isMapFullScreen) _buildGreeting(),
+              if (!_isMapFullScreen) const SizedBox(height: AppSpacing.sm),
+              Expanded(child: RepaintBoundary(child: _buildMapSection(interventionState))),
+              if (!_isMapFullScreen) _buildQuickActions(),
+              if (!_isMapFullScreen) const SizedBox(height: 32),
             ],
           ),
         ),
@@ -737,14 +777,56 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildMapSection() {
+  Widget _buildMapSection(ActiveInterventionState interventionState) {
+    final hasRescuer = interventionState.rescuerLat != null && interventionState.rescuerLng != null;
+    
+    if (hasRescuer) {
+      debugPrint('[TRACKING_DEBUG] Rendering map with Rescuer at: ${interventionState.rescuerLat}, ${interventionState.rescuerLng}');
+    } else {
+      debugPrint('[TRACKING_DEBUG] Rendering map WITHOUT Rescuer (lat/lng is null)');
+    }
+    
+    // Polyline for tracking
+    final Set<Polyline> polylines = {};
+    if (hasRescuer && _currentPosition != null) {
+      polylines.add(
+        Polyline(
+          polylineId: const PolylineId('tracking_route'),
+          points: [
+            LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+            LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
+          ],
+          color: AppColors.blue,
+          width: 5,
+          patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+        ),
+      );
+
+      // Fit bounds to show both user and rescuer
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_mapController != null) {
+          final bounds = LatLngBounds(
+            southwest: LatLng(
+              _currentPosition!.latitude < interventionState.rescuerLat! ? _currentPosition!.latitude : interventionState.rescuerLat!,
+              _currentPosition!.longitude < interventionState.rescuerLng! ? _currentPosition!.longitude : interventionState.rescuerLng!,
+            ),
+            northeast: LatLng(
+              _currentPosition!.latitude > interventionState.rescuerLat! ? _currentPosition!.latitude : interventionState.rescuerLat!,
+              _currentPosition!.longitude > interventionState.rescuerLng! ? _currentPosition!.longitude : interventionState.rescuerLng!,
+            ),
+          );
+          _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100));
+        }
+      });
+    }
+
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
       children: [
           // The Map Container
           Padding(
-            padding: EdgeInsets.only(bottom: (!_isTracking || _isTrackerMinimized) ? 130 : 0),
+            padding: EdgeInsets.only(bottom: _isMapFullScreen ? 0 : 130),
             child: Container(
               width: double.infinity,
               margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -768,7 +850,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                           if (_mapStyle != null) {
                             _mapController?.setMapStyle(_mapStyle);
                           }
-                          if (_currentPosition != null) {
+                          if (_currentPosition != null && !hasRescuer) {
                             _mapController?.animateCamera(
                               CameraUpdate.newCameraPosition(
                                 CameraPosition(
@@ -785,20 +867,61 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                           target: _center,
                           zoom: 18.0,
                         ),
-                        markers: _currentPosition != null && _customLocationMarker != null ? {
-                          Marker(
-                            markerId: const MarkerId('current_location'),
-                            position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                            icon: _customLocationMarker!,
-                            anchor: const Offset(0.5, 0.5),
-                            infoWindow: const InfoWindow(title: 'Vous êtes ici'),
-                          )
-                        } : {},
+                        markers: {
+                          if (_currentPosition != null && _customLocationMarker != null)
+                            Marker(
+                              markerId: const MarkerId('current_location'),
+                              position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                              icon: _customLocationMarker!,
+                              anchor: const Offset(0.5, 0.5),
+                              infoWindow: const InfoWindow(title: 'Vous êtes ici'),
+                            ),
+                          if (hasRescuer && _rescuerMarkerIcon != null)
+                            Marker(
+                              markerId: const MarkerId('rescuer_location'),
+                              position: LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
+                              icon: _rescuerMarkerIcon!,
+                              anchor: const Offset(0.5, 0.5),
+                              infoWindow: InfoWindow(title: interventionState.rescuerName ?? 'Secouriste'),
+                            ),
+                        },
+                        polylines: polylines,
                         zoomControlsEnabled: false,
-                        myLocationEnabled: _isLocationGranted,
-                        myLocationButtonEnabled: _isLocationGranted,
+                        myLocationEnabled: false, // On utilise notre marqueur personnalisé bleu
+                        myLocationButtonEnabled: false,
                         mapToolbarEnabled: false,
                         compassEnabled: false,
+                      ),
+                    ),
+                    
+                    // Full Screen Toggle Icon
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() => _isMapFullScreen = !_isMapFullScreen);
+                          HapticFeedback.mediumImpact();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _isMapFullScreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                            color: AppColors.blue,
+                            size: 24,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -812,7 +935,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           if (!_isMapLoaded)
             Positioned.fill(
               child: Padding(
-                padding: EdgeInsets.only(bottom: (!_isTracking || _isTrackerMinimized) ? 130 : 0),
+                padding: EdgeInsets.only(bottom: (!interventionState.isVisible || _isTrackerMinimized) ? 130 : 0),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                   decoration: BoxDecoration(
@@ -825,32 +948,36 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             ),
 
           // Gradient fade on top of map to make it blend into white
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 60,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppColors.white,
-                    AppColors.white.withValues(alpha: 0.0),
-                  ],
+          if (!_isMapFullScreen)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 60,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.white,
+                      AppColors.white.withValues(alpha: 0.0),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
           
           // SOS Button
-          Positioned(
-            bottom: (!_isTracking || _isTrackerMinimized) ? 60 : -70,
-            child: _buildSOSButton(),
-          ),
+          if (!_isMapFullScreen)
+            Positioned(
+              bottom: 60,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildSOSButton(interventionState)),
+            ),
         ],
     );
   }
@@ -918,11 +1045,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildSOSButton() {
-    if (_isTracking) {
-      return _buildTrackingShazamWave();
-    }
-  
+  Widget _buildSOSButton(ActiveInterventionState interventionState) {
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: (_) {
