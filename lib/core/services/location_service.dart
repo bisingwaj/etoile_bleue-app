@@ -172,7 +172,7 @@ class LocationService {
 
     try {
       await _supabase.from('active_rescuers').upsert({
-        'uid': uid,
+        'user_id': uid,
         'lat': position.latitude,
         'lng': position.longitude,
         'accuracy': position.accuracy,
@@ -195,7 +195,7 @@ class LocationService {
     final uid = _uid;
     if (uid != null) {
       try {
-        await _supabase.from('active_rescuers').delete().eq('uid', uid);
+        await _supabase.from('active_rescuers').delete().eq('user_id', uid);
         debugPrint('[LocationService] ✅ Secouriste retiré de active_rescuers');
       } catch (e) {
         debugPrint('[LocationService] Erreur suppression: $e');

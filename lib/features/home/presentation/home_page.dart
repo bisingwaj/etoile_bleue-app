@@ -18,6 +18,7 @@ import 'package:audioplayers/audioplayers.dart';
 
 import '../../../core/utils/dynamic_island_toast.dart';
 import '../../training/presentation/training_page.dart';
+import 'full_screen_map_page.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:etoile_bleue_mobile/core/providers/active_intervention_provider.dart';
@@ -50,7 +51,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   late AnimationController _radarAnimationController;
   Position? _currentPosition;
   String _currentAddress = "Recherche position...";
-  bool _isMapFullScreen = false;
   
   bool _isLocationGranted = false;
   bool _isSosTriggered = false;
@@ -427,13 +427,13 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!_isMapFullScreen) _buildAppBar(),
-              if (!_isMapFullScreen) const SizedBox(height: 24),
-              if (!_isMapFullScreen) _buildGreeting(),
-              if (!_isMapFullScreen) const SizedBox(height: AppSpacing.sm),
+              _buildAppBar(),
+              const SizedBox(height: 24),
+              _buildGreeting(),
+              const SizedBox(height: AppSpacing.sm),
               Expanded(child: RepaintBoundary(child: _buildMapSection(interventionState))),
-              if (!_isMapFullScreen) _buildQuickActions(),
-              if (!_isMapFullScreen) const SizedBox(height: 32),
+              _buildQuickActions(),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -757,18 +757,22 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             children: [
               const Icon(CupertinoIcons.location_solid, color: AppColors.blue, size: 16),
               const SizedBox(width: 6),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'home.you_are_here'.tr(),
-                    style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    _currentAddress,
-                    style: AppTextStyles.bodyLarge.copyWith(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'home.you_are_here'.tr(),
+                      style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      _currentAddress,
+                      style: AppTextStyles.bodyLarge.copyWith(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -824,18 +828,18 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
       children: [
-          // The Map Container
-          Padding(
-            padding: EdgeInsets.only(bottom: _isMapFullScreen ? 0 : 130),
-            child: Container(
-              width: double.infinity,
-              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                color: Colors.grey[200],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: LayoutBuilder(
+        // 1. The Map Container
+        Padding(
+          padding: const EdgeInsets.only(bottom: 130),
+          child: Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              color: Colors.grey[200],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: LayoutBuilder(
               builder: (context, constraints) {
                 return Stack(
                   children: [
@@ -843,7 +847,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                       top: 0,
                       left: 0,
                       right: 0,
-                      height: constraints.maxHeight + 35, // Pousse le logo hors du cadre
+                      height: constraints.maxHeight + 35,
                       child: GoogleMap(
                         onMapCreated: (GoogleMapController controller) {
                           _mapController = controller;
@@ -860,7 +864,6 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                               ),
                             );
                           }
-                          // Marquer la carte comme chargée pour masquer le shimmer
                           if (mounted) setState(() => _isMapLoaded = true);
                         },
                         initialCameraPosition: const CameraPosition(
@@ -887,41 +890,10 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                         },
                         polylines: polylines,
                         zoomControlsEnabled: false,
-                        myLocationEnabled: false, // On utilise notre marqueur personnalisé bleu
+                        myLocationEnabled: false,
                         myLocationButtonEnabled: false,
                         mapToolbarEnabled: false,
                         compassEnabled: false,
-                      ),
-                    ),
-                    
-                    // Full Screen Toggle Icon
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() => _isMapFullScreen = !_isMapFullScreen);
-                          HapticFeedback.mediumImpact();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            _isMapFullScreen ? Icons.fullscreen_exit : Icons.fullscreen,
-                            color: AppColors.blue,
-                            size: 24,
-                          ),
-                        ),
                       ),
                     ),
                   ],
@@ -929,56 +901,89 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
               },
             ),
           ),
-          ),
-          
-          // Shimmer de chargement : disparaît une fois la carte prête
-          if (!_isMapLoaded)
-            Positioned.fill(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: (!interventionState.isVisible || _isTrackerMinimized) ? 130 : 0),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    color: Colors.grey[200],
-                  ),
-                  child: const _MapShimmer(),
-                ),
-              ),
-            ),
+        ),
 
-          // Gradient fade on top of map to make it blend into white
-          if (!_isMapFullScreen)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 60,
+        // 2. Shimmer de chargement
+        if (!_isMapLoaded)
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: (!interventionState.isVisible || _isTrackerMinimized) ? 130 : 0),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.white,
-                      AppColors.white.withValues(alpha: 0.0),
-                    ],
+                  borderRadius: BorderRadius.circular(24),
+                  color: Colors.grey[200],
+                ),
+                child: const _MapShimmer(),
+              ),
+            ),
+          ),
+
+        // 3. Gradient fade on top of map
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 60,
+          child: IgnorePointer(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.white,
+                    AppColors.white.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // 4. SOS Button
+        Positioned(
+          bottom: 60,
+          left: 0,
+          right: 0,
+          child: Center(child: _buildSOSButton(interventionState)),
+        ),
+
+        // 5. Full Screen Toggle Icon (Top Layer)
+        Positioned(
+          top: 12,
+          right: AppSpacing.md + 12,
+          child: Material(
+            color: Colors.white,
+            elevation: 8,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                debugPrint('[NAVIGATION] Fullscreen button clicked (Top Layer)!');
+                HapticFeedback.mediumImpact();
+                context.push(
+                  AppRoutes.fullScreenMap,
+                  extra: {'position': _currentPosition},
+                );
+              },
+              child: const SizedBox(
+                width: 50,
+                height: 50,
+                child: Center(
+                  child: Icon(
+                    Icons.fullscreen,
+                    color: AppColors.blue,
+                    size: 30,
                   ),
                 ),
               ),
             ),
-          
-          // SOS Button
-          if (!_isMapFullScreen)
-            Positioned(
-              bottom: 60,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildSOSButton(interventionState)),
-            ),
-        ],
+          ),
+        ),
+      ],
     );
   }
 

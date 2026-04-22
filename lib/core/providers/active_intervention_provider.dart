@@ -25,6 +25,9 @@ const Set<String> _activeIncidentStatusesForBanner = {
   'investigating',
   'en_route_hospital',
   'arrived_hospital',
+  'at_hospital',
+  'transferring',
+  'handover',
 };
 
 bool _isActiveIncidentForBanner(String? status) {
@@ -91,7 +94,11 @@ class ActiveInterventionState {
     return dispatchStatus == 'processing' ||
         dispatchStatus == 'dispatched' ||
         dispatchStatus == 'en_route' ||
-        dispatchStatus == 'arrived';
+        dispatchStatus == 'arrived' ||
+        dispatchStatus == 'en_route_hospital' ||
+        dispatchStatus == 'arrived_hospital' ||
+        dispatchStatus == 'transferring' ||
+        dispatchStatus == 'at_hospital';
   }
 
   ActiveInterventionState copyWith({
@@ -235,7 +242,7 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
 
       final dispatches = await Supabase.instance.client
           .from('dispatches')
-          .select('status, rescuer_name, rescuer_id, unit_id')
+          .select('status, rescuer_id, unit_id')
           .eq('incident_id', incidentId)
           .order('created_at', ascending: false)
           .limit(1)
@@ -243,22 +250,47 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
 
       if (dispatches != null) {
         final status = dispatches['status'] as String? ?? 'processing';
-        final rescuerName = dispatches['rescuer_name'] as String?;
         final rescuerId = dispatches['rescuer_id'] as String?;
         final unitId = dispatches['unit_id'] as String?;
         debugPrint('[Intervention] Sync dispatch: status=$status, rescuerId=$rescuerId, unitId=$unitId');
         
         state = state.copyWith(
           dispatchStatus: status,
-          rescuerName: rescuerName,
+          rescuerName: null, // Column missing in dispatches
           rescuerId: rescuerId,
           unitId: unitId,
         );
 
         if (rescuerId != null) {
           _subscribeRescuerGpsRealtime(rescuerId);
+          // Fetch initial position
+          final pos = await Supabase.instance.client
+              .from('active_rescuers')
+              .select('lat, lng')
+              .eq('user_id', rescuerId)
+              .maybeSingle();
+          if (pos != null) {
+            final lat = (pos['lat'] as num?)?.toDouble();
+            final lng = (pos['lng'] as num?)?.toDouble();
+            if (lat != null && lng != null) {
+              state = state.copyWith(rescuerLat: lat, rescuerLng: lng);
+            }
+          }
         } else if (unitId != null) {
           _subscribeUnitGpsRealtime(unitId);
+          // Fetch initial position from units
+          final pos = await Supabase.instance.client
+              .from('units')
+              .select('location_lat, location_lng')
+              .eq('id', unitId)
+              .maybeSingle();
+          if (pos != null) {
+            final lat = (pos['location_lat'] as num?)?.toDouble();
+            final lng = (pos['location_lng'] as num?)?.toDouble();
+            if (lat != null && lng != null) {
+              state = state.copyWith(rescuerLat: lat, rescuerLng: lng);
+            }
+          }
         }
       } else {
         debugPrint('[Intervention] No dispatch found for incident $incidentId');
@@ -283,7 +315,6 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
           callback: (payload) {
             final dispatch = payload.newRecord;
             final status = dispatch['status'] as String?;
-            final rescuerName = dispatch['rescuer_name'] as String?;
             final rescuerId = dispatch['rescuer_id'] as String?;
             final unitId = dispatch['unit_id'] as String?;
             
@@ -292,7 +323,7 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
             if (status != null) {
               state = state.copyWith(
                 dispatchStatus: status,
-                rescuerName: rescuerName,
+                rescuerName: null,
                 rescuerId: rescuerId,
                 unitId: unitId,
               );
@@ -401,6 +432,7 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
   }
 
   void stopTracking() {
+    debugPrint('[Intervention] stopTracking() called - clearing state and unsubscribing');
     _dispatchChannel?.unsubscribe();
     _dispatchChannel = null;
     _incidentChannel?.unsubscribe();

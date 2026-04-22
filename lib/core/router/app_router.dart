@@ -21,6 +21,7 @@ import 'package:etoile_bleue_mobile/features/signalements/presentation/signaleme
 import 'package:etoile_bleue_mobile/features/signalements/presentation/signalement_detail_page.dart';
 import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
+import 'package:etoile_bleue_mobile/features/home/presentation/full_screen_map_page.dart';
 
 abstract class AppRoutes {
   static const splash = '/';
@@ -40,6 +41,7 @@ abstract class AppRoutes {
   static const signalementSuccess = '/signalement-success';
   static const signalements = '/signalements';
   static const signalementDetail = '/signalements/:id';
+  static const fullScreenMap = '/full-screen-map';
 }
 
 // The GoRouter is created ONCE and never rebuilt.
@@ -209,6 +211,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
           return SignalementDetailPage(signalementId: id);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.fullScreenMap,
+        name: 'full_screen_map',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return FullScreenMapPage(
+            initialUserPosition: extra?['position'],
+          );
         },
       ),
     ],
