@@ -31,6 +31,7 @@ class ActiveCallState {
   final int? remoteUid;
   final String? blockedExpiresAt;
   final String? blockedReason;
+  final bool isSosCall;
 
   const ActiveCallState({
     this.status = ActiveCallStatus.idle,
@@ -45,6 +46,7 @@ class ActiveCallState {
     this.remoteUid,
     this.blockedExpiresAt,
     this.blockedReason,
+    this.isSosCall = false,
   });
 
   ActiveCallState copyWith({
@@ -65,6 +67,7 @@ class ActiveCallState {
     bool clearCallerName = false,
     String? blockedExpiresAt,
     String? blockedReason,
+    bool? isSosCall,
   }) {
     return ActiveCallState(
       status: status ?? this.status,
@@ -79,6 +82,7 @@ class ActiveCallState {
       remoteUid: clearRemoteUid ? null : (remoteUid ?? this.remoteUid),
       blockedExpiresAt: blockedExpiresAt ?? this.blockedExpiresAt,
       blockedReason: blockedReason ?? this.blockedReason,
+      isSosCall: isSosCall ?? this.isSosCall,
     );
   }
 
@@ -88,6 +92,12 @@ class ActiveCallState {
       status == ActiveCallStatus.active ||
       status == ActiveCallStatus.onHold ||
       status == ActiveCallStatus.incomingRinging;
+
+  /// Whether the call involves the central dispatch (SOS or incoming from central).
+  bool get isCentraleCall =>
+      isSosCall ||
+      channelName?.startsWith('SOS-') == true ||
+      channelName?.startsWith('CENTRALE-') == true;
 }
 
 class CallStateNotifier extends StateNotifier<ActiveCallState> {
@@ -158,7 +168,10 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
     _sosStartInFlight = true;
     try {
       _endedResetTimer?.cancel();
-      state = state.copyWith(status: ActiveCallStatus.connecting);
+      state = state.copyWith(
+        status: ActiveCallStatus.connecting,
+        isSosCall: true,
+      );
 
       // 1. Check blacklist status
       try {

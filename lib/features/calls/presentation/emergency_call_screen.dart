@@ -391,14 +391,20 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     children: [
-                      _buildIncidentProgress(callState),
-                      const SizedBox(height: 16),
-                      _buildEmergencyActionButtons(callState),
-                      if (hasReco) const SizedBox(height: 16),
-                      if (hasReco) _buildRecommendationsBanner(),
-                      if (callState.channelName != null && isCallLive) const SizedBox(height: 16),
-                      if (callState.channelName != null && isCallLive) _buildTranscriptionPanel(callState.channelName!),
-                      if (_showConnectionIssue) const SizedBox(height: 16),
+                      if (!callState.isCentraleCall) ...[
+                        _buildEmergencyActionButtons(callState),
+                        if (hasReco || (callState.channelName != null && isCallLive) || _showConnectionIssue)
+                          const SizedBox(height: 16),
+                      ],
+                      if (hasReco) ...[
+                        _buildRecommendationsBanner(),
+                        if ((callState.channelName != null && isCallLive) || _showConnectionIssue)
+                          const SizedBox(height: 16),
+                      ],
+                      if (callState.channelName != null && isCallLive) ...[
+                        _buildTranscriptionPanel(callState.channelName!),
+                        if (_showConnectionIssue) const SizedBox(height: 16),
+                      ],
                       if (_showConnectionIssue) _buildConnectionIssueBanner(),
                     ],
                   ),
@@ -407,7 +413,9 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
             ),
 
             // Bottom triage panel
-            if ((isCallLive || callState.status == ActiveCallStatus.ringing) && _isControlsVisible)
+            if ((isCallLive || callState.status == ActiveCallStatus.ringing) && 
+                _isControlsVisible && 
+                !callState.isCentraleCall)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: const EmergencyTriagePanel(),
@@ -431,163 +439,9 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
     );
   }
 
-  // ─── Incident progress ──────────────────────────────────────────────────────
 
-  Widget _buildIncidentProgress(ActiveCallState callState) {
-    final incidentId = callState.incidentId;
-    final steps = [
-      IncidentTrackingStep.processing,
-      IncidentTrackingStep.dispatched,
-      IncidentTrackingStep.enRoute,
-      IncidentTrackingStep.arrived,
-      IncidentTrackingStep.completed,
-    ];
-    final labels = [
-      'Dossier en traitement',
-      'Secours en approche',
-      'Secours en route',
-      'Les secours sont là',
-      'Intervention clôturée',
-    ];
-    final currentIdx = steps.indexOf(_trackingStep);
 
-    return _FrostedGlass(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // N'afficher le titre que si l'étape active est connue
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  labels[currentIdx.clamp(0, labels.length - 1)],
-                  key: ValueKey(currentIdx),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              if (incidentId != null)
-                GestureDetector(
-                  onTap: () => context.push('/incident/$incidentId'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withValues(alpha: 0.4),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        )
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(CupertinoIcons.doc_plaintext, color: Colors.white, size: 14),
-                        const SizedBox(width: 6),
-                        Text(
-                          'calls.incident_details'.tr(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: List.generate(steps.length, (i) {
-              final isPast    = i < currentIdx;
-              final isCurrent = i == currentIdx;
-              final isFuture  = i > currentIdx;
-              final isLast    = i == steps.length - 1;
-
-              return Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Indicateur de l'étape
-                          if (isPast)
-                            // Étapes passées : icône check verte uniquement
-                            const Icon(
-                              CupertinoIcons.checkmark_circle_fill,
-                              color: Colors.greenAccent,
-                              size: 16,
-                            )
-                          else if (isCurrent)
-                            // Étape active : cercle pulsant + libellé en dessous
-                            _PulsingDot()
-                          else
-                            // Étapes futures : cercle grisé, sans texte
-                            Container(
-                              width: 14,
-                              height: 14,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.transparent,
-                                border: Border.all(
-                                  color: Colors.white24,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                          // Libellé uniquement pour l'étape active
-                          if (isCurrent) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              labels[i],
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ] else if (!isFuture)
-                            const SizedBox(height: 16), // aligner les étapes passées
-                        ],
-                      ),
-                    ),
-                    if (!isLast)
-                      Expanded(
-                        child: Container(
-                          height: 2,
-                          margin: EdgeInsets.only(bottom: isPast ? 16.0 : 0.0),
-                          decoration: BoxDecoration(
-                            color: isPast ? Colors.greenAccent : Colors.white24,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── Actions Secours (SMS / 151) ───────────────────────────────────────────
+  // ─── Actions Secours (SMS / 199) ───────────────────────────────────────────
 
   Widget _buildEmergencyActionButtons(ActiveCallState callState) {
     return Row(
@@ -596,7 +450,9 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
           child: GestureDetector(
             onTap: () => _executeWithDebounce(() async {
               HapticFeedback.mediumImpact();
-              final uri = Uri.parse('sms:112?body=${Uri.encodeComponent('calls.sms_body'.tr())}');
+              // Raccrocher l'appel numérique avant de lancer le SMS GSM
+              await ref.read(callStateProvider.notifier).hangUp();
+              final uri = Uri.parse('sms:199?body=${Uri.encodeComponent('calls.sms_body'.tr())}');
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri);
               }
@@ -624,7 +480,9 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
           child: GestureDetector(
             onTap: () => _executeWithDebounce(() async {
               HapticFeedback.heavyImpact();
-              final uri = Uri.parse('tel:112');
+              // Raccrocher l'appel numérique avant de lancer l'appel GSM
+              await ref.read(callStateProvider.notifier).hangUp();
+              final uri = Uri.parse('tel:199');
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri);
               }
@@ -676,12 +534,14 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
             ),
           ),
           GestureDetector(
-            onTap: () async {
-              final uri = Uri.parse('tel:151');
+            onTap: () => _executeWithDebounce(() async {
+              // Raccrocher l'appel numérique avant de lancer l'appel GSM
+              await ref.read(callStateProvider.notifier).hangUp();
+              final uri = Uri.parse('tel:199');
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri);
               }
-            },
+            }),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -689,7 +549,7 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                'calls.call_151'.tr(),
+                'calls.call_199'.tr(),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 12,

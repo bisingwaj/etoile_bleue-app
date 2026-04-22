@@ -224,8 +224,8 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
   }
 
   Future<void> _launchNormalCall() async {
-    // Remplacer "112" par le numéro approprié selon la région
-    final Uri url = Uri(scheme: 'tel', path: '112'); 
+    // Remplacer "199" par le numéro approprié selon la région
+    final Uri url = Uri(scheme: 'tel', path: '199'); 
     if (await canLaunchUrl(url)) {
       await launchUrl(url);
     } else {

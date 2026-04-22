@@ -1006,7 +1006,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       try {
-                        final uri = Uri.parse('sms:112?body=${Uri.encodeComponent('incident_detail.sms_followup_body'.tr())}');
+                        final uri = Uri.parse('sms:199?body=${Uri.encodeComponent('incident_detail.sms_followup_body'.tr())}');
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri);
                         }
@@ -1029,7 +1029,7 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                   child: ElevatedButton.icon(
                     onPressed: () async {
                       try {
-                        final uri = Uri.parse('tel:112');
+                        final uri = Uri.parse('tel:199');
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri);
                         }

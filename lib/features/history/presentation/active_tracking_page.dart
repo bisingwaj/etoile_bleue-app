@@ -647,7 +647,7 @@ class _ActiveTrackingPageState extends State<ActiveTrackingPage> {
                 Expanded(
                   flex: 2,
                   child: TextButton.icon(
-                    onPressed: () => _launchAction('sms:112?body=${Uri.encodeComponent("Urgence Etoile Bleue - Suivi Incident")}'),
+                    onPressed: () => _launchAction('sms:199?body=${Uri.encodeComponent("Urgence Etoile Bleue - Suivi Incident")}'),
                     icon: const Icon(CupertinoIcons.chat_bubble_text_fill, size: 22, color: Colors.orange),
                     label: Text('common.sms'.tr(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w800, fontSize: 16)),
                     style: TextButton.styleFrom(
@@ -661,7 +661,7 @@ class _ActiveTrackingPageState extends State<ActiveTrackingPage> {
                 Expanded(
                   flex: 3,
                   child: ElevatedButton(
-                    onPressed: () => _launchAction('tel:112'),
+                    onPressed: () => _launchAction('tel:199'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.red,
                       padding: const EdgeInsets.symmetric(vertical: 18),
@@ -676,7 +676,7 @@ class _ActiveTrackingPageState extends State<ActiveTrackingPage> {
                         Flexible(
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
-                            child: Text('home.tracking_call_112'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                            child: Text('home.tracking_call_199'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
                           ),
                         ),
                       ],
