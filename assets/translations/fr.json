@@ -759,6 +759,8 @@
     "status_analysis": "Analyse de la situation",
     "sms_normal": "SMS Normal",
     "call_normal": "Appel Normal",
+    "call_center": "Appeler la centrale",
+    "cancel": "Annuler",
     "timeline_1_title": "Appel de détresse reçu",
     "timeline_1_sub": "Nous avons bien reçu votre signal",
     "timeline_1_meta": "Localisation: {address}",

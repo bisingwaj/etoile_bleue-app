@@ -994,6 +994,9 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
           ),
           
           // Actions: SMS Offline, Red Call Button
+          if (_incidentData['status'] != 'arrived' && 
+              _incidentData['status'] != 'resolved' && 
+              _incidentData['status'] != 'ended')
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -1006,7 +1009,8 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       try {
-                        final uri = Uri.parse('sms:199?body=${Uri.encodeComponent('incident_detail.sms_followup_body'.tr())}');
+                        final body = 'URGENCE ANNULEE - Réf: ${_incidentData['reference'] ?? widget.incidentId}';
+                        final uri = Uri.parse('sms:199?body=${Uri.encodeComponent(body)}');
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri);
                         }
@@ -1014,8 +1018,11 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                         debugPrint('[IncidentDetail] SMS launch error: $e');
                       }
                     },
-                    icon: const Icon(CupertinoIcons.chat_bubble_text_fill, size: 16, color: Colors.orange),
-                    label: Text('incident_detail.sms_normal'.tr(), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                    icon: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: Colors.orange),
+                    label: Text(
+                      'incident_detail.cancel'.tr(), 
+                      style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)
+                    ),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
@@ -1038,7 +1045,10 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
                       }
                     },
                     icon: const Icon(CupertinoIcons.phone_fill, size: 16, color: Colors.white),
-                    label: Text('incident_detail.call_normal'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    label: Text(
+                      'incident_detail.call_center'.tr(), 
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.red,
                       padding: const EdgeInsets.symmetric(vertical: 14),

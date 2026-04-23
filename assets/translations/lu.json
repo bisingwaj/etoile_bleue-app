@@ -365,6 +365,10 @@
     "s10_title": "10. Affichage sur l'écran de verrouillage",
     "s10_body": "L'application peut s'afficher par-dessus l'écran de verrouillage et réveiller votre écran lors d'un incident actif. Cela permet de garder les informations vitales et les commandes d'appel accessibles instantanément sans avoir à déverrouiller votre téléphone dans une situation de stress ou d'urgence absolue."
   },
+  "incident_detail": {
+    "call_center": "Appeler le centre",
+    "cancel": "Annuler",
+  },
   "signalement": {
     "form_title": "Luyebishi lua sika",
     "anonymous": "Luyebishi lua kubombama",

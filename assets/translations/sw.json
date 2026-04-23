@@ -353,7 +353,7 @@
     "s4_title": "4. Mahali (GPS)",
     "s4_body": "Mahali pa GPS linaweza kutumika kuonyesha mahali kwa huduma za dharura na, inapohitajika, wakati wa kuunda ripoti. Usahihi unategemea mipangilio ya kifaa na mtandao. Huduma za geocoding (kurasa ↔ anwani) zinaweza kutumika kupitia watoa huduma wa kiufundi kuonyesha anwani kwenye ramani.",
     "s5_title": "5. Ripoti na maudhui (picha, video, sauti)",
-    "s5_body": "Moduli ya ripoti inakuwezesha kueleza matukio (maandishi), kuonyesha mji au kituo cha afya, na kuongeza ushahidi wa hiari: picha, video au rekodi za sauti. Unaweza kuwasha hali ya siri: vipengele vya moja kwa moja vya utambulisho vinaweza kufichwa kwa waendeshaji wa kibidi kulingana na sheria za kazi. Faili zinahifadhiwa kwa usalama kwenye miundombinu ya programu.",
+    "s5_body": "Moduli ya ripoti inakuwezesha kueleza matukio (maandishi), kuonyesha mji au kituo cha afya, na kuongeza ushahidi wa hiari: picha, video au rekodi za sauti. Unaweza kuwasha hali ya siri: vipengele vya moja kwa moja vya utambulisho vinaweza fachwa kwa waendeshaji wa kibidi kulingana na sheria za kazi. Faili zinahifadhiwa kwa usalama kwenye miundombinu ya programu.",
     "s6_title": "6. Arifa, mwenyeji na wasindikaji",
     "s6_body": "Arifa za push zinaweza kutumwa kwa tahadhari au taarifa za huduma. Programu inategemea watoa huduma wa kiufundi (mwenyeji wa wingu, hifadhidata, uthibitisho, uhifadhi wa faili, ujumbe wa push, pengine sauti ya moja kwa moja) katika mazingira yenye usalama wa kawaida. Wasindikaji hushughulikia data kwa niaba ya huduma na maagizo ya mwenye data.",
     "s7_title": "7. Uhifadhi, haki na mawasiliano",
@@ -364,6 +364,10 @@
     "s9_body": "Ufikiaji wa maikrofoni unahitajika kwa mawasiliano ya sauti na kituo cha usimamizi wakati wa simu ya dharura. Kamera inatumiwa tu ikiwa unachagua kuwasha simu ya video au kuambatisha ushahidi wa picha au video kwenye ripoti. Mitiririko hii huwashwa tu wakati wa hatua ya wazi kutoka kwako na hairekodiwi kamwe bila ujuzi wako.",
     "s10_title": "10. Onyesho kwenye skrini iliyofungwa",
     "s10_body": "Programu inaweza kuonyeshwa juu ya skrini iliyofungwa na kuamsha skrini yako wakati wa tukio ambalo linafanya kazi. Hii inafanya taarifa muhimu na udhibiti wa simu kupatikana mara moja tanpa kulazimika kufungua simu yako katika hali ya mkazo mkubwa au dharura kabisa."
+  },
+  "incident_detail": {
+    "call_center": "Piga kituo",
+    "cancel": "Ghairi"
   },
   "signalement": {
     "form_title": "Ripoti mpya",

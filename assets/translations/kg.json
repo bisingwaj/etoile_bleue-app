@@ -365,6 +365,10 @@
     "s10_title": "10. Kumonana na écran yina me kangama",
     "s10_body": "Aplikasion lenda monana na zulu ya écran yina me kangama mpe yo lenda pelisa écran na nge ntangu mpasi ke salama. Yango ke salaka nde nge baka mambu ya mfunu mingi mpe nge binga bansungi kukonda kufungula simu na nge na ntangu ya mubulu to ya mpasi ya nene."
   },
+  "incident_detail": {
+    "call_center": "Binga kituo",
+    "cancel": "Katula",
+  },
   "signalement": {
     "form_title": "Nsangu ya sika",
     "anonymous": "Nsangu ya kubombama",

@@ -365,6 +365,10 @@
     "s10_title": "10. Komonana na écran oyo ekangami",
     "s10_body": "Aplikasion ekoki komonana likolo ya écran oyo ekangami mpe ekoki kopelisa écran na yo ntango likama ezali kosalema. Yango esalaka ete ozwa makambo ya ntina mingi mpe okoka kobenga basungi kozanga ete ofungola simu na yo na ntango ya mobulu to ya likama monene."
   },
+  "incident_detail": {
+    "call_center": "Benga centre",
+    "cancel": "Longola",
+  },
   "signalement": {
     "form_title": "Liyebisi ya sika",
     "anonymous": "Liyebisi ya kobombama",

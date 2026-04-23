@@ -365,6 +365,10 @@
     "s10_title": "10. Lock screen display",
     "s10_body": "The app can be displayed over the lock screen and wake up your screen during an active incident. This keeps vital information and call controls instantly accessible without having to unlock your phone in high-stress or absolute emergency situations."
   },
+  "incident_detail": {
+    "call_center": "Call dispatch center",
+    "cancel": "Cancel",
+  },
   "signalement": {
     "form_title": "New report",
     "anonymous": "Anonymous report",
