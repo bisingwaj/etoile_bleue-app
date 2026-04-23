@@ -82,7 +82,10 @@
     "enter_otp_6_hint": "Weka msimbo wa tarakimu 6 uliotumwa kwa {phone}",
     "no_emergency_contacts": "Hakuna mawasiliano ya dharura yaliyowekwa.",
     "user_display_default": "Mtumiaji",
-    "saving_in_progress": "Inahifadhi..."
+    "saving_in_progress": "Inahifadhi...",
+    "edit_name_title": "Badilisha jina langu",
+    "first_name_hint": "Jina lako la kwanza",
+    "last_name_hint": "Jina lako la mwisho"
   },
   "home": {
     "nav_home": "Nyumbani",

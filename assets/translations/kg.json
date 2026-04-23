@@ -82,7 +82,10 @@
     "enter_otp_6_hint": "Luka code ya ba chiffre 6 otindami na {phone}",
     "no_emergency_contacts": "Ke zitu-keba yonso ke keba te.",
     "user_display_default": "Muntu",
-    "saving_in_progress": "Kubikisa..."
+    "saving_in_progress": "Kubikisa...",
+    "edit_name_title": "Kubasula zina na munu",
+    "first_name_hint": "Zina na nge ya ntete",
+    "last_name_hint": "Zina na nge ya dikanda"
   },
   "home": {
     "nav_home": "Nzo",

@@ -82,7 +82,10 @@
     "enter_otp_6_hint": "Jukuila ilamba ya mitatu 6 utumine ku {phone}",
     "no_emergency_contacts": "Batuntu ba diku bana kabidi.",
     "user_display_default": "Muntu",
-    "saving_in_progress": "Kuika..."
+    "saving_in_progress": "Kuika...",
+    "edit_name_title": "Kushintulula dîna dianyi",
+    "first_name_hint": "Dîna diebe dia kumpala",
+    "last_name_hint": "Dîna diebe dia muoyo"
   },
   "home": {
     "nav_home": "Nzubu",

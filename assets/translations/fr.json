@@ -82,7 +82,10 @@
     "enter_otp_6_hint": "Entrez le code à 6 chiffres envoyé au {phone}",
     "no_emergency_contacts": "Aucun contact d'urgence défini.",
     "user_display_default": "Utilisateur",
-    "saving_in_progress": "Enregistrement..."
+    "saving_in_progress": "Enregistrement...",
+    "edit_name_title": "Modifier mon nom",
+    "first_name_hint": "Votre prénom",
+    "last_name_hint": "Votre nom"
   },
   "home": {
     "nav_home": "Accueil",

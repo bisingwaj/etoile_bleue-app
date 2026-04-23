@@ -82,7 +82,10 @@
     "enter_otp_6_hint": "Kokisa code ya ba chiffre 6 oyo etindeli {phone}",
     "no_emergency_contacts": "Ba contact ya dɨkya bazali te.",
     "user_display_default": "Mosúsi",
-    "saving_in_progress": "Kobomba..."
+    "saving_in_progress": "Kobomba...",
+    "edit_name_title": "Kobongola nkombo na ngai",
+    "first_name_hint": "Nkombo na yo ya yambo",
+    "last_name_hint": "Nkombo na yo ya libota"
   },
   "home": {
     "nav_home": "Ndako",

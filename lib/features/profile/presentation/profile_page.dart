@@ -144,7 +144,31 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
                               return Column(
                                 children: [
-                                  Text(pdName.isEmpty ? 'profile.user_display_default'.tr() : pdName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(pdName.isEmpty ? 'profile.user_display_default'.tr() : pdName, 
+                                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navyDeep)),
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: () {
+                                          final userData = ref.read(userProvider).value;
+                                          _openSheet(context, _NameEditSheet(
+                                            initialFirstName: userData?['first_name'] ?? '',
+                                            initialLastName: userData?['last_name'] ?? '',
+                                          ));
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.blue.withValues(alpha: 0.1),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(CupertinoIcons.pencil, color: AppColors.blue, size: 16),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                   const SizedBox(height: 4),
                                   Text(pdPhone, style: const TextStyle(fontSize: 14, color: Colors.grey)),
                                   const SizedBox(height: 2),
@@ -1014,6 +1038,120 @@ class _LanguageSheet extends StatelessWidget {
                 },
               );
             }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 5. NAME EDIT SHEET
+// ==========================================
+class _NameEditSheet extends ConsumerStatefulWidget {
+  final String initialFirstName;
+  final String initialLastName;
+  const _NameEditSheet({required this.initialFirstName, required this.initialLastName});
+
+  @override
+  ConsumerState<_NameEditSheet> createState() => _NameEditSheetState();
+}
+
+class _NameEditSheetState extends ConsumerState<_NameEditSheet> {
+  late TextEditingController _firstCtrl;
+  late TextEditingController _lastCtrl;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstCtrl = TextEditingController(text: widget.initialFirstName);
+    _lastCtrl = TextEditingController(text: widget.initialLastName);
+  }
+
+  @override
+  void dispose() {
+    _firstCtrl.dispose();
+    _lastCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(36))),
+      padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 40),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(child: Container(width: 48, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)))),
+            const SizedBox(height: 32),
+            Text('profile.edit_name_title'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.navyDeep)),
+            const SizedBox(height: 24),
+            
+            // Prénom
+            Text('register.firstname_label'.tr().toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _firstCtrl,
+              decoration: InputDecoration(
+                filled: true, fillColor: Colors.grey[100],
+                hintText: 'profile.first_name_hint'.tr(),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Nom
+            Text('register.lastname_label'.tr().toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _lastCtrl,
+              decoration: InputDecoration(
+                filled: true, fillColor: Colors.grey[100],
+                hintText: 'profile.last_name_hint'.tr(),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              ),
+            ),
+
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: _saving ? null : () async {
+                setState(() => _saving = true);
+                try {
+                  await ref.read(profileRepositoryProvider).updateBasicInfo(
+                    firstName: _firstCtrl.text.trim(),
+                    lastName: _lastCtrl.text.trim(),
+                  );
+                  // Invalidate provider to refresh UI
+                  ref.invalidate(userProvider);
+                  if (mounted) Navigator.pop(context);
+                } catch (e) {
+                  if (mounted) {
+                    setState(() => _saving = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Erreur : $e'), backgroundColor: AppColors.red),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.blue, padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0,
+              ),
+              child: Text(_saving ? 'profile.saving_in_progress'.tr() : 'profile.save_btn'.tr(), style: const TextStyle(fontFamily: 'Marianne', color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Text('profile.cancel_btn'.tr(), style: const TextStyle(fontFamily: 'Marianne', fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14)),
+              ),
+            ),
           ],
         ),
       ),
