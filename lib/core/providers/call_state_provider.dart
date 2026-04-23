@@ -32,6 +32,7 @@ class ActiveCallState {
   final String? blockedExpiresAt;
   final String? blockedReason;
   final bool isSosCall;
+  final DateTime? activeSince;
 
   const ActiveCallState({
     this.status = ActiveCallStatus.idle,
@@ -47,6 +48,7 @@ class ActiveCallState {
     this.blockedExpiresAt,
     this.blockedReason,
     this.isSosCall = false,
+    this.activeSince,
   });
 
   ActiveCallState copyWith({
@@ -68,6 +70,8 @@ class ActiveCallState {
     String? blockedExpiresAt,
     String? blockedReason,
     bool? isSosCall,
+    DateTime? activeSince,
+    bool clearActiveSince = false,
   }) {
     return ActiveCallState(
       status: status ?? this.status,
@@ -83,6 +87,7 @@ class ActiveCallState {
       blockedExpiresAt: blockedExpiresAt ?? this.blockedExpiresAt,
       blockedReason: blockedReason ?? this.blockedReason,
       isSosCall: isSosCall ?? this.isSosCall,
+      activeSince: clearActiveSince ? null : (activeSince ?? this.activeSince),
     );
   }
 
@@ -129,6 +134,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
       state = state.copyWith(
         status: ActiveCallStatus.active,
         remoteUid: uid,
+        activeSince: DateTime.now(),
       );
       _tryStartRecording();
     };
