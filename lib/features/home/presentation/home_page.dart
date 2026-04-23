@@ -540,22 +540,8 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         final latest = nextList.first;
         final title = latest['title']?.toString() ?? 'Nouvelle notification';
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(CupertinoIcons.bell_fill, color: Colors.white, size: 18),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
-                ],
-              ),
-              backgroundColor: AppColors.blue,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              duration: const Duration(seconds: 4),
-              margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
-            ),
-          );
+          HapticFeedback.vibrate();
+          DynamicIslandToast.showInfo(context, title);
         }
       }
     });

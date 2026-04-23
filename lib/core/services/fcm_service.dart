@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
+import 'package:etoile_bleue_mobile/core/utils/dynamic_island_toast.dart';
 
 @pragma('vm:entry-point')
 Future<void> _handleBackgroundMessage(RemoteMessage message) async {
@@ -50,6 +51,39 @@ class FcmService {
     'Statut hôpital',
     description: 'Notifications de prise en charge hospitalière',
     importance: Importance.high,
+    playSound: true,
+  );
+
+  static const _generalChannel = AndroidNotificationChannel(
+    'general_updates',
+    'Informations générales',
+    description: 'Notifications générales du service d\'urgence',
+    importance: Importance.defaultImportance,
+    playSound: true,
+  );
+
+  static const _healthAlertChannel = AndroidNotificationChannel(
+    'health_alerts',
+    'Alertes sanitaires',
+    description: 'Alertes santé importantes dans votre zone',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  );
+
+  static const _systemChannel = AndroidNotificationChannel(
+    'system_updates',
+    'Mises à jour système',
+    description: 'Notifications de mise à jour de l\'application',
+    importance: Importance.defaultImportance,
+    playSound: true,
+  );
+
+  static const _trainingChannel = AndroidNotificationChannel(
+    'training_updates',
+    'Formations',
+    description: 'Nouvelles formations aux premiers secours',
+    importance: Importance.defaultImportance,
     playSound: true,
   );
 
@@ -99,6 +133,10 @@ class FcmService {
       await androidPlugin.createNotificationChannel(_callChannel);
       await androidPlugin.createNotificationChannel(_dispatchChannel);
       await androidPlugin.createNotificationChannel(_hospitalChannel);
+      await androidPlugin.createNotificationChannel(_generalChannel);
+      await androidPlugin.createNotificationChannel(_healthAlertChannel);
+      await androidPlugin.createNotificationChannel(_systemChannel);
+      await androidPlugin.createNotificationChannel(_trainingChannel);
     }
 
     // 5. Synchroniser le Token FCM
@@ -159,10 +197,18 @@ class FcmService {
     debugPrint('[PUSH] Notification locale tapée: $payload');
     
     if (payload != null && _container != null) {
-      if (payload.startsWith('incident:')) {
+      if (payload.startsWith('/')) {
+        // Deep link direct (e.g. /notifications, /signalements/123)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            _container!.read(appRouterProvider).push(payload);
+          } catch (e) {
+            debugPrint('[PUSH] Erreur lors de la navigation deeplink ($payload): $e');
+          }
+        });
+      } else if (payload.startsWith('incident:')) {
         final incidentId = payload.replaceFirst('incident:', '');
         if (incidentId.isNotEmpty) {
-          debugPrint('[PUSH] Redirection vers l\'incident: $incidentId');
           WidgetsBinding.instance.addPostFrameCallback((_) {
             try {
               _container!.read(appRouterProvider).push('/incident/$incidentId');
@@ -173,8 +219,6 @@ class FcmService {
         }
       } else if (payload.startsWith('call:')) {
          final callId = payload.replaceFirst('call:', '');
-         debugPrint('[PUSH] Notification d\'appel tapée: $callId');
-         // Navigation vers l'écran d'appel actif si nécessaire
          WidgetsBinding.instance.addPostFrameCallback((_) {
             try {
               _container!.read(appRouterProvider).push('/call/active');
@@ -211,13 +255,15 @@ class FcmService {
                              type == 'dispatch' ||
                              data.containsKey('dispatchId') || 
                              data.containsKey('dispatch_id') ||
-                             data.containsKey('incidentId') || 
                              data.containsKey('incident_id');
-
+    
     final isHospitalUpdate = type == 'hospital_status' || 
                              type == 'hospital' ||
                              data.containsKey('hospitalStatus') ||
                              data.containsKey('hospital_id');
+
+    final isCustomNotification = type == 'citizen_notification' || 
+                                 type == 'custom';
 
     // 1. CAS APPEL ENTRANT (VoIP)
     if (isIncomingCall) {
@@ -301,6 +347,49 @@ class FcmService {
           payload: 'incident:$incidentId',
         );
       }
+    }
+    // 4. CAS NOTIFICATION PERSONNALISÉE (Dashboard)
+    else if (isCustomNotification) {
+      final title = (data['notificationTitle'] ?? message.notification?.title ?? 'Notification Étoile Bleue') as String;
+      final body = (data['notificationBody'] ?? message.notification?.body ?? '') as String;
+      final category = (data['category'] ?? 'info') as String;
+      final deeplink = (data['deeplink'] ?? '/notifications') as String;
+      
+      debugPrint('[PUSH] → Custom notification received: $title');
+
+      // Affichage visuel in-app si on est au premier plan
+      final context = rootNavigatorKey.currentContext;
+      if (context != null) {
+        if (category == 'alert') {
+          DynamicIslandToast.showError(context, title);
+        } else {
+          DynamicIslandToast.showInfo(context, title);
+        }
+      }
+
+      // Toujours afficher la notification système (pour persistance dans le shade)
+      final channel = _channelForCategory(category);
+      await _localNotifications.show(
+        message.hashCode,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: channel.importance,
+            priority: Priority.high,
+            styleInformation: BigTextStyleInformation(body),
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentSound: true,
+            presentBadge: true,
+          ),
+        ),
+        payload: deeplink,
+      );
     } else {
       debugPrint('[PUSH] ℹ️ Message type not recognized (type=$type). Checking for generic notification.');
       // Si le message a un bloc notification mais pas de type connu, on l'affiche quand même
@@ -318,6 +407,19 @@ class FcmService {
           ),
         );
       }
+    }
+  }
+
+  static AndroidNotificationChannel _channelForCategory(String category) {
+    switch (category) {
+      case 'alert':
+        return _healthAlertChannel;
+      case 'system':
+        return _systemChannel;
+      case 'course':
+        return _trainingChannel;
+      default:
+        return _generalChannel;
     }
   }
 
