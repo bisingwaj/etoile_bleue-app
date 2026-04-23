@@ -41,6 +41,7 @@ class TrainingPage extends StatelessWidget {
             color: Colors.redAccent,
             progress: 0.0,
             duration: '5 min',
+            videoUrl: 'https://res.cloudinary.com/dxq5qufow/video/upload/v1776954454/samples/SCHILLER_RESUSCITATION_La_r%C3%A9animation_cardio-pulmonaire_expliqu%C3%A9e_-_SCHILLER_Group_1080p_akyata.mp4',
           ),
           _buildCourseCard(
             context,
@@ -50,6 +51,7 @@ class TrainingPage extends StatelessWidget {
             color: AppColors.blue,
             progress: 1.0,
             duration: '3 min',
+            videoUrl: 'https://res.cloudinary.com/dxq5qufow/video/upload/v1776954765/samples/Etouffement_quels_sont_les_gestes_d_urgence_-_Born_Safety_1080p_cq3abi.mp4',
           ),
           _buildCourseCard(
             context,
@@ -59,6 +61,7 @@ class TrainingPage extends StatelessWidget {
             color: Colors.orange,
             progress: 0.4,
             duration: '4 min',
+            videoUrl: 'https://res.cloudinary.com/dxq5qufow/video/upload/v1776954973/samples/H%C3%A9morragie_externe_-_Croix-Rouge_mon%C3%A9gasque_360p_g1tdod.mp4',
           ),
         ],
       ),
@@ -125,13 +128,14 @@ class TrainingPage extends StatelessWidget {
     required Color color,
     required double progress,
     required String duration,
+    required String videoUrl,
   }) {
     final bool isCompleted = progress >= 1.0;
     final title = titleKey.tr();
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => CourseDetailsPage(title: title, color: color)));
+        Navigator.push(context, MaterialPageRoute(builder: (_) => CourseDetailsPage(title: title, color: color, videoUrl: videoUrl)));
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.md),

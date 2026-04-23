@@ -1,14 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:video_player/video_player.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'quiz_page.dart';
 
-class CourseDetailsPage extends StatelessWidget {
+class CourseDetailsPage extends StatefulWidget {
   final String title;
   final Color color;
+  final String videoUrl;
 
-  const CourseDetailsPage({super.key, required this.title, required this.color});
+  const CourseDetailsPage({
+    super.key,
+    required this.title,
+    required this.color,
+    required this.videoUrl,
+  });
+
+  @override
+  State<CourseDetailsPage> createState() => _CourseDetailsPageState();
+}
+
+class _CourseDetailsPageState extends State<CourseDetailsPage> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
+      ..initialize().then((_) {
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+          });
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +56,7 @@ class CourseDetailsPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          title,
+          widget.title,
           style: const TextStyle(color: AppColors.navyDeep, fontWeight: FontWeight.bold, fontFamily: 'Marianne'),
         ),
       ),
@@ -31,30 +65,72 @@ class CourseDetailsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Video placeholder
+            // Video Player
             Container(
               height: 220,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.black87,
+                color: Colors.black,
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: const [
                   BoxShadow(color: Colors.black26, blurRadius: 15, offset: Offset(0, 8))
                 ],
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                   const Icon(CupertinoIcons.play_circle_fill, color: Colors.white, size: 60),
-                   const Positioned(
-                     bottom: 16,
-                     left: 16,
-                     child: Padding(
-                       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                       child: Text('01:24', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                     ),
-                   )
-                ],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: _isInitialized
+                    ? Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: _controller.value.aspectRatio,
+                            child: VideoPlayer(_controller),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _controller.value.isPlaying
+                                    ? _controller.pause()
+                                    : _controller.play();
+                              });
+                            },
+                            child: AnimatedOpacity(
+                              opacity: _controller.value.isPlaying ? 0.0 : 1.0,
+                              duration: const Duration(milliseconds: 300),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.3),
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(12),
+                                child: const Icon(
+                                  CupertinoIcons.play_circle_fill,
+                                  color: Colors.white,
+                                  size: 60,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (!_controller.value.isPlaying && _controller.value.position > Duration.zero)
+                             Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              child: VideoProgressIndicator(
+                                _controller,
+                                allowScrubbing: true,
+                                colors: VideoProgressColors(
+                                  playedColor: widget.color,
+                                  bufferedColor: Colors.white24,
+                                  backgroundColor: Colors.white10,
+                                ),
+                              ),
+                            ),
+                        ],
+                      )
+                    : const Center(
+                        child: CupertinoActivityIndicator(color: Colors.white),
+                      ),
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -80,13 +156,13 @@ class CourseDetailsPage extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: color,
+                  backgroundColor: widget.color,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 0,
                 ),
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => QuizPage(title: title, themeColor: color)));
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => QuizPage(title: widget.title, themeColor: widget.color)));
                 },
                 child: Text('training.course_quiz'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
               ),
@@ -108,13 +184,13 @@ class CourseDetailsPage extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: widget.color.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
             child: Text(
               number.toString(),
-              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(color: widget.color, fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
           const SizedBox(width: 16),
