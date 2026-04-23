@@ -817,7 +817,9 @@
     "rescuer_en_route_title": "Responder on the way!",
     "searching_sub": "Silent alert sent to certified volunteers within 500 m.",
     "found_sub": "A volunteer medic is coming to provide first aid before the ambulance.",
-    "cancel_search": "CANCEL SEARCH"
+    "cancel_search": "CANCEL SEARCH",
+    "not_found_title": "Hakuna muokoaji aliyepatikana",
+    "not_found_body": "Hatukuweza kumpata muokoaji yeyote aliye karibu kwa sasa. Tafadhali baki kwenye laini na kituo cha msaada."
   },
   "sos_vocal": {
     "call_type_title": "Select call type",

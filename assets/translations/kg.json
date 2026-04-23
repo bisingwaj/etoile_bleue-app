@@ -367,7 +367,7 @@
   },
   "incident_detail": {
     "call_center": "Binga kituo",
-    "cancel": "Katula",
+    "cancel": "Katula"
   },
   "signalement": {
     "form_title": "Nsangu ya sika",
@@ -817,7 +817,9 @@
     "rescuer_en_route_title": "Responder on the way!",
     "searching_sub": "Silent alert sent to certified volunteers within 500 m.",
     "found_sub": "A volunteer medic is coming to provide first aid before the ambulance.",
-    "cancel_search": "CANCEL SEARCH"
+    "cancel_search": "CANCEL SEARCH",
+    "not_found_title": "Nsadisi me zwa ve",
+    "not_found_body": "Beto me zwa nsadisi mosi ve ya pembeni na ntangu yai. Tafadhali landa kusolula ti centre ya lusadisu."
   },
   "sos_vocal": {
     "call_type_title": "Select call type",

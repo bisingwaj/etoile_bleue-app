@@ -815,7 +815,9 @@
     "rescuer_en_route_title": "Secouriste en Route !",
     "searching_sub": "Alerte silencieuse envoyée aux volontaires certifiés dans un rayon de 500m.",
     "found_sub": "Un bénévole médical arrive pour vous faire les premiers soins avant l'ambulance.",
-    "cancel_search": "ANNULER LA RECHERCHE"
+    "cancel_search": "ANNULER LA RECHERCHE",
+    "not_found_title": "Pas de secouriste trouvé",
+    "not_found_body": "Nous n'avons pas pu localiser de secouriste disponible à proximité pour le moment. Veuillez rester en ligne avec le centre de secours."
   },
   "sos_vocal": {
     "call_type_title": "Sélectionnez le type d'appel",
