@@ -64,7 +64,7 @@ class ActiveInterventionState {
   final String? incidentId;
   /// Dernière valeur connue de [incidents.status] (temps réel + fetch).
   final String? incidentStatus;
-  /// Si l’admin a renseigné une date de clôture (même sans `status` à jour).
+  /// Si l'admin a renseigné une date de clôture (même sans `status` à jour).
   final DateTime? incidentArchivedAt;
   final DateTime? incidentResolvedAt;
   final String dispatchStatus; // 'processing', 'dispatched', 'en_route', …
@@ -73,6 +73,14 @@ class ActiveInterventionState {
   final String? unitId;
   final double? rescuerLat;
   final double? rescuerLng;
+
+  // ── Tracking enrichi (données active_rescuers) ──
+  final double? rescuerHeading;   // Cap en degrés 0-360
+  final double? rescuerSpeed;     // Vitesse en m/s
+  final double? rescuerAccuracy;  // Précision GPS en mètres
+  final int? rescuerBattery;      // Batterie 0-100
+  final String? rescuerGpsStatus; // 'active' / 'idle' / 'offline'
+  final DateTime? rescuerUpdatedAt; // Dernier update reçu
 
   const ActiveInterventionState({
     this.incidentId,
@@ -85,10 +93,33 @@ class ActiveInterventionState {
     this.unitId,
     this.rescuerLat,
     this.rescuerLng,
+    this.rescuerHeading,
+    this.rescuerSpeed,
+    this.rescuerAccuracy,
+    this.rescuerBattery,
+    this.rescuerGpsStatus,
+    this.rescuerUpdatedAt,
   });
 
+  // ── Getters d'état dégradé ──
+
+  /// Position périmée (> 5 minutes sans mise à jour).
+  bool get isRescuerStale {
+    if (rescuerUpdatedAt == null) return false;
+    return DateTime.now().toUtc().difference(rescuerUpdatedAt!.toUtc()).inMinutes >= 5;
+  }
+
+  /// Secouriste explicitement offline.
+  bool get isRescuerOffline => rescuerGpsStatus == 'offline';
+
+  /// Batterie faible (< 20%).
+  bool get isLowBattery => rescuerBattery != null && rescuerBattery! < 20;
+
+  /// Le marker doit être affiché en mode dégradé (grisé).
+  bool get isRescuerDegraded => isRescuerStale || isRescuerOffline;
+
   /// Visible seulement si le statut incident est explicitement « en cours » (liste blanche).
-  /// Évite d’afficher une alerte pour un dossier déjà archivé / clos / inconnu.
+  /// Évite d'afficher une alerte pour un dossier déjà archivé / clos / inconnu.
   bool get isVisible {
     if (incidentId == null) return false;
     if (incidentArchivedAt != null || incidentResolvedAt != null) return false;
@@ -103,12 +134,13 @@ class ActiveInterventionState {
         dispatchStatus == 'at_hospital';
   }
 
-  /// Est-ce qu'on doit afficher le marqueur du secouriste sur la carte ?
   bool get shouldShowRescuer {
     if (!isVisible) return false;
-    // Si on est déjà à l'hôpital ou en transfert, on peut encore montrer ? 
-    // L'utilisateur a dit "disparait quand il est sur place"
-    return true; 
+    // Tracking commences only when assigned/en_route, not during 'processing'
+    return dispatchStatus == 'dispatched' ||
+           dispatchStatus == 'en_route' ||
+           dispatchStatus == 'en_route_hospital' ||
+           dispatchStatus == 'transferring';
   }
 
   ActiveInterventionState copyWith({
@@ -122,6 +154,12 @@ class ActiveInterventionState {
     String? unitId,
     double? rescuerLat,
     double? rescuerLng,
+    double? rescuerHeading,
+    double? rescuerSpeed,
+    double? rescuerAccuracy,
+    int? rescuerBattery,
+    String? rescuerGpsStatus,
+    DateTime? rescuerUpdatedAt,
     bool clearIncident = false,
     bool clearIncidentStatus = false,
     bool clearClosureDates = false,
@@ -143,6 +181,12 @@ class ActiveInterventionState {
       unitId: clearRescuer ? null : (unitId ?? this.unitId),
       rescuerLat: clearRescuer ? null : (rescuerLat ?? this.rescuerLat),
       rescuerLng: clearRescuer ? null : (rescuerLng ?? this.rescuerLng),
+      rescuerHeading: clearRescuer ? null : (rescuerHeading ?? this.rescuerHeading),
+      rescuerSpeed: clearRescuer ? null : (rescuerSpeed ?? this.rescuerSpeed),
+      rescuerAccuracy: clearRescuer ? null : (rescuerAccuracy ?? this.rescuerAccuracy),
+      rescuerBattery: clearRescuer ? null : (rescuerBattery ?? this.rescuerBattery),
+      rescuerGpsStatus: clearRescuer ? null : (rescuerGpsStatus ?? this.rescuerGpsStatus),
+      rescuerUpdatedAt: clearRescuer ? null : (rescuerUpdatedAt ?? this.rescuerUpdatedAt),
     );
   }
 }
@@ -273,17 +317,26 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
 
         if (rescuerId != null) {
           _subscribeRescuerGpsRealtime(rescuerId);
-          // Fetch initial position
+          // Fetch initial position with full tracking data
           final pos = await Supabase.instance.client
               .from('active_rescuers')
-              .select('lat, lng')
+              .select('lat, lng, heading, speed, accuracy, battery, status, updated_at')
               .eq('user_id', rescuerId)
               .maybeSingle();
           if (pos != null) {
             final lat = (pos['lat'] as num?)?.toDouble();
             final lng = (pos['lng'] as num?)?.toDouble();
             if (lat != null && lng != null) {
-              state = state.copyWith(rescuerLat: lat, rescuerLng: lng);
+              state = state.copyWith(
+                rescuerLat: lat,
+                rescuerLng: lng,
+                rescuerHeading: (pos['heading'] as num?)?.toDouble(),
+                rescuerSpeed: (pos['speed'] as num?)?.toDouble(),
+                rescuerAccuracy: (pos['accuracy'] as num?)?.toDouble(),
+                rescuerBattery: (pos['battery'] as num?)?.toInt(),
+                rescuerGpsStatus: pos['status'] as String?,
+                rescuerUpdatedAt: _parseTimestamp(pos['updated_at']),
+              );
             }
           }
         } else if (unitId != null) {
@@ -392,11 +445,17 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
             if (record.isNotEmpty) {
               final lat = (record['lat'] as num?)?.toDouble();
               final lng = (record['lng'] as num?)?.toDouble();
-              debugPrint('[TRACKING_DEBUG] Rescuer position received: lat=$lat, lng=$lng');
+              debugPrint('[TRACKING_DEBUG] Rescuer position received: lat=$lat, lng=$lng, heading=${record['heading']}, speed=${record['speed']}');
               if (lat != null && lng != null) {
                 state = state.copyWith(
                   rescuerLat: lat,
                   rescuerLng: lng,
+                  rescuerHeading: (record['heading'] as num?)?.toDouble(),
+                  rescuerSpeed: (record['speed'] as num?)?.toDouble(),
+                  rescuerAccuracy: (record['accuracy'] as num?)?.toDouble(),
+                  rescuerBattery: (record['battery'] as num?)?.toInt(),
+                  rescuerGpsStatus: record['status'] as String?,
+                  rescuerUpdatedAt: _parseTimestamp(record['updated_at']),
                 );
               }
             }

@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:ui' as ui;
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:etoile_bleue_mobile/core/utils/tracking_utils.dart';
 import 'package:etoile_bleue_mobile/features/directory/presentation/directory_page.dart';
 import 'package:etoile_bleue_mobile/features/history/presentation/history_page.dart';
 import 'package:etoile_bleue_mobile/features/profile/presentation/profile_page.dart';
@@ -43,10 +44,7 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMixin, WidgetsBindingObserver {
-  GoogleMapController? _mapController;
-  String? _mapStyle;
-  BitmapDescriptor? _customLocationMarker;
-  BitmapDescriptor? _rescuerMarkerIcon;
+  final MapController _mapController = MapController();
   late AnimationController _sosAnimationController;
   late AnimationController _radarAnimationController;
   Position? _currentPosition;
@@ -55,6 +53,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   bool _isLocationGranted = false;
   bool _isSosTriggered = false;
   bool _isMapLoaded = false;
+  bool _hasFittedBounds = false;
   StreamSubscription<Position>? _positionStreamSubscription;
   int _currentIndex = 0;
   final Set<int> _loadedTabs = {0};
@@ -66,6 +65,11 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   final SosTrackingState _trackingState = SosTrackingState.processing;
   final int _ambulanceEtaMinutes = 8;
   
+  // Route réelle (Mapbox Directions)
+  List<RouteSegment> _homeRouteSegments = [];
+  LatLng? _lastHomeRouteRescuerPos;
+  Timer? _homeRouteThrottle;
+  
   // Exemple de position par défaut : Kinshasa Gombe
   static const LatLng _center = LatLng(-4.316, 15.311);
 
@@ -74,9 +78,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _sosAudioPlayer.setReleaseMode(ReleaseMode.stop);
-    _loadMapStyle();
     _tryExtractLocation();
-    _initCustomMarker();
 
     _sosAnimationController = AnimationController(
        vsync: this,
@@ -100,74 +102,37 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
     });
   }
 
-  Future<void> _initCustomMarker() async {
-    final int size = 80;
-    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
-    final Canvas canvas = Canvas(pictureRecorder);
+  /// Fetch la route Mapbox pour la HomePage si la position du secouriste a suffisamment changé (> 100m).
+  void _fetchHomeRouteIfNeeded(ActiveInterventionState intervention) {
+    if (_currentPosition == null) return;
+    if (intervention.rescuerLat == null || intervention.rescuerLng == null) return;
 
-    final Paint haloPaint = Paint()..color = AppColors.blue.withValues(alpha: 0.2);
-    canvas.drawCircle(Offset(size / 2, size / 2), size / 2, haloPaint);
+    final rescuerPos = LatLng(intervention.rescuerLat!, intervention.rescuerLng!);
 
-    final Paint borderPaint = Paint()..color = Colors.white;
-    canvas.drawCircle(Offset(size / 2, size / 2), size / 2.5, borderPaint);
-
-    final Paint dotPaint = Paint()..color = AppColors.blue;
-    canvas.drawCircle(Offset(size / 2, size / 2), size / 3.5, dotPaint);
-
-    final ui.Image image = await pictureRecorder.endRecording().toImage(size, size);
-    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData != null) {
-      final Uint8List uint8List = byteData.buffer.asUint8List();
-      if (mounted) {
-        setState(() {
-          _customLocationMarker = BitmapDescriptor.fromBytes(uint8List);
-        });
-      }
+    // Skip si la position n'a pas assez bougé
+    if (_lastHomeRouteRescuerPos != null) {
+      final movedKm = haversineKm(
+        _lastHomeRouteRescuerPos!.latitude, _lastHomeRouteRescuerPos!.longitude,
+        rescuerPos.latitude, rescuerPos.longitude,
+      );
+      if (movedKm < 0.1) return; // Moins de 100m, pas de re-fetch
     }
 
-    // Initialize Rescuer Marker Icon (Ambulance style: Square with cross or distinct shape)
-    final ui.PictureRecorder rescuerRecorder = ui.PictureRecorder();
-    final Canvas rescuerCanvas = Canvas(rescuerRecorder);
-    
-    // Draw a square-ish base for ambulance (Red/Orange body)
-    final Paint bodyPaint = Paint()..color = Colors.redAccent;
-    final RRect bodyRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset(size / 2, size / 2), width: size * 0.9, height: size * 0.7),
-      const Radius.circular(8),
-    );
-    rescuerCanvas.drawRRect(bodyRect, bodyPaint);
+    _lastHomeRouteRescuerPos = rescuerPos;
 
-    // Draw a white cross
-    final Paint crossPaint = Paint()..color = Colors.white;
-    rescuerCanvas.drawRect(
-      Rect.fromCenter(center: Offset(size / 2, size / 2), width: size * 0.15, height: size * 0.5),
-      crossPaint,
-    );
-    rescuerCanvas.drawRect(
-      Rect.fromCenter(center: Offset(size / 2, size / 2), width: size * 0.5, height: size * 0.15),
-      crossPaint,
-    );
-    
-    // Add a blue siren on top
-    final Paint lightPaint = Paint()..color = Colors.blue;
-    rescuerCanvas.drawCircle(Offset(size * 0.7, size * 0.2), size * 0.12, lightPaint);
-
-    final ui.Image rescuerImage = await rescuerRecorder.endRecording().toImage(size, size);
-    final ByteData? rescuerByteData = await rescuerImage.toByteData(format: ui.ImageByteFormat.png);
-    if (rescuerByteData != null) {
-      final Uint8List uint8List = rescuerByteData.buffer.asUint8List();
-      if (mounted) {
-        setState(() {
-          _rescuerMarkerIcon = BitmapDescriptor.fromBytes(uint8List);
-          debugPrint('[Map] Rescuer marker icon initialized');
-        });
+    // Throttle : max 1 appel toutes les 20s
+    _homeRouteThrottle?.cancel();
+    _homeRouteThrottle = Timer(const Duration(seconds: 1), () async {
+      final segments = await fetchRouteSegments(
+        originLat: rescuerPos.latitude,
+        originLng: rescuerPos.longitude,
+        destLat: _currentPosition!.latitude,
+        destLng: _currentPosition!.longitude,
+      );
+      if (mounted && segments.isNotEmpty) {
+        setState(() => _homeRouteSegments = segments);
       }
-    }
-  }
-
-  Future<void> _loadMapStyle() async {
-    _mapStyle = await rootBundle.loadString('assets/json/map_style_white.json');
-    if (mounted) setState(() {});
+    });
   }
 
   ({Color color, IconData icon, String title, String subtitle}) _getTrackingStyle() {
@@ -185,10 +150,11 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   @override
   void dispose() {
+    _homeRouteThrottle?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _vibrationTimer?.cancel();
     _positionStreamSubscription?.cancel();
-    _mapController?.dispose();
+    _mapController.dispose();
     _sosAnimationController.dispose();
     _sosAudioPlayer.dispose();
     _radarAnimationController.dispose();
@@ -327,14 +293,18 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       }
     });
     
-    _mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: LatLng(position.latitude, position.longitude),
-          zoom: 18.0,
-        ),
-      ),
-    );
+    final interventionState = ref.read(activeInterventionProvider);
+    final hasRescuer = interventionState.shouldShowRescuer && 
+                       interventionState.rescuerLat != null && 
+                       interventionState.rescuerLng != null;
+
+    try {
+      if (!hasRescuer) {
+        _mapController.move(LatLng(position.latitude, position.longitude), 18.0);
+      }
+    } catch (_) {
+      // Map Controller might not be ready yet
+    }
 
     // Sauvegarde silencieuse (Bypassée vers Supabase si besoin)
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -454,35 +424,19 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
 
   Widget _buildDynamicIsland(ActiveInterventionState intervention) {
     final status = intervention.dispatchStatus;
-    final IconData icon;
-    final String label;
-    final Color accentColor;
+    final Color accentColor = dispatchStatusColor(status);
+    final IconData icon = dispatchStatusIcon(status);
+    final String label = dispatchStatusLabel(status);
 
-    switch (status) {
-      case 'en_route':
-        icon = CupertinoIcons.location_fill;
-        label = 'En route';
-        accentColor = Colors.greenAccent;
-        break;
-      case 'dispatched':
-        icon = CupertinoIcons.car_detailed;
-        label = 'Assigné';
-        accentColor = Colors.orangeAccent;
-        break;
-      case 'arrived':
-        icon = CupertinoIcons.location_solid;
-        label = 'Sur place';
-        accentColor = Colors.deepPurpleAccent;
-        break;
-      case 'processing':
-        icon = CupertinoIcons.hourglass;
-        label = 'Traitement';
-        accentColor = AppColors.blue;
-        break;
-      default:
-        icon = CupertinoIcons.info_circle_fill;
-        label = 'Intervention';
-        accentColor = Colors.blueAccent;
+    // Distance + ETA si position rescuer connue
+    String? distEta;
+    if (intervention.rescuerLat != null && intervention.rescuerLng != null && _currentPosition != null) {
+      final distKm = haversineKm(
+        _currentPosition!.latitude, _currentPosition!.longitude,
+        intervention.rescuerLat!, intervention.rescuerLng!,
+      );
+      final eta = estimateEtaMinutes(distKm);
+      distEta = '${formatDistance(distKm)} · ~$eta min';
     }
 
     return GestureDetector(
@@ -542,7 +496,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                   ),
                 ),
                 Text(
-                  label,
+                  distEta ?? label,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,
@@ -783,48 +737,34 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   }
 
   Widget _buildMapSection(ActiveInterventionState interventionState) {
-    final hasRescuer = interventionState.isVisible && interventionState.rescuerLat != null && interventionState.rescuerLng != null;
+    final hasRescuer = interventionState.shouldShowRescuer && interventionState.rescuerLat != null && interventionState.rescuerLng != null;
     
     if (hasRescuer) {
       debugPrint('[TRACKING_DEBUG] Rendering map with Rescuer at: ${interventionState.rescuerLat}, ${interventionState.rescuerLng}');
     } else {
       debugPrint('[TRACKING_DEBUG] Rendering map WITHOUT Rescuer (lat/lng is null)');
     }
-    
-    // Polyline for tracking
-    final Set<Polyline> polylines = {};
+
     if (hasRescuer && _currentPosition != null) {
-      polylines.add(
-        Polyline(
-          polylineId: const PolylineId('tracking_route'),
-          points: [
-            LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-            LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
-          ],
-          color: AppColors.blue,
-          width: 5,
-          patterns: [PatternItem.dash(20), PatternItem.gap(10)],
-        ),
-      );
-
-      // Fit bounds to show both user and rescuer
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_mapController != null) {
-          final bounds = LatLngBounds(
-            southwest: LatLng(
-              _currentPosition!.latitude < interventionState.rescuerLat! ? _currentPosition!.latitude : interventionState.rescuerLat!,
-              _currentPosition!.longitude < interventionState.rescuerLng! ? _currentPosition!.longitude : interventionState.rescuerLng!,
-            ),
-            northeast: LatLng(
-              _currentPosition!.latitude > interventionState.rescuerLat! ? _currentPosition!.latitude : interventionState.rescuerLat!,
-              _currentPosition!.longitude > interventionState.rescuerLng! ? _currentPosition!.longitude : interventionState.rescuerLng!,
-            ),
-          );
-          _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100));
-        }
-      });
+      _fetchHomeRouteIfNeeded(interventionState);
+      
+      if (!_hasFittedBounds) {
+         _hasFittedBounds = true;
+         WidgetsBinding.instance.addPostFrameCallback((_) {
+            final bounds = LatLngBounds(
+               LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+               LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
+            );
+            try {
+               _mapController.fitCamera(CameraFit.bounds(
+                  bounds: bounds,
+                  padding: const EdgeInsets.all(30.0),
+               ));
+            } catch (_) {}
+         });
+      }
     }
-
+    
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
@@ -849,52 +789,81 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                       left: 0,
                       right: 0,
                       height: constraints.maxHeight + 35,
-                      child: GoogleMap(
-                        onMapCreated: (GoogleMapController controller) {
-                          _mapController = controller;
-                          if (_mapStyle != null) {
-                            _mapController?.setMapStyle(_mapStyle);
-                          }
-                          if (_currentPosition != null && !hasRescuer) {
-                            _mapController?.animateCamera(
-                              CameraUpdate.newCameraPosition(
-                                CameraPosition(
-                                  target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                                  zoom: 18.0,
-                                ),
-                              ),
-                            );
-                          }
-                          if (mounted) setState(() => _isMapLoaded = true);
-                        },
-                        initialCameraPosition: const CameraPosition(
-                          target: _center,
-                          zoom: 18.0,
+                      child: FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          initialCenter: _currentPosition != null
+                              ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                              : _center,
+                          initialZoom: 16.0,
+                          onMapReady: () {
+                            if (mounted) setState(() => _isMapLoaded = true);
+                            if (hasRescuer && _currentPosition != null) {
+                               final bounds = LatLngBounds(
+                                  LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                                  LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
+                               );
+                               try {
+                                  _mapController.fitCamera(CameraFit.bounds(
+                                    bounds: bounds,
+                                    padding: const EdgeInsets.all(30.0),
+                                 ));
+                               } catch (_) {}
+                            }
+                          },
                         ),
-                        markers: {
-                          if (_currentPosition != null && _customLocationMarker != null)
-                            Marker(
-                              markerId: const MarkerId('current_location'),
-                              position: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                              icon: _customLocationMarker!,
-                              anchor: const Offset(0.5, 0.5),
-                              infoWindow: const InfoWindow(title: 'Vous êtes ici'),
+                        children: [
+                          TileLayer(
+                            urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=$mapboxToken',
+                            userAgentPackageName: 'com.shakadeum.etoile_bleue_mobile',
+                          ),
+                          if (hasRescuer && _currentPosition != null)
+                            PolylineLayer(
+                              polylines: _homeRouteSegments.isNotEmpty
+                                  ? _homeRouteSegments.map((segment) {
+                                      return Polyline(
+                                        points: segment.points,
+                                        color: segment.color,
+                                        strokeWidth: 4.0,
+                                        pattern: const StrokePattern.solid(),
+                                      );
+                                    }).toList()
+                                  : [
+                                      Polyline(
+                                        points: [
+                                          LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                                          LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
+                                        ],
+                                        color: AppColors.blue,
+                                        strokeWidth: 4.0,
+                                        pattern: StrokePattern.dashed(segments: const [20, 10]),
+                                      ),
+                                    ],
                             ),
-                          if (hasRescuer && _rescuerMarkerIcon != null)
-                            Marker(
-                              markerId: const MarkerId('rescuer_location'),
-                              position: LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
-                              icon: _rescuerMarkerIcon!,
-                              anchor: const Offset(0.5, 0.5),
-                              infoWindow: InfoWindow(title: interventionState.rescuerName ?? 'Secouriste'),
-                            ),
-                        },
-                        polylines: polylines,
-                        zoomControlsEnabled: false,
-                        myLocationEnabled: false,
-                        myLocationButtonEnabled: false,
-                        mapToolbarEnabled: false,
-                        compassEnabled: false,
+                          MarkerLayer(
+                            markers: [
+                              if (_currentPosition != null)
+                                Marker(
+                                  point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                                  width: 40,
+                                  height: 40,
+                                  child: const CitizenMapMarker(),
+                                ),
+                              if (hasRescuer)
+                                Marker(
+                                  point: LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
+                                  width: 56,
+                                  height: 56,
+                                  child: RescuerMapMarker(
+                                    heading: interventionState.rescuerHeading ?? 0,
+                                    isStale: interventionState.isRescuerStale,
+                                    isOffline: interventionState.isRescuerOffline,
+                                    isLowBattery: interventionState.isLowBattery,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -953,7 +922,8 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         ),
 
         // 5. Full Screen Toggle Icon (Top Layer)
-        Positioned(
+        if (hasRescuer)
+          Positioned(
           top: 12,
           right: AppSpacing.md + 12,
           child: Material(
