@@ -235,8 +235,8 @@ class RescuerMapMarker extends StatelessWidget {
       children: [
         // Halo pulsant
         Container(
-          width: 44,
-          height: 44,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: glowColor,
@@ -244,30 +244,30 @@ class RescuerMapMarker extends StatelessWidget {
         ),
         // Cercle principal
         Container(
-          width: 26,
-          height: 26,
+          width: 20,
+          height: 20,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white,
             boxShadow: [
               BoxShadow(
                 color: Colors.black26,
-                blurRadius: 4,
-                offset: Offset(0, 2),
+                blurRadius: 3,
+                offset: Offset(0, 1),
               )
             ],
           ),
           alignment: Alignment.center,
           child: Container(
-            width: 20,
-            height: 20,
+            width: 16,
+            height: 16,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: primaryColor,
             ),
             alignment: Alignment.center,
             // Croix blanche
-            child: const Icon(Icons.add, color: Colors.white, size: 14),
+            child: const Icon(Icons.add, color: Colors.white, size: 10),
           ),
         ),
         // Flèche directionnelle rotative
@@ -276,9 +276,9 @@ class RescuerMapMarker extends StatelessWidget {
           child: Align(
             alignment: Alignment.topCenter,
             child: Padding(
-              padding: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.only(top: 1),
               child: CustomPaint(
-                size: const Size(10, 10),
+                size: const Size(8, 8),
                 painter: _ArrowPainter(color: accentColor),
               ),
             ),
@@ -287,16 +287,16 @@ class RescuerMapMarker extends StatelessWidget {
         // Badge batterie faible
         if (isLowBattery && !isDegraded)
           Positioned(
-            top: 6,
-            right: 6,
+            top: 2,
+            right: 2,
             child: Container(
-              width: 14,
-              height: 14,
+              width: 10,
+              height: 10,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.orange,
               ),
-              child: const Icon(Icons.bolt, color: Colors.white, size: 10),
+              child: const Icon(Icons.bolt, color: Colors.white, size: 8),
             ),
           ),
       ],
@@ -330,31 +330,31 @@ class CitizenMapMarker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 28,
-      height: 28,
+      width: 22,
+      height: 22,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: const Color(0xFF1565C0).withValues(alpha: 0.2),
       ),
       alignment: Alignment.center,
       child: Container(
-        width: 16,
-        height: 16,
+        width: 12,
+        height: 12,
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.white,
           boxShadow: [
             BoxShadow(
               color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(0, 2),
+              blurRadius: 3,
+              offset: Offset(0, 1),
             )
           ],
         ),
         alignment: Alignment.center,
         child: Container(
-          width: 10,
-          height: 10,
+          width: 8,
+          height: 8,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             color: Color(0xFF1565C0),

@@ -125,8 +125,10 @@ class ActiveInterventionState {
     if (incidentArchivedAt != null || incidentResolvedAt != null) return false;
     if (!_isActiveIncidentForBanner(incidentStatus)) return false;
     if (_isTerminalDispatchStatus(dispatchStatus)) return false;
-    return dispatchStatus == 'processing' ||
-        dispatchStatus == 'dispatched' ||
+    
+    // Le tracking (et la bannière) ne commence QUE si l'urgentiste a accepté la mission.
+    // 'processing' signifie que l'appel est en cours de traitement mais pas encore accepté.
+    return dispatchStatus == 'dispatched' ||
         dispatchStatus == 'en_route' ||
         dispatchStatus == 'en_route_hospital' ||
         dispatchStatus == 'arrived_hospital' ||
@@ -136,11 +138,11 @@ class ActiveInterventionState {
 
   bool get shouldShowRescuer {
     if (!isVisible) return false;
-    // Tracking commences only when assigned/en_route, not during 'processing'
-    return dispatchStatus == 'dispatched' ||
-           dispatchStatus == 'en_route' ||
-           dispatchStatus == 'en_route_hospital' ||
-           dispatchStatus == 'transferring';
+    // Le tracking sur la carte ne commence QUE quand le véhicule est "en route" (icône ambulance qui part).
+    return dispatchStatus == 'en_route' ||
+        dispatchStatus == 'en_route_hospital' ||
+        dispatchStatus == 'transferring' ||
+        dispatchStatus == 'at_hospital';
   }
 
   ActiveInterventionState copyWith({

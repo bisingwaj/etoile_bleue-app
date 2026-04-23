@@ -11,6 +11,8 @@ import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/utils/tracking_utils.dart';
 import 'package:go_router/go_router.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
+import 'package:etoile_bleue_mobile/features/directory/presentation/directory_page.dart';
+import 'package:etoile_bleue_mobile/features/directory/data/health_structures_repository.dart';
 import 'dart:math' as math;
 
 class FullScreenMapPage extends ConsumerStatefulWidget {
@@ -40,6 +42,10 @@ class _FullScreenMapPageState extends ConsumerState<FullScreenMapPage>
   LatLng? _lastRouteRescuerPos;
   Timer? _routeThrottle;
 
+  // Structures de référence
+  List<Institution> _referenceInstitutions = [];
+  bool _isLoadingStructures = false;
+
   @override
   void initState() {
     super.initState();
@@ -49,10 +55,41 @@ class _FullScreenMapPageState extends ConsumerState<FullScreenMapPage>
       if (mounted) setState(() {});
     });
 
-    // Fetch la route initiale après le premier frame
+    // Fetch la route initiale et les structures après le premier frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchRouteIfNeeded();
+      _fetchReferenceStructures();
     });
+  }
+
+  Future<void> _fetchReferenceStructures() async {
+    if (_isLoadingStructures) return;
+    setState(() => _isLoadingStructures = true);
+    try {
+      final repo = HealthStructuresRepository();
+      final rows = await repo.fetchAllOpenStructures();
+      final institutions = rows.map(Institution.fromApiRow).where((i) => i.hasValidCoords).toList();
+      
+      // On garde les 20 plus proches de l'utilisateur pour servir de repères
+      final userPos = widget.initialUserPosition;
+      if (userPos != null) {
+        institutions.sort((a, b) {
+          final distA = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, a.lat!, a.lng!);
+          final distB = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, b.lat!, b.lng!);
+          return distA.compareTo(distB);
+        });
+      }
+      
+      if (mounted) {
+        setState(() {
+          _referenceInstitutions = institutions.take(20).toList();
+          _isLoadingStructures = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching reference structures: $e');
+      if (mounted) setState(() => _isLoadingStructures = false);
+    }
   }
 
   @override
@@ -107,18 +144,14 @@ class _FullScreenMapPageState extends ConsumerState<FullScreenMapPage>
     );
     
     try {
-      // Un léger délai permet de s'assurer que le container de la carte a bien ses dimensions
-      // finales après l'animation de transition (Hero/Push). Cela corrige le bug de la "moitié de carte".
       Future.delayed(const Duration(milliseconds: 350), () {
         if (!mounted) return;
         _mapController.fitCamera(CameraFit.bounds(
           bounds: bounds,
-          padding: const EdgeInsets.only(top: 150.0, bottom: 250.0, left: 50.0, right: 50.0),
+          padding: const EdgeInsets.only(top: 150.0, bottom: 280.0, left: 60.0, right: 60.0),
         ));
       });
-    } catch (e) {
-      // MapController not ready yet
-    }
+    } catch (e) {}
   }
 
   @override
@@ -171,6 +204,30 @@ class _FullScreenMapPageState extends ConsumerState<FullScreenMapPage>
                 maxZoom: 22,
                 maxNativeZoom: 18,
               ),
+              // Structures de référence (Repères visuels)
+              MarkerLayer(
+                markers: _referenceInstitutions.map<Marker>((inst) {
+                  return Marker(
+                    point: LatLng(inst.lat!, inst.lng!),
+                    width: 30,
+                    height: 30,
+                    child: Opacity(
+                      opacity: 0.6,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(inst.icon, color: inst.color.withValues(alpha: 0.7), size: 16),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
               // Route (Polyline avec trafic)
               if (hasRescuer && userPos != null)
                 PolylineLayer(
@@ -195,21 +252,21 @@ class _FullScreenMapPageState extends ConsumerState<FullScreenMapPage>
                           ),
                         ],
                 ),
-              // Markers
+              // Markers principaux
               MarkerLayer(
                 markers: [
                   if (userPos != null)
                     Marker(
                       point: LatLng(userPos.latitude, userPos.longitude),
-                      width: 40,
-                      height: 40,
+                      width: 32,
+                      height: 32,
                       child: const CitizenMapMarker(),
                     ),
                   if (hasRescuer)
                     Marker(
                       point: LatLng(intervention.rescuerLat!, intervention.rescuerLng!),
-                      width: 56,
-                      height: 56,
+                      width: 44,
+                      height: 44,
                       child: RescuerMapMarker(
                         heading: intervention.rescuerHeading ?? 0,
                         isStale: intervention.isRescuerStale,

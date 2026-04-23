@@ -142,7 +142,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       case SosTrackingState.handled:
         return (color: AppColors.blue, icon: CupertinoIcons.star_fill, title: 'home.track_handled_title'.tr(), subtitle: 'home.track_handled_sub'.tr());
       case SosTrackingState.onTheWay:
-        return (color: const Color(0xFF10B981), icon: CupertinoIcons.car_detailed, title: 'home.track_on_way_title'.tr(), subtitle: 'home.track_on_way_sub'.tr(args: [_ambulanceEtaMinutes.toString()]));
+        return (color: const Color(0xFF10B981), icon: Icons.airport_shuttle_rounded, title: 'home.track_on_way_title'.tr(), subtitle: 'home.track_on_way_sub'.tr(args: [_ambulanceEtaMinutes.toString()]));
       case SosTrackingState.onSite:
         return (color: Colors.deepPurple, icon: CupertinoIcons.location_solid, title: 'home.track_on_site_title'.tr(), subtitle: 'home.track_on_site_sub'.tr());
     }
@@ -739,30 +739,29 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   Widget _buildMapSection(ActiveInterventionState interventionState) {
     final hasRescuer = interventionState.shouldShowRescuer && interventionState.rescuerLat != null && interventionState.rescuerLng != null;
     
-    if (hasRescuer) {
-      debugPrint('[TRACKING_DEBUG] Rendering map with Rescuer at: ${interventionState.rescuerLat}, ${interventionState.rescuerLng}');
-    } else {
-      debugPrint('[TRACKING_DEBUG] Rendering map WITHOUT Rescuer (lat/lng is null)');
-    }
-
-    if (hasRescuer && _currentPosition != null) {
+    // Auto-fit au premier rendu du tracking
+    if (hasRescuer && _currentPosition != null && !_hasFittedBounds) {
+      _hasFittedBounds = true;
       _fetchHomeRouteIfNeeded(interventionState);
       
-      if (!_hasFittedBounds) {
-         _hasFittedBounds = true;
-         WidgetsBinding.instance.addPostFrameCallback((_) {
-            final bounds = LatLngBounds(
-               LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-               LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
-            );
-            try {
-               _mapController.fitCamera(CameraFit.bounds(
-                  bounds: bounds,
-                  padding: const EdgeInsets.all(30.0),
-               ));
-            } catch (_) {}
-         });
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final bounds = LatLngBounds(
+          LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+          LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
+        );
+        try {
+          _mapController.fitCamera(CameraFit.bounds(
+            bounds: bounds,
+            padding: const EdgeInsets.all(40.0),
+          ));
+        } catch (_) {}
+      });
+    }
+
+    // Réinitialiser le fit si le tracking s'arrête pour être prêt au prochain
+    if (!hasRescuer && _hasFittedBounds) {
+      _hasFittedBounds = false;
     }
     
     return Stack(
@@ -845,15 +844,15 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
                               if (_currentPosition != null)
                                 Marker(
                                   point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                                  width: 40,
-                                  height: 40,
+                                  width: 32,
+                                  height: 32,
                                   child: const CitizenMapMarker(),
                                 ),
                               if (hasRescuer)
                                 Marker(
                                   point: LatLng(interventionState.rescuerLat!, interventionState.rescuerLng!),
-                                  width: 56,
-                                  height: 56,
+                                  width: 44,
+                                  height: 44,
                                   child: RescuerMapMarker(
                                     heading: interventionState.rescuerHeading ?? 0,
                                     isStale: interventionState.isRescuerStale,

@@ -28,11 +28,28 @@ class FcmService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
-  static const _androidChannel = AndroidNotificationChannel(
-    'sos_calls_channel',
+  static const _callChannel = AndroidNotificationChannel(
+    'incoming_calls',
     'Appels SOS',
     description: 'Notifications des appels d\'urgence SOS',
     importance: Importance.max,
+    playSound: true,
+    showBadge: true,
+  );
+
+  static const _dispatchChannel = AndroidNotificationChannel(
+    'dispatch_updates',
+    'Mises à jour intervention',
+    description: 'Notifications de suivi de votre ambulance',
+    importance: Importance.high,
+    playSound: true,
+  );
+
+  static const _hospitalChannel = AndroidNotificationChannel(
+    'hospital_updates',
+    'Statut hôpital',
+    description: 'Notifications de prise en charge hospitalière',
+    importance: Importance.high,
     playSound: true,
   );
 
@@ -42,7 +59,11 @@ class FcmService {
   static Future<void> initialize(ProviderContainer container) async {
     _container = container;
     // 1. Demander les permissions Push (Obligatoire pour iOS, recommandé Android 13+)
-    await FirebaseMessaging.instance.requestPermission();
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
     // 2. Écouteurs Firebase Messaging
     FirebaseMessaging.onMessage.listen(_handleFcmData);
@@ -51,7 +72,7 @@ class FcmService {
     // 3. Configuration des notifications locales
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings(
-      requestAlertPermission: false, 
+      requestAlertPermission: true, 
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
@@ -64,14 +85,21 @@ class FcmService {
     final NotificationAppLaunchDetails? launchDetails = 
         await _localNotifications.getNotificationAppLaunchDetails();
     if (launchDetails?.didNotificationLaunchApp ?? false) {
-      _onNotificationTapped(launchDetails!.notificationResponse!);
+      if (launchDetails?.notificationResponse != null) {
+        _onNotificationTapped(launchDetails!.notificationResponse!);
+      }
     }
 
-    // 4. Créer le canal Android haute priorité
-    await _localNotifications
+    // 4. Créer les canaux Android
+    final androidPlugin = _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_androidChannel);
+            AndroidFlutterLocalNotificationsPlugin>();
+    
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(_callChannel);
+      await androidPlugin.createNotificationChannel(_dispatchChannel);
+      await androidPlugin.createNotificationChannel(_hospitalChannel);
+    }
 
     // 5. Synchroniser le Token FCM
     await syncToken();
@@ -130,18 +158,30 @@ class FcmService {
     final payload = response.payload;
     debugPrint('[PUSH] Notification locale tapée: $payload');
     
-    if (payload != null && payload.startsWith('incident:')) {
-      final incidentId = payload.replaceFirst('incident:', '');
-      if (incidentId.isNotEmpty && _container != null) {
-        debugPrint('[PUSH] Redirection vers l\'incident: $incidentId');
-        // Use addPostFrameCallback to ensure the router is ready
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          try {
-            _container!.read(appRouterProvider).push('/incident/$incidentId');
-          } catch (e) {
-            debugPrint('[PUSH] Erreur lors de la navigation: $e');
-          }
-        });
+    if (payload != null && _container != null) {
+      if (payload.startsWith('incident:')) {
+        final incidentId = payload.replaceFirst('incident:', '');
+        if (incidentId.isNotEmpty) {
+          debugPrint('[PUSH] Redirection vers l\'incident: $incidentId');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            try {
+              _container!.read(appRouterProvider).push('/incident/$incidentId');
+            } catch (e) {
+              debugPrint('[PUSH] Erreur lors de la navigation incident: $e');
+            }
+          });
+        }
+      } else if (payload.startsWith('call:')) {
+         final callId = payload.replaceFirst('call:', '');
+         debugPrint('[PUSH] Notification d\'appel tapée: $callId');
+         // Navigation vers l'écran d'appel actif si nécessaire
+         WidgetsBinding.instance.addPostFrameCallback((_) {
+            try {
+              _container!.read(appRouterProvider).push('/call/active');
+            } catch (e) {
+              debugPrint('[PUSH] Erreur lors de la navigation call: $e');
+            }
+          });
       }
     }
   }
@@ -157,32 +197,31 @@ class FcmService {
     final data = message.data;
     debugPrint('[PUSH] ===== FCM MESSAGE RECEIVED =====');
     debugPrint('[PUSH] Message ID: ${message.messageId}');
-    debugPrint('[PUSH] Data keys: ${data.keys.toList()}');
     debugPrint('[PUSH] Full payload: $data');
     
-    // Also check notification body for data (some backends send it there)
-    if (message.notification != null) {
-      debugPrint('[PUSH] Notification title: ${message.notification?.title}');
-      debugPrint('[PUSH] Notification body: ${message.notification?.body}');
-    }
-
-    // Accept multiple type values from different backends
-    final type = data['type'] ?? data['action'] ?? '';
-    final isDispatchUpdate = type == 'dispatch_status_update' || 
-                           type == 'dispatch' ||
-                           data.containsKey('incidentId') || 
-                           data.containsKey('incident_id');
+    final type = (data['type'] ?? data['action'] ?? '').toString();
     final isIncomingCall = type == 'incoming_call' || 
                            type == 'call' || 
                            type == 'voip_call' ||
-                           type == 'incoming-call' ||
-                           data.containsKey('callId') ||
-                           data.containsKey('call_id') ||
-                           data.containsKey('channel_name');
+                           data.containsKey('callId') || 
+                           data.containsKey('call_id');
     
+    final isDispatchUpdate = type == 'dispatch_status' || 
+                             type == 'dispatch_status_update' || 
+                             type == 'dispatch' ||
+                             data.containsKey('dispatchId') || 
+                             data.containsKey('dispatch_id') ||
+                             data.containsKey('incidentId') || 
+                             data.containsKey('incident_id');
+
+    final isHospitalUpdate = type == 'hospital_status' || 
+                             type == 'hospital' ||
+                             data.containsKey('hospitalStatus') ||
+                             data.containsKey('hospital_id');
+
+    // 1. CAS APPEL ENTRANT (VoIP)
     if (isIncomingCall) {
-      // Handle both camelCase and snake_case field names
-      final callId = (data['callId'] ?? data['call_id'] ?? data['id'] ?? '') as String;
+      final callId = (data['callId'] ?? data['call_id'] ?? '') as String;
       final channelName = (data['channelName'] ?? data['channel_name'] ?? '') as String;
       final callerName = (data['callerName'] ?? data['caller_name'] ?? 'Centre d\'appels Étoile Bleue') as String;
       final hasVideo = data['hasVideo'] == 'true' || data['has_video'] == 'true';
@@ -196,17 +235,17 @@ class FcmService {
           extra: {'channelName': channelName},
         );
       }
-    } else if (isDispatchUpdate) {
+    } 
+    // 2. CAS MISE À JOUR DISPATCH (Statut ambulance)
+    else if (isDispatchUpdate) {
       final incidentId = (data['incidentId'] ?? data['incident_id'] ?? data['reference_id'] ?? '') as String;
       final status = (data['status'] ?? '') as String;
       
       debugPrint('[PUSH] → Dispatch status update: $status (incident=$incidentId)');
       
-      // If we are in foreground and there's no system notification shown yet,
-      // or if we want to ensure visual feedback, we show a local notification.
       if (incidentId.isNotEmpty) {
-        String title = message.notification?.title ?? "Mise à jour d'intervention";
-        String body = message.notification?.body ?? "Le statut de votre demande a changé.";
+        String title = message.notification?.title ?? "🚑 Secours en route";
+        String body = message.notification?.body ?? "Une équipe d'urgence se dirige vers vous.";
         
         await _localNotifications.show(
           incidentId.hashCode,
@@ -214,11 +253,44 @@ class FcmService {
           body,
           NotificationDetails(
             android: AndroidNotificationDetails(
-              _androidChannel.id,
-              _androidChannel.name,
-              channelDescription: _androidChannel.description,
-              importance: Importance.max,
-              priority: Priority.max,
+              _dispatchChannel.id,
+              _dispatchChannel.name,
+              channelDescription: _dispatchChannel.description,
+              importance: Importance.high,
+              priority: Priority.high,
+              styleInformation: BigTextStyleInformation(body),
+            ),
+            iOS: const DarwinNotificationDetails(
+              presentAlert: true,
+              presentSound: true,
+              presentBadge: true,
+            ),
+          ),
+          payload: 'incident:$incidentId',
+        );
+      }
+    }
+    // 3. CAS MISE À JOUR HÔPITAL
+    else if (isHospitalUpdate) {
+      final incidentId = (data['incidentId'] ?? data['incident_id'] ?? '') as String;
+      
+      debugPrint('[PUSH] → Hospital status update (incident=$incidentId)');
+      
+      if (incidentId.isNotEmpty) {
+        String title = message.notification?.title ?? "🏥 Pris en charge";
+        String body = message.notification?.body ?? "L'admission à l'hôpital a été confirmée.";
+        
+        await _localNotifications.show(
+          incidentId.hashCode + 1, // ID différent pour ne pas écraser la notif ambulance
+          title,
+          body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              _hospitalChannel.id,
+              _hospitalChannel.name,
+              channelDescription: _hospitalChannel.description,
+              importance: Importance.high,
+              priority: Priority.high,
             ),
             iOS: const DarwinNotificationDetails(
               presentAlert: true,
@@ -230,7 +302,22 @@ class FcmService {
         );
       }
     } else {
-      debugPrint('[PUSH] ℹ️ Message type not recognized (type=$type). Ignoring.');
+      debugPrint('[PUSH] ℹ️ Message type not recognized (type=$type). Checking for generic notification.');
+      // Si le message a un bloc notification mais pas de type connu, on l'affiche quand même
+      if (message.notification != null) {
+        await _localNotifications.show(
+          message.hashCode,
+          message.notification!.title,
+          message.notification!.body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              _dispatchChannel.id,
+              _dispatchChannel.name,
+              importance: Importance.defaultImportance,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -245,9 +332,9 @@ class FcmService {
       '$callerName a besoin d\'aide',
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _androidChannel.id,
-          _androidChannel.name,
-          channelDescription: _androidChannel.description,
+          _callChannel.id,
+          _callChannel.name,
+          channelDescription: _callChannel.description,
           importance: Importance.max,
           priority: Priority.max,
           fullScreenIntent: true, // Ouvre l'écran quand le téléphone est verrouillé
