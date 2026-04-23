@@ -241,6 +241,9 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
       callerName: callerName,
     );
 
+    // Start manual ringtone if in foreground (since we skip CallKit there)
+    _sounds.startRingtone();
+
     // 45s timeout for auto-rejecting incoming call
     _incomingTimeoutTimer = Timer(const Duration(seconds: 45), () {
       if (mounted && state.status == ActiveCallStatus.incomingRinging) {
@@ -253,12 +256,14 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
   void clearIncomingCall() {
     if (state.status == ActiveCallStatus.incomingRinging) {
       _incomingTimeoutTimer?.cancel();
+      _sounds.stopRingtone();
       state = const ActiveCallState();
     }
   }
 
   Future<void> answerIncomingCall() async {
     _incomingTimeoutTimer?.cancel();
+    _sounds.stopRingtone();
     if (state.channelName == null || state.callHistoryId == null) {
       debugPrint('[CallState] answerIncomingCall aborted: channelName=${state.channelName}, callHistoryId=${state.callHistoryId}');
       return;
@@ -294,6 +299,7 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
 
   Future<void> rejectIncomingCall() async {
     _incomingTimeoutTimer?.cancel();
+    _sounds.stopRingtone();
     if (state.callHistoryId == null) return;
     await _service.rejectIncomingCall(state.callHistoryId!, channelName: state.channelName);
     state = const ActiveCallState();

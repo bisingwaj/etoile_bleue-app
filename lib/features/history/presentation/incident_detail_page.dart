@@ -997,67 +997,70 @@ class _IncidentDetailPageState extends ConsumerState<IncidentDetailPage> {
           if (_incidentData['status'] != 'arrived' && 
               _incidentData['status'] != 'resolved' && 
               _incidentData['status'] != 'ended')
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4))],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      try {
-                        final body = 'URGENCE ANNULEE - Réf: ${_incidentData['reference'] ?? widget.incidentId}';
-                        final uri = Uri.parse('sms:199?body=${Uri.encodeComponent(body)}');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4))],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        try {
+                          final body = 'URGENCE ANNULEE - Réf: ${_incidentData['reference'] ?? widget.incidentId}';
+                          final uri = Uri.parse('sms:199?body=${Uri.encodeComponent(body)}');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          }
+                        } catch (e) {
+                          debugPrint('[IncidentDetail] SMS launch error: $e');
                         }
-                      } catch (e) {
-                        debugPrint('[IncidentDetail] SMS launch error: $e');
-                      }
-                    },
-                    icon: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: Colors.orange),
-                    label: Text(
-                      'incident_detail.cancel'.tr(), 
-                      style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      backgroundColor: Colors.orange[50],
+                      },
+                      icon: const Icon(CupertinoIcons.xmark_circle_fill, size: 16, color: Colors.orange),
+                      label: Text(
+                        'incident_detail.cancel'.tr(), 
+                        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        backgroundColor: Colors.orange[50],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      try {
-                        final uri = Uri.parse('tel:199');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          final uri = Uri.parse('tel:199');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          }
+                        } catch (e) {
+                          debugPrint('[IncidentDetail] Call launch error: $e');
                         }
-                      } catch (e) {
-                        debugPrint('[IncidentDetail] Call launch error: $e');
-                      }
-                    },
-                    icon: const Icon(CupertinoIcons.phone_fill, size: 16, color: Colors.white),
-                    label: Text(
-                      'incident_detail.call_center'.tr(), 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.red,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      },
+                      icon: const Icon(CupertinoIcons.phone_fill, size: 16, color: Colors.white),
+                      label: Text(
+                        'incident_detail.call_center'.tr(), 
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

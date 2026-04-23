@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
@@ -45,38 +46,51 @@ final incomingCallListenerProvider = Provider<void>((ref) {
             final status = record['status'] as String?;
 
             if (status == 'ringing') {
-              final isMyOwnCall = ref.read(callStateProvider).isInCall;
-              if (!isMyOwnCall) {
-                final channelName = record['channel_name'] as String?;
-                final callId = record['id'] as String?;
-                final callerName = record['caller_name'] as String?;
-                final name = callerName ?? 'Centre d\'appels Etoile Bleue';
+              final currentState = ref.read(callStateProvider);
+              if (currentState.isInCall || currentState.status == ActiveCallStatus.incomingRinging) {
+                debugPrint('[IncomingCall] Call already being handled, ignoring Realtime ringing');
+                return;
+              }
+              final channelName = record['channel_name'] as String?;
+              final callId = record['id'] as String?;
+              final callerName = record['caller_name'] as String?;
+              final name = callerName ?? 'Centre d\'appels Etoile Bleue';
 
-                // Ignore calls initiated by the patient (SOS or CALLBACK)
-                if (channelName != null &&
-                    (channelName.startsWith('SOS-') || channelName.startsWith('CALLBACK-'))) {
-                  debugPrint('[IncomingCall] Ignoring own outgoing call: $channelName');
-                  return;
-                }
+              // Ignore calls initiated by the patient (SOS or CALLBACK)
+              if (channelName != null &&
+                  (channelName.startsWith('SOS-') || channelName.startsWith('CALLBACK-'))) {
+                debugPrint('[IncomingCall] Ignoring own outgoing call: $channelName');
+                return;
+              }
 
-                if (channelName != null && callId != null) {
-                  debugPrint('[IncomingCall] Incoming call detected: channel=$channelName, caller=$name');
-                  HapticFeedback.heavyImpact();
+              if (channelName != null && callId != null) {
+                debugPrint('[IncomingCall] Incoming call detected: channel=$channelName, caller=$name');
+                HapticFeedback.heavyImpact();
 
-                  ref.read(callStateProvider.notifier).setIncomingCall(
-                    channelName: channelName,
-                    callHistoryId: callId,
-                    callerName: name,
-                  );
+                // Always update Flutter state
+                ref.read(callStateProvider.notifier).setIncomingCall(
+                  channelName: channelName,
+                  callHistoryId: callId,
+                  callerName: 'Étoile Bleue',
+                );
 
-                  final hasVideo = record['has_video'] == true;
+                final hasVideo = record['has_video'] == true;
 
+                // ONLY trigger native CallKit if we are NOT in the foreground
+                // (If in foreground, the Dynamic Island handles it seamlessly)
+                final lifecycle = WidgetsBinding.instance.lifecycleState;
+                final isForeground = lifecycle == AppLifecycleState.resumed;
+
+                if (!isForeground) {
+                  debugPrint('[IncomingCall] App is in BACKGROUND, triggering native CallKit');
                   CallKitService.showIncomingCall(
                     callId: callId,
-                    callerName: name,
+                    callerName: 'Étoile Bleue',
                     hasVideo: hasVideo,
                     extra: {'channelName': channelName},
                   );
+                } else {
+                  debugPrint('[IncomingCall] App is in FOREGROUND, skipping native CallKit (using Dynamic Island)');
                 }
               }
             }

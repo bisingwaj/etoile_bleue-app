@@ -11,6 +11,7 @@ import 'package:etoile_bleue_mobile/core/providers/active_intervention_provider.
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class EmergencyCallOverlay extends ConsumerStatefulWidget {
   final Widget child;
@@ -24,6 +25,7 @@ class EmergencyCallOverlay extends ConsumerStatefulWidget {
 class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
   Timer? _vibrationTimer;
   bool _isCallActionPending = false;
+  bool _showFullScreenIncoming = false;
 
   void _startVibration() {
     _vibrationTimer?.cancel();
@@ -76,8 +78,9 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
   @override
   Widget build(BuildContext context) {
     ref.listen<ActiveCallState>(callStateProvider, (prev, next) {
-      final shouldVibrate = next.status == ActiveCallStatus.incomingRinging &&
-          !(Platform.isIOS || Platform.isAndroid);
+      final isForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+      final shouldVibrate = next.status == ActiveCallStatus.incomingRinging && isForeground;
+      
       if (shouldVibrate && _vibrationTimer == null) {
         _startVibration();
       } else if (!shouldVibrate && _vibrationTimer != null) {
@@ -89,6 +92,10 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
       final nextIncident = next.incidentId;
       if (nextIncident != null && nextIncident != prevIncident) {
         ref.read(activeInterventionProvider.notifier).startTracking(nextIncident);
+      }
+      // Reset full-screen incoming state when call is no longer ringing
+      if (next.status != ActiveCallStatus.incomingRinging && _showFullScreenIncoming) {
+        setState(() => _showFullScreenIncoming = false);
       }
     });
 
@@ -117,15 +124,18 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
       _durationTimer = null;
     }
 
-    // CallKit gère l'UI native sur iOS et Android — overlay uniquement sur desktop/web.
+    // CallKit gère l'UI native sur iOS et Android — overlay s'affiche si déclenché par l'utilisateur.
     final showIncomingCall = callState.status == ActiveCallStatus.incomingRinging &&
-        !(Platform.isIOS || Platform.isAndroid);
+        (_showFullScreenIncoming || !(Platform.isIOS || Platform.isAndroid));
 
     return Stack(
       children: [
         widget.child,
 
         if (showIncomingCall) _buildIncomingCallOverlay(callState),
+
+        if (callState.status == ActiveCallStatus.incomingRinging)
+          _buildIncomingCallDynamicIsland(callState),
 
         if (showMinimizedOverlay) _buildAudioDynamicIsland(callState),
       ],
@@ -135,82 +145,321 @@ class _EmergencyCallOverlayState extends ConsumerState<EmergencyCallOverlay> {
   Widget _buildIncomingCallOverlay(ActiveCallState callState) {
     return Positioned.fill(
       child: Material(
-        color: Colors.black.withValues(alpha: 0.95),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF0B141B), // WhatsApp dark background color
+        child: Stack(
+          children: [
+            // WhatsApp-style background pattern simulation
+            Opacity(
+              opacity: 0.04,
+              child: GridView.builder(
+                padding: EdgeInsets.zero,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  childAspectRatio: 1,
                 ),
-                child: Text(
-                  'calls.incoming_call'.tr(),
-                  style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              _AnimatedIncomingAvatar(),
-              const SizedBox(height: 24),
-
-              Text(
-                callState.callerName ?? 'calls.operator'.tr(),
-                style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'calls.emergency_center'.tr(),
-                style: TextStyle(color: Colors.white54, fontSize: 14),
-              ),
-
-              const Spacer(),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 50),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildCallActionButton(
-                      icon: Icons.call_end,
-                      color: Colors.red,
-                      label: 'calls.reject'.tr(),
-                      onTap: () {
-                        if (_isCallActionPending) return;
-                        _isCallActionPending = true;
-                        ref.read(callStateProvider.notifier).rejectIncomingCall();
-                        Future.delayed(const Duration(seconds: 2), () {
-                          if (mounted) _isCallActionPending = false;
-                        });
-                      },
+                itemBuilder: (context, index) {
+                  final icons = [
+                    Icons.emergency_outlined,
+                    Icons.health_and_safety_outlined,
+                    Icons.medical_services_outlined,
+                    Icons.local_hospital_outlined,
+                    Icons.healing_outlined,
+                    Icons.monitor_heart_outlined,
+                  ];
+                  return Transform.rotate(
+                    angle: index % 3 == 0 ? 0.2 : -0.2,
+                    child: Icon(
+                      icons[index % icons.length],
+                      color: Colors.white,
+                      size: 28,
                     ),
-                    _buildCallActionButton(
-                      icon: Icons.call,
-                      color: Colors.green,
-                      label: 'calls.answer'.tr(),
-                      size: 80,
-                      onTap: () async {
-                        if (_isCallActionPending) return;
-                        _isCallActionPending = true;
-                        await ref.read(callStateProvider.notifier).answerIncomingCall();
-                        if (mounted) {
-                          GoRouter.of(context).push('/call/active');
-                          _isCallActionPending = false;
-                        }
-                      },
+                  );
+                },
+              ),
+            ),
+            
+            SafeArea(
+              child: Column(
+                children: [
+                  const SizedBox(height: 80),
+                  
+                  // Top section: Name & Number
+                  Text(
+                    'Étoile Bleue',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(CupertinoIcons.phone_fill, color: Colors.white70, size: 14),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Service d\'urgence',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 16,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const Spacer(),
+
+                  // Center Avatar: App Logo
+                  Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 170,
+                        height: 170,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                        ),
+                        child: ClipOval(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ).animate(onPlay: (c) => c.repeat(reverse: true))
+                   .scale(begin: const Offset(0.96, 0.96), end: const Offset(1.04, 1.04), duration: 2.seconds, curve: Curves.easeInOut),
+
+                  const Spacer(),
+                  // Bottom Actions
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        _buildCallActionButton(
+                          icon: CupertinoIcons.phone_down_fill,
+                          color: Colors.red,
+                          label: 'Decline',
+                          onTap: () {
+                            if (_isCallActionPending) return;
+                            _isCallActionPending = true;
+                            ref.read(callStateProvider.notifier).rejectIncomingCall();
+                            setState(() => _showFullScreenIncoming = false);
+                            Future.delayed(const Duration(seconds: 1), () {
+                              if (mounted) _isCallActionPending = false;
+                            });
+                          },
+                        ),
+                        
+                        // Middle button (Answer/Swipe up)
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onVerticalDragUpdate: (details) {
+                                if (details.delta.dy < -10) {
+                                  // Swiped up to answer
+                                  ref.read(callStateProvider.notifier).answerIncomingCall();
+                                  GoRouter.of(context).push('/call/active');
+                                }
+                              },
+                              onTap: () async {
+                                if (_isCallActionPending) return;
+                                _isCallActionPending = true;
+                                await ref.read(callStateProvider.notifier).answerIncomingCall();
+                                if (mounted) {
+                                  GoRouter.of(context).push('/call/active');
+                                  _isCallActionPending = false;
+                                }
+                              },
+                              child: Container(
+                                width: 75,
+                                height: 75,
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(color: Colors.greenAccent, blurRadius: 15, spreadRadius: 1)
+                                  ],
+                                ),
+                                child: const Icon(CupertinoIcons.phone_fill, color: Colors.white, size: 35),
+                              ).animate(onPlay: (c) => c.repeat())
+                               .shimmer(delay: 800.ms, duration: 1.5.seconds, color: Colors.white24),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Glissez vers le haut',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        _buildCallActionButton(
+                          icon: CupertinoIcons.chat_bubble_fill,
+                          color: Colors.white.withValues(alpha: 0.1),
+                          label: 'Message',
+                          onTap: () {
+                            setState(() => _showFullScreenIncoming = false);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 50),
+                ],
+              ),
+            ),
+            
+            // Back button to close overlay
+            Positioned(
+              top: 10,
+              left: 10,
+              child: SafeArea(
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70),
+                  onPressed: () => setState(() => _showFullScreenIncoming = false),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIncomingCallDynamicIsland(ActiveCallState callState) {
+    return Positioned(
+      top: MediaQuery.of(context).viewPadding.top + 6,
+      left: 12,
+      right: 12,
+      child: GestureDetector(
+        onTap: () => setState(() => _showFullScreenIncoming = true),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.98), // Slightly more opaque
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 25,
+                offset: const Offset(0, 12),
+              )
+            ],
+            border: Border.all(color: Colors.white24, width: 0.8), // Slightly more visible border
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 4),
+              _AnimatedIncomingAvatarSmall(),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Service d\'urgence'.toUpperCase(),
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Étoile Bleue',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18, // Increased from 16
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 60),
+              const SizedBox(width: 12),
+              // Decline Button
+              GestureDetector(
+                onTap: () {
+                  if (_isCallActionPending) return;
+                  _isCallActionPending = true;
+                  ref.read(callStateProvider.notifier).rejectIncomingCall();
+                  Future.delayed(const Duration(seconds: 1), () {
+                    if (mounted) _isCallActionPending = false;
+                  });
+                },
+                child: Container(
+                  width: 52, // Increased from 44
+                  height: 52, // Increased from 44
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.red.withValues(alpha: 0.5), width: 1),
+                  ),
+                  child: const Center(
+                    child: Icon(CupertinoIcons.phone_down_fill, color: Colors.redAccent, size: 24),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Accept Button
+              GestureDetector(
+                onTap: () async {
+                  if (_isCallActionPending) return;
+                  _isCallActionPending = true;
+                  await ref.read(callStateProvider.notifier).answerIncomingCall();
+                  if (mounted) {
+                    GoRouter.of(context).push('/call/active');
+                    _isCallActionPending = false;
+                  }
+                },
+                child: Container(
+                  width: 52, // Increased from 44
+                  height: 52, // Increased from 44
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.green.withValues(alpha: 0.5), width: 1),
+                  ),
+                  child: const Center(
+                    child: Icon(CupertinoIcons.phone_fill, color: Colors.greenAccent, size: 24),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
             ],
           ),
         ),
       ),
+    ).animate()
+       .slideY(begin: -1.2, end: 0, duration: 600.ms, curve: Curves.elasticOut)
+       .fadeIn(duration: 200.ms)
+       .scaleXY(begin: 0.9, end: 1.0, duration: 400.ms, curve: Curves.easeOut),
     );
   }
 
@@ -526,6 +775,58 @@ class _WaveIconState extends State<_WaveIcon> with SingleTickerProviderStateMixi
           },
         );
       }),
+    );
+  }
+}
+
+class _AnimatedIncomingAvatarSmall extends StatefulWidget {
+  @override
+  State<_AnimatedIncomingAvatarSmall> createState() => _AnimatedIncomingAvatarSmallState();
+}
+
+class _AnimatedIncomingAvatarSmallState extends State<_AnimatedIncomingAvatarSmall>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this, 
+      duration: const Duration(milliseconds: 1000)
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: Tween(begin: 0.9, end: 1.1).animate(
+        CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+      ),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.orange.withValues(alpha: 0.2),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.5), width: 1.5),
+        ),
+        child: ClipOval(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

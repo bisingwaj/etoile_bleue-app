@@ -179,6 +179,21 @@ void _setupCallKitListener(ProviderContainer container) {
         container.read(callStateProvider.notifier).rejectIncomingCall();
       }
     },
+    onIncoming: (callId, extra) {
+      debugPrint('[main] CallKit incoming notification: $callId');
+      // Set Flutter state so Dynamic Island appears when app comes to foreground
+      final currentState = container.read(callStateProvider);
+      if (!currentState.isInCall && currentState.status != ActiveCallStatus.incomingRinging) {
+        final channelName = extra['channelName']?.toString() ?? '';
+        if (channelName.isNotEmpty) {
+          container.read(callStateProvider.notifier).setIncomingCall(
+            channelName: channelName,
+            callHistoryId: callId,
+            callerName: 'Étoile Bleue',
+          );
+        }
+      }
+    },
   );
 }
 

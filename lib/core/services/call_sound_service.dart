@@ -12,11 +12,38 @@ class CallSoundService {
   CallSoundService._();
 
   AudioPlayer? _ringbackPlayer;
+  AudioPlayer? _ringtonePlayer;
   bool _isRingbackPlaying = false;
+  bool _isRingtonePlaying = false;
 
   static const int _sampleRate = 44100;
   static const int _bitsPerSample = 16;
   static const int _numChannels = 1;
+
+  /// Incoming call ringtone: Alternating tones, looped.
+  Future<void> startRingtone() async {
+    if (_isRingtonePlaying) return;
+    _isRingtonePlaying = true;
+
+    _ringtonePlayer?.dispose();
+    _ringtonePlayer = AudioPlayer();
+    await _ringtonePlayer!.setReleaseMode(ReleaseMode.loop);
+    await _ringtonePlayer!.setVolume(0.8);
+
+    final wav = _generateRingtoneWav();
+    try {
+      await _ringtonePlayer!.play(BytesSource(wav));
+    } catch (e) {
+      debugPrint('[CallSound] Ringtone play error: $e');
+    }
+  }
+
+  Future<void> stopRingtone() async {
+    _isRingtonePlaying = false;
+    await _ringtonePlayer?.stop();
+    _ringtonePlayer?.dispose();
+    _ringtonePlayer = null;
+  }
 
   /// Ringback tone: 440 Hz for 1s, silence for 3s, looped.
   Future<void> startRingback() async {
@@ -89,6 +116,23 @@ class CallSoundService {
       final t = i / _sampleRate;
       // Blend 440Hz + 480Hz for a standard ringback feel
       final value = (sin(2 * pi * 440 * t) * 0.5 + sin(2 * pi * 480 * t) * 0.3) * 16000;
+      samples[i] = value.toInt().clamp(-32768, 32767);
+    }
+
+    return _wrapInWav(samples);
+  }
+
+  /// Ringtone pattern: Alternating high/low alert tones
+  Uint8List _generateRingtoneWav() {
+    const double duration = 2.0;
+    final totalSamples = (_sampleRate * duration).toInt();
+    final samples = Int16List(totalSamples);
+
+    for (int i = 0; i < totalSamples; i++) {
+      final t = i / _sampleRate;
+      // Switch frequency every 0.5s
+      final double freq = (t % 1.0 < 0.5) ? 660.0 : 880.0;
+      final value = sin(2 * pi * freq * t) * 18000;
       samples[i] = value.toInt().clamp(-32768, 32767);
     }
 

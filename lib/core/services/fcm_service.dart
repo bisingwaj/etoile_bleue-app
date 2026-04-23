@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 import 'package:etoile_bleue_mobile/core/utils/dynamic_island_toast.dart';
+import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 
 @pragma('vm:entry-point')
 Future<void> _handleBackgroundMessage(RemoteMessage message) async {
@@ -233,14 +234,14 @@ class FcmService {
   /// Réception quand l'app est au premier plan
   static Future<void> _handleFcmData(RemoteMessage message) async {
     debugPrint('[PUSH] Foreground message received: ${message.messageId}');
-    await processMessage(message);
+    await processMessage(message, isForeground: true);
   }
 
   /// Traitement logique du payload recu par FCM
-  static Future<void> processMessage(RemoteMessage message) async {
+  static Future<void> processMessage(RemoteMessage message, {bool isForeground = false}) async {
     final data = message.data;
     debugPrint('[PUSH] ===== FCM MESSAGE RECEIVED =====');
-    debugPrint('[PUSH] Message ID: ${message.messageId}');
+    debugPrint('[PUSH] Message ID: ${message.messageId}, isForeground: $isForeground');
     debugPrint('[PUSH] Full payload: $data');
     
     final type = (data['type'] ?? data['action'] ?? '').toString();
@@ -274,12 +275,37 @@ class FcmService {
 
       debugPrint('[PUSH] → Incoming call detected!');
       if (callId.isNotEmpty) {
-        await CallKitService.showIncomingCall(
-          callId: callId,
-          callerName: callerName,
-          hasVideo: hasVideo,
-          extra: {'channelName': channelName},
-        );
+        // Prevent redundant triggers if already ringing
+        if (_container != null) {
+          final currentState = _container!.read(callStateProvider);
+          if (currentState.status == ActiveCallStatus.incomingRinging || currentState.isInCall) {
+            debugPrint('[PUSH] → Call already active or ringing, skipping trigger');
+            return;
+          }
+        }
+
+        // Always update Flutter state so the Dynamic Island shows up if app is open
+        if (_container != null) {
+          _container!.read(callStateProvider.notifier).setIncomingCall(
+            channelName: channelName,
+            callHistoryId: callId,
+            callerName: 'Étoile Bleue',
+          );
+        }
+
+        // ONLY trigger native CallKit if we are NOT in the foreground
+        // (If in foreground, the Dynamic Island handles it seamlessly)
+        if (!isForeground) {
+          debugPrint('[PUSH] App is in BACKGROUND/KILLED, triggering native CallKit');
+          await CallKitService.showIncomingCall(
+            callId: callId,
+            callerName: 'Étoile Bleue',
+            hasVideo: hasVideo,
+            extra: {'channelName': channelName},
+          );
+        } else {
+          debugPrint('[PUSH] App is in FOREGROUND, skipping native CallKit (using Dynamic Island)');
+        }
       }
     } 
     // 2. CAS MISE À JOUR DISPATCH (Statut ambulance)
