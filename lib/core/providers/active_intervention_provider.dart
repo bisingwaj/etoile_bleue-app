@@ -212,31 +212,54 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
 
       debugPrint('[Intervention] Checking for active incident for user: ${user.id}');
 
-      // Plusieurs lignes récentes : le filtre SQL seul peut rater la casse / l’enum. On valide en Dart.
+      // On récupère les incidents récents AVEC leur dispatch associé pour éviter le flash
       final rows = await Supabase.instance.client
           .from('incidents')
-          .select('id, status, archived_at, resolved_at')
+          .select('id, status, archived_at, resolved_at, dispatches(status, created_at)')
           .eq('citizen_id', user.id)
           .order('created_at', ascending: false)
-          .limit(25);
+          .limit(10);
 
       Map<String, dynamic>? picked;
       for (final row in rows) {
         final map = Map<String, dynamic>.from(row as Map);
         final st = map['status'] as String?;
+        
+        // Si clos par date, on ignore
         if (_isIncidentClosedByDates(map['archived_at'], map['resolved_at'])) {
           continue;
         }
-        if (_isActiveIncidentForBanner(st)) {
-          picked = map;
-          break;
+
+        // Si le statut incident n'est pas "actif" pour la bannière, on ignore
+        if (!_isActiveIncidentForBanner(st)) {
+          continue;
         }
+
+        // Vérifier le dispatch associé s'il existe
+        final dispatchesList = map['dispatches'] as List?;
+        if (dispatchesList != null && dispatchesList.isNotEmpty) {
+          // Trier pour prendre le plus récent
+          final sorted = List<Map<String, dynamic>>.from(dispatchesList);
+          sorted.sort((a, b) {
+            final da = a['created_at'] as String? ?? '';
+            final db = b['created_at'] as String? ?? '';
+            return db.compareTo(da);
+          });
+          
+          final dStatus = sorted.first['status'] as String?;
+          if (dStatus != null && _isTerminalDispatchStatus(dStatus)) {
+            // Si le dispatch est déjà terminé/arrivé, on ne le "pick" pas comme actif
+            continue;
+          }
+        }
+
+        picked = map;
+        break;
       }
 
       if (picked != null) {
         final incidentId = picked['id'] as String;
-        final incidentStatus = picked['status'] as String;
-        debugPrint('[Intervention] Found active incident: $incidentId with status: $incidentStatus');
+        debugPrint('[Intervention] Found active incident: $incidentId');
         startTracking(incidentId);
       } else {
         debugPrint('[Intervention] No active incident found in database');
@@ -270,93 +293,107 @@ class ActiveInterventionNotifier extends StateNotifier<ActiveInterventionState> 
 
   Future<void> _fetchIncidentAndDispatch(String incidentId) async {
     try {
-      final incident = await Supabase.instance.client
-          .from('incidents')
-          .select('status, archived_at, resolved_at')
-          .eq('id', incidentId)
-          .maybeSingle();
+      // 1. Fetch incident and dispatch in parallel for speed and to avoid state jumps
+      final results = await Future.wait([
+        Supabase.instance.client
+            .from('incidents')
+            .select('status, archived_at, resolved_at')
+            .eq('id', incidentId)
+            .maybeSingle(),
+        Supabase.instance.client
+            .from('dispatches')
+            .select('status, rescuer_id, unit_id')
+            .eq('incident_id', incidentId)
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle(),
+      ]);
+
+      final incident = results[0];
+      final dispatch = results[1];
 
       final incStatus = incident?['status'] as String?;
       final archAt = _parseTimestamp(incident?['archived_at']);
       final resAt = _parseTimestamp(incident?['resolved_at']);
+
       debugPrint(
         '[Intervention] Sync incident status: $incStatus archived_at=$archAt resolved_at=$resAt',
       );
+
+      // Validation finale de l'éligibilité à la bannière
       if (_isIncidentClosedByDates(incident?['archived_at'], incident?['resolved_at']) ||
           !_isActiveIncidentForBanner(incStatus)) {
         stopTracking();
         return;
       }
+
+      String dStatus = 'processing';
+      String? rescuerId;
+      String? unitId;
+
+      if (dispatch != null) {
+        dStatus = dispatch['status'] as String? ?? 'processing';
+        rescuerId = dispatch['rescuer_id'] as String?;
+        unitId = dispatch['unit_id'] as String?;
+        debugPrint('[Intervention] Sync dispatch: status=$dStatus, rescuerId=$rescuerId, unitId=$unitId');
+      }
+
+      // Si le dispatch est déjà arrivé/terminé, on ne doit pas afficher la bannière
+      if (_isTerminalDispatchStatus(dStatus)) {
+        debugPrint('[Intervention] Dispatch is terminal ($dStatus), stopping tracking');
+        stopTracking();
+        return;
+      }
+
+      // Mise à jour de l'état EN UNE SEULE FOIS pour éviter les flashs d'UI
       state = state.copyWith(
         incidentId: incidentId,
         incidentStatus: incStatus,
         incidentArchivedAt: archAt,
         incidentResolvedAt: resAt,
+        dispatchStatus: dStatus,
+        rescuerId: rescuerId,
+        unitId: unitId,
       );
 
-      final dispatches = await Supabase.instance.client
-          .from('dispatches')
-          .select('status, rescuer_id, unit_id')
-          .eq('incident_id', incidentId)
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-
-      if (dispatches != null) {
-        final status = dispatches['status'] as String? ?? 'processing';
-        final rescuerId = dispatches['rescuer_id'] as String?;
-        final unitId = dispatches['unit_id'] as String?;
-        debugPrint('[Intervention] Sync dispatch: status=$status, rescuerId=$rescuerId, unitId=$unitId');
-        
-        state = state.copyWith(
-          dispatchStatus: status,
-          rescuerName: null, // Column missing in dispatches
-          rescuerId: rescuerId,
-          unitId: unitId,
-        );
-
-        if (rescuerId != null) {
-          _subscribeRescuerGpsRealtime(rescuerId);
-          // Fetch initial position with full tracking data
-          final pos = await Supabase.instance.client
-              .from('active_rescuers')
-              .select('lat, lng, heading, speed, accuracy, battery, status, updated_at')
-              .eq('user_id', rescuerId)
-              .maybeSingle();
-          if (pos != null) {
-            final lat = (pos['lat'] as num?)?.toDouble();
-            final lng = (pos['lng'] as num?)?.toDouble();
-            if (lat != null && lng != null) {
-              state = state.copyWith(
-                rescuerLat: lat,
-                rescuerLng: lng,
-                rescuerHeading: (pos['heading'] as num?)?.toDouble(),
-                rescuerSpeed: (pos['speed'] as num?)?.toDouble(),
-                rescuerAccuracy: (pos['accuracy'] as num?)?.toDouble(),
-                rescuerBattery: (pos['battery'] as num?)?.toInt(),
-                rescuerGpsStatus: pos['status'] as String?,
-                rescuerUpdatedAt: _parseTimestamp(pos['updated_at']),
-              );
-            }
-          }
-        } else if (unitId != null) {
-          _subscribeUnitGpsRealtime(unitId);
-          // Fetch initial position from units
-          final pos = await Supabase.instance.client
-              .from('units')
-              .select('location_lat, location_lng')
-              .eq('id', unitId)
-              .maybeSingle();
-          if (pos != null) {
-            final lat = (pos['location_lat'] as num?)?.toDouble();
-            final lng = (pos['location_lng'] as num?)?.toDouble();
-            if (lat != null && lng != null) {
-              state = state.copyWith(rescuerLat: lat, rescuerLng: lng);
-            }
+      // 3. Fetch rescuer/unit detail if we have an ID
+      if (rescuerId != null) {
+        _subscribeRescuerGpsRealtime(rescuerId);
+        final pos = await Supabase.instance.client
+            .from('active_rescuers')
+            .select('lat, lng, heading, speed, accuracy, battery, status, updated_at')
+            .eq('user_id', rescuerId)
+            .maybeSingle();
+        if (pos != null) {
+          final lat = (pos['lat'] as num?)?.toDouble();
+          final lng = (pos['lng'] as num?)?.toDouble();
+          if (lat != null && lng != null) {
+            state = state.copyWith(
+              rescuerLat: lat,
+              rescuerLng: lng,
+              rescuerHeading: (pos['heading'] as num?)?.toDouble(),
+              rescuerSpeed: (pos['speed'] as num?)?.toDouble(),
+              rescuerAccuracy: (pos['accuracy'] as num?)?.toDouble(),
+              rescuerBattery: (pos['battery'] as num?)?.toInt(),
+              rescuerGpsStatus: pos['status'] as String?,
+              rescuerUpdatedAt: _parseTimestamp(pos['updated_at']),
+            );
           }
         }
-      } else {
-        debugPrint('[Intervention] No dispatch found for incident $incidentId');
+      } else if (unitId != null) {
+        _subscribeUnitGpsRealtime(unitId);
+        final pos = await Supabase.instance.client
+            .from('units')
+            .select('location_lat, location_lng')
+            .eq('id', unitId)
+            .maybeSingle();
+        if (pos != null) {
+          final lat = (pos['location_lat'] as num?)?.toDouble();
+          final lng = (pos['location_lng'] as num?)?.toDouble();
+          if (lat != null && lng != null) {
+            state = state.copyWith(rescuerLat: lat, rescuerLng: lng);
+          }
+        }
       }
     } catch (e) {
       debugPrint('[Intervention] Erreur fetch incident/dispatch: $e');
