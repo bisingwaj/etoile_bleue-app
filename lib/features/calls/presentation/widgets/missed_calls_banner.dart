@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/providers/missed_calls_provider.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:etoile_bleue_mobile/core/error/error_handler.dart';
 
 /// Widget affichant les appels manqués avec possibilité de rappeler.
 /// [embedded] : sans marge ni en-tête interne (ex. onglet Historique).
@@ -31,7 +32,7 @@ class MissedCallsBanner extends ConsumerWidget {
               padding: const EdgeInsets.all(32),
               child: Center(
                 child: Text(
-                  'errors.detail'.tr(namedArgs: {'error': e.toString()}),
+                  ErrorHandler.getLocalizedError(e),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
@@ -205,7 +206,7 @@ class _MissedCallTile extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('errors.detail'.tr(namedArgs: {'error': e.toString()})),
+            content: Text(ErrorHandler.getLocalizedError(e)),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

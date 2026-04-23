@@ -7,6 +7,7 @@ import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/services/cache_service.dart';
 import 'package:etoile_bleue_mobile/core/providers/missed_calls_provider.dart';
 import 'package:etoile_bleue_mobile/features/calls/presentation/widgets/missed_calls_banner.dart';
+import 'package:etoile_bleue_mobile/core/error/error_handler.dart';
 import 'incident_detail_page.dart';
 
 class _HistoryListNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
@@ -226,7 +227,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       ),
       body: historyAsync.when(
         loading: () => const Center(child: CupertinoActivityIndicator()),
-        error: (e, _) => Center(child: Text('errors.detail'.tr(namedArgs: {'error': e.toString()}))),
+        error: (e, _) => Center(child: Text(ErrorHandler.getLocalizedError(e))),
         data: (allCalls) {
           final filtered = _currentFilter == 'Tous'
               ? allCalls

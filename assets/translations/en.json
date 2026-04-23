@@ -624,7 +624,13 @@
         "loading": "Loading error",
         "phone_updated": "Phone number updated successfully",
         "number_verified": "Number verified",
-        "detail": "Error: {error}"
+        "detail": "Error: {error}",
+        "network_error": "Connection problem. Check your internet.",
+        "timeout_error": "The server is taking too long to respond.",
+        "permission_denied": "Access denied. You do not have the necessary permissions.",
+        "auth_failed": "Authentication failed. Please log in again.",
+        "unexpected_error": "An unexpected error occurred. Please restart the app.",
+        "reconnect": "Retry"
     },
     "common": {
         "cancel": "Cancel",

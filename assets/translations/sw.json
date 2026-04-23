@@ -624,7 +624,13 @@
         "loading": "Loading error",
         "phone_updated": "Phone number updated successfully",
         "number_verified": "Number verified",
-        "detail": "Hitilafu: {error}"
+        "detail": "Hitilafu: {error}",
+        "network_error": "Tatizo la unganisho. Angalia mtandao wako.",
+        "timeout_error": "Seva inachukua muda mrefu kujibu.",
+        "permission_denied": "Hukuruhusiwa. Huna ruhusa zinazohitajika.",
+        "auth_failed": "Uthibitishaji umeshindwa. Tafadhali ingia tena.",
+        "unexpected_error": "Hitilafu isiyotarajiwa imetokea. Tafadhali washa programu tena.",
+        "reconnect": "Jaribu tena"
     },
     "common": {
         "cancel": "Cancel",

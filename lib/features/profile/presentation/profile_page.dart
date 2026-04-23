@@ -14,6 +14,7 @@ import 'package:etoile_bleue_mobile/core/locale/app_locale.dart';
 import 'package:go_router/go_router.dart';
 import 'package:etoile_bleue_mobile/features/profile/data/profile_repository.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:etoile_bleue_mobile/core/error/error_handler.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -587,7 +588,7 @@ class _ContactsSheetState extends ConsumerState<_ContactsSheet> {
               Expanded(
                 child: contactsStream.when(
                   loading: () => const Center(child: CupertinoActivityIndicator()),
-                  error: (e, _) => Center(child: Text('errors.detail'.tr(namedArgs: {'error': e.toString()}))),
+                  error: (e, _) => Center(child: Text(ErrorHandler.getLocalizedError(e))),
                   data: (contact) {
                     final hasContact = contact['name'] != null && contact['name']!.isNotEmpty;
                     if (!hasContact) {

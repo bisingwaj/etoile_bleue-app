@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'package:etoile_bleue_mobile/core/router/app_router.dart';
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:etoile_bleue_mobile/core/widgets/global_error_widget.dart';
 import 'package:etoile_bleue_mobile/core/services/call_foreground_service.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
@@ -55,6 +56,17 @@ Locale materialLocaleForFlutterUi(Locale easyLocale) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Global error handling for UI crashes (Red Screen)
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return GlobalErrorWidget(details: details);
+  };
+
+  // Catch framework errors
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+  };
 
   // Parallel initialization of independent SDKs
   await Future.wait<void>([

@@ -12,6 +12,7 @@ import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
 import 'package:etoile_bleue_mobile/core/services/location_service.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/features/incidents/data/incident_repository.dart';
+import 'package:etoile_bleue_mobile/core/error/error_handler.dart';
 
 class SosVocalSheet extends ConsumerStatefulWidget {
   final VoidCallback onSent;
@@ -166,7 +167,7 @@ class _SosVocalSheetState extends ConsumerState<SosVocalSheet> with TickerProvid
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('errors.detail'.tr(namedArgs: {'error': e.toString()}))),
+          SnackBar(content: Text(ErrorHandler.getLocalizedError(e))),
         );
       }
     }
