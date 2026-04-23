@@ -99,7 +99,7 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
                               duration: const Duration(milliseconds: 300),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.3),
+                                  color: Colors.black.withValues(alpha: 0.3),
                                   shape: BoxShape.circle,
                                 ),
                                 padding: const EdgeInsets.all(12),
@@ -184,7 +184,7 @@ class _CourseDetailsPageState extends State<CourseDetailsPage> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: widget.color.withOpacity(0.1),
+              color: widget.color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,

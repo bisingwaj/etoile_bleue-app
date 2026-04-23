@@ -186,22 +186,37 @@ class EmergencyCallService {
     final token = tokenData['token'].toString();
 
     // 4. Créer le call_history (compensate incident on failure)
-    late final Map<String, dynamic> callRes;
+    late final String callId;
     try {
-      callRes = await _supabase.from('call_history').insert({
-        'channel_name': channelName,
-        'caller_name': callerName,
-        'caller_phone': callerPhone,
-        'caller_lat': lat,
-        'caller_lng': lng,
-        'incident_id': incidentId,
-        'citizen_id': userId,
-        'call_type': 'audio', // Must be 'audio' per prompt
-        'status': 'ringing',
-        'agora_token': token,
-        'role': 'citoyen',    // Required by dashboard
-        'has_video': false,   // Required
-      }).select('id').single();
+      // ANTI-DOUBLON CHECK
+      final existingCall = await _supabase.from('call_history')
+          .select('id, status, agora_token')
+          .eq('channel_name', channelName)
+          .inFilter('status', ['ringing', 'active'])
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (existingCall != null) {
+        debugPrint('[EmergencyCall] Anti-doublon: Reusing existing call for $channelName');
+        callId = existingCall['id'] as String;
+      } else {
+        final callRes = await _supabase.from('call_history').insert({
+          'channel_name': channelName,
+          'caller_name': callerName,
+          'caller_phone': callerPhone,
+          'caller_lat': lat,
+          'caller_lng': lng,
+          'incident_id': incidentId,
+          'citizen_id': userId,
+          'call_type': 'audio', // Must be 'audio' per prompt
+          'status': 'ringing',
+          'agora_token': token,
+          'role': 'citoyen',    // Required by dashboard
+          'has_video': false,   // Required
+        }).select('id').single();
+        callId = callRes['id'] as String;
+      }
     } catch (e) {
       debugPrint('[EmergencyCall] call_history insert failed — cleaning orphan incident $incidentId');
       try {
@@ -213,7 +228,7 @@ class EmergencyCallService {
       rethrow;
     }
 
-    _currentCallId = callRes['id'] as String;
+    _currentCallId = callId;
     _currentChannelName = channelName;
 
     // 5. Initialiser Agora et rejoindre le canal
@@ -368,7 +383,7 @@ class EmergencyCallService {
   }
 
   /// Raccrocher — met à jour call_history ET libère les ressources
-  Future<void> hangUp({String endedBy = 'citizen_hangup'}) async {
+  Future<void> hangUp({String endedBy = 'citizen'}) async {
     final callIdToEnd = _currentCallId;
     final channelName = _currentChannelName;
 
@@ -501,7 +516,29 @@ class EmergencyCallService {
       debugPrint('[AnswerCall] Incident ID: $_currentIncidentId');
     }
 
-    // 2. Fallback : si pas de token pré-généré, en demander un nouveau
+    // 2. Mettre à jour le statut en base (par ID, clause idempotente)
+    debugPrint('[AnswerCall] Updating call_history to active...');
+    try {
+      final updateRes = await _supabase.from('call_history').update({
+        'status': 'active',
+        'answered_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', callHistoryId).eq('status', 'ringing').select('id');
+
+      if (updateRes.isEmpty) {
+        debugPrint('[AnswerCall] Call already taken or cancelled, aborting!');
+        _currentChannelName = null;
+        _currentCallId = null;
+        _currentIncidentId = null;
+        throw Exception('Cet appel n\'est plus disponible ou a déjà été pris.');
+      }
+    } catch (e) {
+      _currentChannelName = null;
+      _currentCallId = null;
+      _currentIncidentId = null;
+      rethrow;
+    }
+
+    // 3. Fallback : si pas de token pré-généré, en demander un nouveau
     if (token == null || token.isEmpty) {
       debugPrint('[AnswerCall] No pre-generated token, requesting new one from edge function...');
       final tokenRes = await _supabase.functions.invoke('agora-token', body: {
@@ -523,7 +560,7 @@ class EmergencyCallService {
     }
     debugPrint('[AnswerCall] Token ready (${token.length} chars)');
 
-    // 3. Initialiser Agora et rejoindre le canal
+    // 4. Initialiser Agora et rejoindre le canal
     debugPrint('[AnswerCall] Initializing Agora engine...');
     await _initAgoraEngine();
 
@@ -542,13 +579,6 @@ class EmergencyCallService {
     debugPrint('[AnswerCall] joinChannel call returned');
 
     _startForegroundService(channelName);
-
-    // 4. Mettre à jour le statut en base (par ID, conformément au prompt)
-    debugPrint('[AnswerCall] Updating call_history to active...');
-    await _supabase.from('call_history').update({
-      'status': 'active',
-      'answered_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', callHistoryId);
     debugPrint('[AnswerCall] Complete');
   }
 
@@ -630,30 +660,44 @@ class EmergencyCallService {
     final String patientPhone = userRes?['phone'] ?? '';
 
     // 5. Créer l'entrée call_history pour le rappel — avec operator_id pour cibler l'urgentiste
-    final insertData = <String, dynamic>{
-      'channel_name': channelName,
-      'caller_name': patientName,
-      'caller_phone': patientPhone,
-      'incident_id': incidentId,
-      'citizen_id': userId,
-      'call_type': 'audio',
-      'status': 'ringing',
-      'agora_token': token,
-      'role': 'citoyen',
-      'has_video': false,
-    };
+    // ANTI-DOUBLON CHECK
+    final existingCall = await _supabase.from('call_history')
+        .select('id, status, agora_token')
+        .eq('channel_name', channelName)
+        .inFilter('status', ['ringing', 'active'])
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
 
-    // Conserver l'operator_id pour le routage vers l'urgentiste
-    if (operatorId != null) {
-      insertData['operator_id'] = operatorId;
+    if (existingCall != null) {
+      debugPrint('[EmergencyCall] Anti-doublon: Reusing existing call for $channelName');
+      _currentCallId = existingCall['id'] as String;
+    } else {
+      final insertData = <String, dynamic>{
+        'channel_name': channelName,
+        'caller_name': patientName,
+        'caller_phone': patientPhone,
+        'incident_id': incidentId,
+        'citizen_id': userId,
+        'call_type': 'audio',
+        'status': 'ringing',
+        'agora_token': token,
+        'role': 'citoyen',
+        'has_video': false,
+      };
+
+      // Conserver l'operator_id pour le routage vers l'urgentiste
+      if (operatorId != null) {
+        insertData['operator_id'] = operatorId;
+      }
+
+      final callRes = await _supabase.from('call_history')
+          .insert(insertData)
+          .select('id')
+          .single();
+
+      _currentCallId = callRes['id'] as String;
     }
-
-    final callRes = await _supabase.from('call_history')
-        .insert(insertData)
-        .select('id')
-        .single();
-
-    _currentCallId = callRes['id'] as String;
 
     // 6. Initialiser Agora et rejoindre le canal
     await _initAgoraEngine();

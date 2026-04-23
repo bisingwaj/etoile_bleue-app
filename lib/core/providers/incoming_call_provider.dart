@@ -111,7 +111,7 @@ final incomingCallListenerProvider = Provider<void>((ref) {
             final status = record['status'] as String?;
             final callId = record['id'] as String?;
 
-            if (status == 'completed' || status == 'missed' || status == 'failed') {
+            if (status == 'completed' || status == 'missed' || status == 'failed' || status == 'abandoned') {
               final currentState = ref.read(callStateProvider);
               if (currentState.status == ActiveCallStatus.incomingRinging && currentState.callHistoryId == callId) {
                 debugPrint('[IncomingCall] Remote operator cancelled the call. Closing incoming UI.');
@@ -145,11 +145,35 @@ final incomingCallListenerProvider = Provider<void>((ref) {
         });
   }
 
+  final observer = _LifecycleObserver(onResumed: () {
+    debugPrint('[IncomingCall] App resumed, refreshing Realtime subscription...');
+    // Slight backoff on resume to avoid socket race conditions
+    retryTimer?.cancel();
+    retryTimer = Timer(const Duration(milliseconds: 500), () {
+      subscribe();
+    });
+  });
+
+  WidgetsBinding.instance.addObserver(observer);
   subscribe();
 
   ref.onDispose(() {
     debugPrint('[IncomingCall] Disposing Realtime subscription');
+    WidgetsBinding.instance.removeObserver(observer);
     retryTimer?.cancel();
     channel?.unsubscribe();
   });
 });
+
+class _LifecycleObserver extends WidgetsBindingObserver {
+  final VoidCallback onResumed;
+
+  _LifecycleObserver({required this.onResumed});
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResumed();
+    }
+  }
+}
