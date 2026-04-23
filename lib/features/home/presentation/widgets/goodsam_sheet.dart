@@ -127,17 +127,38 @@ class _GoodSamSheetState extends State<GoodSamSheet> with SingleTickerProviderSt
             
             // Rescuer Profile Card (Removed as per request)
             const SizedBox(height: 32),
+            if (_state == SamState.notFound)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.parse('tel:199');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                  icon: const Icon(CupertinoIcons.phone_fill, size: 18, color: Colors.white),
+                  label: Text('incident_detail.call_center'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 16),
             TextButton(
               onPressed: () {
-                 if (_state == SamState.searching) {
-                   widget.onCancel();
-                   Navigator.pop(context);
-                 } else {
-                   // If already found, close and consider it active
-                   Navigator.pop(context);
-                 }
+                if (_state == SamState.searching) {
+                  widget.onCancel();
+                }
+                Navigator.pop(context);
               },
-              child: Text(_state == SamState.searching ? 'goodsam.cancel_search'.tr() : 'goodsam.close'.tr(), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+              child: Text(
+                _state == SamState.searching ? 'goodsam.cancel_search'.tr() : 'goodsam.close'.tr(), 
+                style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)
+              ),
             ),
           ],
         ),
