@@ -211,7 +211,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     _buildSectionHeader('profile.account'.tr()),
                     _buildCardGroup([
                       _buildListTile(context, icon: CupertinoIcons.globe, color: AppColors.blue, title: 'profile.change_lang'.tr(), onTap: () => _openSheet(context, const _LanguageSheet())),
-                      _buildListTile(context, icon: CupertinoIcons.settings, color: Colors.grey[700]!, title: 'profile.system_settings'.tr(), onTap: () {}),
+                      // _buildListTile(context, icon: CupertinoIcons.settings, color: Colors.grey[700]!, title: 'profile.system_settings'.tr(), onTap: () {}),
                       _buildListTile(context, icon: CupertinoIcons.square_arrow_right, color: AppColors.red, title: 'profile.logout'.tr(), isLast: true, onTap: () {
                         GoRouter.of(context).go('/logout');
                       }),
