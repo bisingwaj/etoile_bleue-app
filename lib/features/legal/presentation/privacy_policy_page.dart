@@ -14,6 +14,9 @@ class PrivacyPolicyPage extends StatelessWidget {
     (titleKey: 'privacy_policy.s5_title', bodyKey: 'privacy_policy.s5_body'),
     (titleKey: 'privacy_policy.s6_title', bodyKey: 'privacy_policy.s6_body'),
     (titleKey: 'privacy_policy.s7_title', bodyKey: 'privacy_policy.s7_body'),
+    (titleKey: 'privacy_policy.s8_title', bodyKey: 'privacy_policy.s8_body'),
+    (titleKey: 'privacy_policy.s9_title', bodyKey: 'privacy_policy.s9_body'),
+    (titleKey: 'privacy_policy.s10_title', bodyKey: 'privacy_policy.s10_body'),
   ];
 
   @override

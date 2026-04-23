@@ -357,7 +357,13 @@
     "s6_title": "6. Arifa, mwenyeji na wasindikaji",
     "s6_body": "Arifa za push zinaweza kutumwa kwa tahadhari au taarifa za huduma. Programu inategemea watoa huduma wa kiufundi (mwenyeji wa wingu, hifadhidata, uthibitisho, uhifadhi wa faili, ujumbe wa push, pengine sauti ya moja kwa moja) katika mazingira yenye usalama wa kawaida. Wasindikaji hushughulikia data kwa niaba ya huduma na maagizo ya mwenye data.",
     "s7_title": "7. Uhifadhi, haki na mawasiliano",
-    "s7_body": "Data inahifadhiwa kwa muda unaohitajika kwa madhumuni hapo juu na wajibu wa kisheria. Kwa kuendana na sheria, unaweza kuomba ufikiaji, urekebishaji au ufutaji wa data yako inapohusika. Maswali kuhusu sera hii au data yako: tumia anwani rasmi ya Wizara ya Afya au msaada ulio katika programu. Maandishi yanaweza kusasishwa; tarehe ya mwanzo inaonyesha toleo la sasa."
+    "s7_body": "Data inahifadhiwa kwa muda unaohitajika kwa madhumuni hapo juu na wajibu wa kisheria. Kwa kuendana na sheria, unaweza kuomba ufikiaji, urekebishaji au ufutaji wa data yako inapohusika. Maswali kuhusu sera hii au data yako: tumia anwani rasmi ya Wizara ya Afya au msaada ulio katika programu. Maandishi yanaweza kusasishwa; tarehe ya mwanzo inaonyesha toleo la sasa.",
+    "s8_title": "8. Mahali na ufuatiliaji wa nyuma",
+    "s8_body": "Ili kuhakikisha usalama wako wakati wa dharura, programu inakusanya data yako ya mahali hata wakati programu imefungwa au haitumiki. Kipengele hiki ni muhimu kuruhusu huduma za dharura kukuona kwa usahihi na kufuata mahali pako kwa muda halisi mpaka wafike eneo la tukio. Unaweza kuzima ufikiaji huu katika mipangilio ya simu yako, lakini hii itazuia ufuatiliaji wa moja kwa moja ikiwa uko hatarini.",
+    "s9_title": "9. Ufikiaji wa maikrofoni na kamera",
+    "s9_body": "Ufikiaji wa maikrofoni unahitajika kwa mawasiliano ya sauti na kituo cha usimamizi wakati wa simu ya dharura. Kamera inatumiwa tu ikiwa unachagua kuwasha simu ya video au kuambatisha ushahidi wa picha au video kwenye ripoti. Mitiririko hii huwashwa tu wakati wa hatua ya wazi kutoka kwako na hairekodiwi kamwe bila ujuzi wako.",
+    "s10_title": "10. Onyesho kwenye skrini iliyofungwa",
+    "s10_body": "Programu inaweza kuonyeshwa juu ya skrini iliyofungwa na kuamsha skrini yako wakati wa tukio ambalo linafanya kazi. Hii inafanya taarifa muhimu na udhibiti wa simu kupatikana mara moja tanpa kulazimika kufungua simu yako katika hali ya mkazo mkubwa au dharura kabisa."
   },
   "signalement": {
     "form_title": "Ripoti mpya",

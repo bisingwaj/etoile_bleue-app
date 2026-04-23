@@ -357,7 +357,13 @@
     "s6_title": "6. Notifications, hosting and subprocessors",
     "s6_body": "Push notifications may be sent for alerts or service-related information. The app relies on technical providers (cloud hosting, database, authentication, file storage, push messaging, possibly real-time audio) in environments that follow standard security practices. Subprocessors only process data on behalf of the service and under the controller’s instructions.",
     "s7_title": "7. Retention, rights and contact",
-    "s7_body": "Data is kept for as long as necessary for the purposes above and applicable legal obligations. Under applicable law, you may request access, rectification or erasure of your data where such rights apply. For questions about this policy or your data, use the official Ministry of Health or in-app support contacts. This text may be updated; the “last updated” date at the top indicates the current version."
+    "s7_body": "Data is kept for as long as necessary for the purposes above and applicable legal obligations. Under applicable law, you may request access, rectification or erasure of your data where such rights apply. For questions about this policy or your data, use the official Ministry of Health or in-app support contacts. This text may be updated; the “last updated” date at the top indicates the current version.",
+    "s8_title": "8. Location and background tracking",
+    "s8_body": "To ensure your safety during an emergency, the app collects your location data even when the app is closed or not in use. This feature is essential to allow emergency services to locate you precisely and follow your position in real-time until they arrive on site. You can disable this access in your phone settings, but this will prevent automatic tracking in case of distress.",
+    "s9_title": "9. Microphone and camera access",
+    "s9_body": "Microphone access is required for voice communication with the dispatch center during an emergency call. The camera is only used if you choose to enable video call or to attach visual evidence (photos/videos) to a report. These streams are only activated during an explicit action from you and are never recorded without your knowledge.",
+    "s10_title": "10. Lock screen display",
+    "s10_body": "The app can be displayed over the lock screen and wake up your screen during an active incident. This keeps vital information and call controls instantly accessible without having to unlock your phone in high-stress or absolute emergency situations."
   },
   "signalement": {
     "form_title": "New report",

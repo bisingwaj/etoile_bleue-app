@@ -357,7 +357,13 @@
     "s6_title": "6. Notifications, hosting and subprocessors",
     "s6_body": "Push notifications may be sent for alerts or service-related information. The app relies on technical providers (cloud hosting, database, authentication, file storage, push messaging, possibly real-time audio) in environments that follow standard security practices. Subprocessors only process data on behalf of the service and under the controller’s instructions.",
     "s7_title": "7. Retention, rights and contact",
-    "s7_body": "Data is kept for as long as necessary for the purposes above and applicable legal obligations. Under applicable law, you may request access, rectification or erasure of your data where such rights apply. For questions about this policy or your data, use the official Ministry of Health or in-app support contacts. This text may be updated; the “last updated” date at the top indicates the current version."
+    "s7_body": "Data is kept for as long as necessary for the purposes above and applicable legal obligations. Under applicable law, you may request access, rectification or erasure of your data where such rights apply. For questions about this policy or your data, use the official Ministry of Health or in-app support contacts. This text may be updated; the “last updated” date at the top indicates the current version.",
+    "s8_title": "8. Esika mpe bolandi na nsima",
+    "s8_body": "Mpo na kobatela yo ntango likama ebimi, aplikasion ekozwa esika ozali mpe ntango aplikasion ekangami to ozali kosalela yango te. Likambo oyo ezali na ntina mingi mpo na kosala ete basungi bamonela yo mpenza mpe balanda yo na ntango mpenza tii bakokoma epai ozali. Okoki kolongola likambo oyo na ndenge ya simu na yo, kasi yango ekopekisa biso kolanda yo soki likama ebimi.",
+    "s9_title": "9. Bokoti na microphone mpe caméra",
+    "s9_body": "Tosengeli na microphone mpo na kosolola na ba basungi ntango obengi mpo na likama. Tosalelaka caméra kaka soki oponi kosala appel vidéo to soki olingi kotinda bafoto to bavideo na liyebisi na yo. Makambo oyo esalemaka kaka ntango yo moko opesaki nzela mpe ekoki kotalama te soki oyebi yango te.",
+    "s10_title": "10. Komonana na écran oyo ekangami",
+    "s10_body": "Aplikasion ekoki komonana likolo ya écran oyo ekangami mpe ekoki kopelisa écran na yo ntango likama ezali kosalema. Yango esalaka ete ozwa makambo ya ntina mingi mpe okoka kobenga basungi kozanga ete ofungola simu na yo na ntango ya mobulu to ya likama monene."
   },
   "signalement": {
     "form_title": "Liyebisi ya sika",
