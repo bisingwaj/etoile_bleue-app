@@ -32,6 +32,7 @@ class EmergencyCallService {
   bool _isMuted = false;
   bool _isVideoOn = false;
   bool _isSpeakerOn = true;
+  bool _pendingCallAborted = false; // Flag to handle hangup during initiation
 
   // Callbacks pour l'UI
   void Function(bool joined)? onJoinChanged;
@@ -70,6 +71,7 @@ class EmergencyCallService {
     String type = 'urgence_medicale',
     String description = '',
   }) async {
+    _pendingCallAborted = false; // Reset flag at start
     await [Permission.microphone, Permission.camera].request();
 
     // 1. Récupérer la télémétrie de l'appareil
@@ -280,6 +282,19 @@ class EmergencyCallService {
         }).select('id').single();
         callId = callRes['id'] as String;
       }
+
+      // 🛡️ ABORT CHECK: If user hung up while we were inserting, close it now
+      if (_pendingCallAborted) {
+        debugPrint('[EmergencyCall] Aborting pending call $callId (user hung up during initiation)');
+        await _supabase.from('call_history').update({
+          'status': 'completed',
+          'ended_at': DateTime.now().toUtc().toIso8601String(),
+          'ended_by': 'citizen',
+        }).eq('id', callId);
+        
+        // Throw to stop the rest of startSOSCall (Agora join, push, etc.)
+        throw Exception('CANCELED_BY_USER');
+      }
     } catch (e) {
       debugPrint('[EmergencyCall] call_history insert failed — cleaning orphan incident $incidentId');
       try {
@@ -449,6 +464,7 @@ class EmergencyCallService {
     final user = _supabase.auth.currentUser;
     final callIdToEnd = _currentCallId;
     final channelName = _currentChannelName;
+    _pendingCallAborted = true; // Mark any in-flight initiation as aborted
     
     try {
       if (user != null && channelName != null) {

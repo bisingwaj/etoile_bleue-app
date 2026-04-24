@@ -189,8 +189,6 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
             value: incidentId,
           ),
           callback: (payload) {
-            final dispatch = payload.newRecord;
-            final status = dispatch['status'] as String?;
             if (!mounted) return;
             // Status update received, but _trackingStep is currently unused in UI
           },
