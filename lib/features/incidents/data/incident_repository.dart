@@ -48,7 +48,7 @@ class IncidentRepository {
       rethrow;
     }
 
-    final downloadUrl = _db.storage.from('incidents').getPublicUrl(path);
+    final downloadUrl = await _db.storage.from('incidents').createSignedUrl(path, 604800);
     debugPrint('[IncidentRepository] ✅ Média uploadé: $downloadUrl');
     return downloadUrl;
   }
@@ -66,8 +66,9 @@ class IncidentRepository {
   }) async {
     if (_uid == null) throw Exception('Utilisateur non connecté');
 
-    // Générer une référence unique
+    // Générer une référence unique (fallback car le trigger DB semble inactif)
     final ref = 'SIG-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+
 
     // Récupérer le nom de l'appelant depuis users_directory
     String? callerName;
@@ -104,7 +105,7 @@ class IncidentRepository {
     }).select('id').single();
 
     final docId = response['id'].toString();
-    debugPrint('[IncidentRepository] ✅ Incident créé: $docId');
+    debugPrint('[IncidentRepository] ✅ Incident créé: $docId ($ref)');
     return docId;
   }
 

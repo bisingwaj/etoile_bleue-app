@@ -270,7 +270,6 @@ class FcmService {
     if (isIncomingCall) {
       final callId = (data['callId'] ?? data['call_id'] ?? '') as String;
       final channelName = (data['channelName'] ?? data['channel_name'] ?? '') as String;
-      final callerName = (data['callerName'] ?? data['caller_name'] ?? 'Centre d\'appels Étoile Bleue') as String;
       final hasVideo = data['hasVideo'] == 'true' || data['has_video'] == 'true';
 
       debugPrint('[PUSH] → Incoming call detected!');

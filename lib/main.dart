@@ -148,6 +148,7 @@ void _setupCallKitListener(ProviderContainer container) {
           container.read(callStateProvider.notifier).setIncomingCall(
             channelName: channelName,
             callHistoryId: callId,
+            callerName: 'Étoile Bleue',
           );
         } else {
           debugPrint('[main] WARNING: Could not recover channelName for callId=$callId');

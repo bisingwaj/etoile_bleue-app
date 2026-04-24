@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/callkit_service.dart';
+import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:etoile_bleue_mobile/features/auth/providers/auth_provider.dart';
 
 /// Sets up a Supabase Realtime subscription on `call_history` to detect
@@ -23,6 +24,9 @@ final incomingCallListenerProvider = Provider<void>((ref) {
   }
 
   debugPrint('[IncomingCall] Setting up Realtime subscription for citizen_id=$userId');
+
+  // §4.7: Nettoyage des appels orphelins au démarrage (après crash/kill)
+  ref.read(emergencyCallServiceProvider).recoverOrphanCalls();
 
   RealtimeChannel? channel;
   Timer? retryTimer;
@@ -111,7 +115,7 @@ final incomingCallListenerProvider = Provider<void>((ref) {
             final status = record['status'] as String?;
             final callId = record['id'] as String?;
 
-            if (status == 'completed' || status == 'missed' || status == 'failed' || status == 'abandoned') {
+            if (status == 'completed' || status == 'missed' || status == 'failed') {
               final currentState = ref.read(callStateProvider);
               if (currentState.status == ActiveCallStatus.incomingRinging && currentState.callHistoryId == callId) {
                 debugPrint('[IncomingCall] Remote operator cancelled the call. Closing incoming UI.');

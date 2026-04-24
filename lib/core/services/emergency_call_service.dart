@@ -12,6 +12,17 @@ import 'package:etoile_bleue_mobile/core/services/telemetry_service.dart';
 
 final String agoraAppId = dotenv.env['AGORA_APP_ID'] ?? 'e2e0e5a6ef0d4ce3b2ab9efad48d62cf';
 
+String? toIso6393(String? localeOrPref) {
+  if (localeOrPref == null) return null;
+  final raw = localeOrPref.toLowerCase();
+  // Préférences explicites de l'app
+  if (raw == 'lingala' || raw.startsWith('ln')) return 'lin';
+  if (raw == 'swahili' || raw.startsWith('sw')) return 'swa';
+  if (raw == 'english' || raw.startsWith('en')) return 'eng';
+  if (raw == 'francais' || raw == 'français' || raw.startsWith('fr')) return 'fra';
+  return null;
+}
+
 class EmergencyCallService {
   final SupabaseClient _supabase;
   RtcEngine? _engine;
@@ -132,8 +143,41 @@ class EmergencyCallService {
 
         incidentId = existing['id'] as String;
         channelName = existing['reference'] as String;
-      } else if (e.code == 'P0001' && e.message.contains('just ended')) {
-        debugPrint('[EmergencyCall] Incident just ended. Waiting 3 seconds before retrying...');
+      } else if (e.code == 'P0001' && (e.message.contains('just ended') || e.message.contains('Duplicate incident'))) {
+        debugPrint('[EmergencyCall] Duplicate incident or just ended detected. Reusing existing call record...');
+        
+        final existing = await _supabase
+          .from('call_history')
+          .select('id, channel_name, agora_token')
+          .eq('citizen_id', userId)
+          .inFilter('status', ['ringing', 'active'])
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+        if (existing != null) {
+          _currentCallId = existing['id'] as String;
+          _currentChannelName = existing['channel_name'] as String;
+          final token = existing['agora_token'] as String;
+          
+          // Join the existing channel
+          await _initAgoraEngine();
+          await _engine!.joinChannel(
+            token: token,
+            channelId: _currentChannelName!,
+            uid: 0,
+            options: const ChannelMediaOptions(
+              clientRoleType: ClientRoleType.clientRoleBroadcaster,
+              channelProfile: ChannelProfileType.channelProfileCommunication,
+              publishMicrophoneTrack: true,
+              autoSubscribeAudio: true,
+            ),
+          );
+          
+          return _currentCallId;
+        }
+
+        debugPrint('[EmergencyCall] No existing active call found to join. Waiting 3 seconds before retrying...');
         await Future.delayed(const Duration(seconds: 3));
         
         final reference = 'SOS-${DateTime.now().millisecondsSinceEpoch}';
@@ -201,6 +245,23 @@ class EmergencyCallService {
         debugPrint('[EmergencyCall] Anti-doublon: Reusing existing call for $channelName');
         callId = existingCall['id'] as String;
       } else {
+        // Language Hint Logic
+        String? hint;
+        try {
+          final profileLang = await _supabase
+              .from('profiles')
+              .select('preferred_language')
+              .eq('user_id', userId)
+              .maybeSingle();
+              
+          hint = toIso6393(
+            profileLang?['preferred_language'] as String?
+            ?? Platform.localeName,
+          );
+        } catch (e) {
+          debugPrint('[EmergencyCall] Language hint error: $e');
+        }
+
         final callRes = await _supabase.from('call_history').insert({
           'channel_name': channelName,
           'caller_name': callerName,
@@ -211,9 +272,11 @@ class EmergencyCallService {
           'citizen_id': userId,
           'call_type': 'audio', // Must be 'audio' per prompt
           'status': 'ringing',
+          'caller_preferred_language': hint,
           'agora_token': token,
           'role': 'citoyen',    // Required by dashboard
           'has_video': false,   // Required
+          'started_at': DateTime.now().toUtc().toIso8601String(),
         }).select('id').single();
         callId = callRes['id'] as String;
       }
@@ -320,16 +383,15 @@ class EmergencyCallService {
       },
       onUserJoined: (connection, remoteUid, elapsed) async {
         debugPrint('[Agora] onUserJoined: uid=$remoteUid');
-        // Set answered_at only if status is still 'ringing' (SOS flow).
-        // For incoming calls, answerIncomingCall() already wrote it.
+        // ❌ POINT 2 : Ne JAMAIS écrire 'status': 'active' depuis le mobile.
+        // Seul le dashboard transite via claim_incoming_call.
         if (_currentCallId != null) {
           try {
             await _supabase.from('call_history').update({
-              'status': 'active',
               'answered_at': DateTime.now().toUtc().toIso8601String(),
             }).eq('id', _currentCallId!).eq('status', 'ringing');
           } catch (e) {
-            debugPrint('[Agora] Failed to update call_history on remote join: $e');
+            debugPrint('[Agora] Failed to update answered_at on remote join: $e');
           }
         }
         onRemoteUserJoined?.call(remoteUid);
@@ -384,84 +446,46 @@ class EmergencyCallService {
 
   /// Raccrocher — met à jour call_history ET libère les ressources
   Future<void> hangUp({String endedBy = 'citizen'}) async {
+    final user = _supabase.auth.currentUser;
     final callIdToEnd = _currentCallId;
     final channelName = _currentChannelName;
-
-    // Prefer update by ID (per prompt §4.7), fallback to channel_name
-    if (callIdToEnd != null || channelName != null) {
-      try {
-        final now = DateTime.now().toUtc();
-        
-        // Fetch answered_at to calculate duration
-        Map<String, dynamic>? callData;
-        if (callIdToEnd != null) {
-          callData = await _supabase
-              .from('call_history')
-              .select('answered_at')
-              .eq('id', callIdToEnd)
-              .maybeSingle();
-        } else {
-          callData = await _supabase
-              .from('call_history')
-              .select('answered_at')
-              .eq('channel_name', channelName!)
-              .inFilter('status', ['ringing', 'active'])
-              .limit(1)
-              .maybeSingle();
-        }
-            
-        int? durationSeconds;
-        if (callData != null && callData['answered_at'] != null) {
-          final answeredAt = DateTime.parse(callData['answered_at']);
-          durationSeconds = now.difference(answeredAt).inSeconds;
-        }
-
-        final updateData = <String, dynamic>{
+    
+    try {
+      if (user != null && channelName != null) {
+        await _supabase.from('call_history').update({
           'status': 'completed',
-          'ended_at': now.toIso8601String(),
+          'ended_at': DateTime.now().toUtc().toIso8601String(),
           'ended_by': endedBy,
-        };
-        
-        if (durationSeconds != null && durationSeconds >= 0) {
-          updateData['duration_seconds'] = durationSeconds;
-        }
-
-        if (callIdToEnd != null) {
-          await _supabase
-              .from('call_history')
-              .update(updateData)
-              .eq('id', callIdToEnd);
-        } else {
-          await _supabase
-              .from('call_history')
-              .update(updateData)
-              .eq('channel_name', channelName!)
-              .inFilter('status', ['ringing', 'active']);
-        }
-      } catch (e) {
-        debugPrint('[EmergencyCall] hangUp DB update failed (non-fatal): $e');
+        }).eq('channel_name', channelName)
+          .eq('citizen_id', user.id)
+          .not('status', 'in', ['completed', 'missed', 'failed']); // ❌ Retrait de 'cancelled' (n'existe pas)
+          
+          
+        debugPrint('[EmergencyCall] hangUp: DB status updated to completed');
       }
+    } catch (e) {
+      debugPrint('[EmergencyCall] hangUp DB update failed (best-effort): $e');
+    } finally {
+      // Nettoyage impératif des ressources
+      await _engine?.leaveChannel();
+      await _engine?.release();
+      _engine = null;
+      _currentChannelName = null;
+      _currentCallId = null;
+      _currentIncidentId = null;
+      _isMuted = false;
+      _isVideoOn = false;
+      _isSpeakerOn = true;
+
+      if (callIdToEnd != null) {
+        CallKitService.endCall(callIdToEnd);
+      }
+      CallKitService.endAllCalls();
+      _stopForegroundService();
+
+      onJoinChanged?.call(false);
+      onCallEnded?.call();
     }
-
-    await _engine?.leaveChannel();
-    await _engine?.release();
-    _engine = null;
-    _currentChannelName = null;
-    _currentCallId = null;
-    _currentIncidentId = null;
-    _isMuted = false;
-    _isVideoOn = false;
-    _isSpeakerOn = true;
-
-    // End native call UI and stop foreground service
-    if (callIdToEnd != null) {
-      CallKitService.endCall(callIdToEnd);
-    }
-    CallKitService.endAllCalls();
-    _stopForegroundService();
-
-    onJoinChanged?.call(false);
-    onCallEnded?.call();
   }
 
   bool get isMuted => _isMuted;
@@ -516,13 +540,12 @@ class EmergencyCallService {
       debugPrint('[AnswerCall] Incident ID: $_currentIncidentId');
     }
 
-    // 2. Mettre à jour le statut en base (par ID, clause idempotente)
-    debugPrint('[AnswerCall] Updating call_history to active...');
+    // ❌ POINT 2 : Ne JAMAIS écrire 'status': 'active' depuis le mobile.
+    debugPrint('[AnswerCall] Reporting answer time to call_history...');
     try {
       final updateRes = await _supabase.from('call_history').update({
-        'status': 'active',
         'answered_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', callHistoryId).eq('status', 'ringing').select('id');
+      }).eq('id', callHistoryId).select('id');
 
       if (updateRes.isEmpty) {
         debugPrint('[AnswerCall] Call already taken or cancelled, aborting!');
@@ -585,7 +608,7 @@ class EmergencyCallService {
   /// Rejeter un appel entrant du dashboard
   Future<void> rejectIncomingCall(String callHistoryId, {String? channelName}) async {
     final updateQuery = _supabase.from('call_history').update({
-      'status': 'missed',
+      'status': 'completed',
       'ended_at': DateTime.now().toUtc().toIso8601String(),
       'ended_by': 'citizen_rejected',
     });
@@ -598,6 +621,41 @@ class EmergencyCallService {
 
     CallKitService.endCall(callHistoryId);
   }
+
+  /// Nettoyage des appels orphelins (après crash/kill) — version 2.0
+  Future<void> recoverOrphanCalls() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1. Sélectionner les appels orphelins (> 30s d'existence sans status terminal)
+      final now = DateTime.now().toUtc();
+      final threshold = now.subtract(const Duration(seconds: 30)).toIso8601String();
+      
+      final orphans = await _supabase
+          .from('call_history')
+          .select('id, channel_name')
+          .eq('citizen_id', user.id)
+          .inFilter('status', ['ringing', 'active'])
+          .lt('updated_at', threshold);
+
+      if (orphans.isNotEmpty) {
+        for (final row in orphans as List) {
+          await _supabase.from('call_history').update({
+            'status': 'completed',
+            'ended_at': now.toIso8601String(),
+            'ended_by': 'citizen_recovery',
+          }).eq('id', row['id']);
+          debugPrint('[CallLifecycle] Recovered orphan call: ${row['channel_name']}');
+        }
+      }
+    } catch (e) {
+      debugPrint('[CallLifecycle] Recovery failed: $e');
+    }
+  }
+
+  /// Alias pour compatibilité
+  Future<void> checkAndCleanupOrphanCalls() => recoverOrphanCalls();
 
   /// Rappeler — initie un nouvel appel de rappel vers l'urgentiste
   /// qui avait précédemment appelé le patient (appel manqué ou terminé).

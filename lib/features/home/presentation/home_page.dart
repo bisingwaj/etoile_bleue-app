@@ -19,7 +19,6 @@ import 'package:audioplayers/audioplayers.dart';
 
 import '../../../core/utils/dynamic_island_toast.dart';
 import '../../training/presentation/training_page.dart';
-import 'full_screen_map_page.dart';
 import 'package:etoile_bleue_mobile/core/providers/call_state_provider.dart';
 import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:etoile_bleue_mobile/core/providers/active_intervention_provider.dart';
@@ -50,7 +49,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
   Position? _currentPosition;
   String _currentAddress = "Recherche position...";
   
-  bool _isLocationGranted = false;
+
   bool _isSosTriggered = false;
   bool _isMapLoaded = false;
   bool _hasFittedBounds = false;
@@ -204,7 +203,7 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       return;
     } 
 
-    if (mounted) setState(() => _isLocationGranted = true);
+
 
     try {
       debugPrint("=== GPS: Calling getLastKnownPosition ===");

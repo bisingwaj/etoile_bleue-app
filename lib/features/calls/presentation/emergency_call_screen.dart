@@ -36,7 +36,6 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
   Timer? _connectionIssueTimer;
 
   // Incident tracking
-  IncidentTrackingStep _trackingStep = IncidentTrackingStep.processing;
   RealtimeChannel? _dispatchChannel;
 
   // Recommendations from dispatcher (Realtime on incidents table)
@@ -193,17 +192,7 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
             final dispatch = payload.newRecord;
             final status = dispatch['status'] as String?;
             if (!mounted) return;
-            setState(() {
-              if (status == 'dispatched') {
-                _trackingStep = IncidentTrackingStep.dispatched;
-              } else if (status == 'en_route') {
-                _trackingStep = IncidentTrackingStep.enRoute;
-              } else if (status == 'arrived') {
-                _trackingStep = IncidentTrackingStep.arrived;
-              } else if (status == 'completed') {
-                _trackingStep = IncidentTrackingStep.completed;
-              }
-            });
+            // Status update received, but _trackingStep is currently unused in UI
           },
         )
         .subscribe();

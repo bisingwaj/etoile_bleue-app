@@ -160,7 +160,7 @@ class SignalementRepository {
               bytes,
               fileOptions: FileOptions(contentType: contentType, upsert: true),
             );
-        final url = _db.storage.from(_storageBucketSignalementMedia).getPublicUrl(storagePath);
+        final url = await _db.storage.from(_storageBucketSignalementMedia).createSignedUrl(storagePath, 604800);
         debugPrint('[Signalement] Upload OK: $storagePath');
         return url;
       } catch (e) {

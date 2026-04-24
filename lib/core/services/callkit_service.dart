@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -20,21 +19,7 @@ class CallKitService {
       FlutterLocalNotificationsPlugin();
   static bool _localNotificationsInitialized = false;
 
-  /// Initialize local notifications for Android incoming call alerts
-  static Future<void> _ensureLocalNotificationsInit() async {
-    if (_localNotificationsInitialized) return;
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidInit);
-    await _localNotifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (response) {
-        // Tapping the notification brings the app to foreground
-        debugPrint('[CallKit] Notification tapped, launching app');
-        FlutterForegroundTask.launchApp();
-      },
-    );
-    _localNotificationsInitialized = true;
-  }
+
 
   /// Demande les permissions nécessaires pour Android 13/14+
   static Future<void> requestPermissions() async {
