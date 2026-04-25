@@ -250,6 +250,12 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
 
     // 🛡️ BUSY GUARD (Auto-reject)
     if (state.isInCall || state.status == ActiveCallStatus.connecting) {
+      // Don't reject if it's the SAME call we are already handling (duplicate event)
+      if (state.callHistoryId == callHistoryId) {
+        debugPrint('[CallState] setIncomingCall: duplicate event for current call $callHistoryId — ignoring');
+        return;
+      }
+
       debugPrint('[CallState] setIncomingCall busy: already in call/connecting — auto-rejecting new call $callHistoryId');
       _service.rejectIncomingCall(callHistoryId).catchError((e) {
         debugPrint('[CallState] Auto-reject failed: $e');

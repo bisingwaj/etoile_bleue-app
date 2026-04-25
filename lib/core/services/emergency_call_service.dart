@@ -402,9 +402,13 @@ class EmergencyCallService {
         // Seul le dashboard transite via claim_incoming_call.
         if (_currentCallId != null) {
           try {
-            await _supabase.from('call_history').update({
-              'answered_at': DateTime.now().toUtc().toIso8601String(),
-            }).eq('id', _currentCallId!).eq('status', 'ringing');
+            // Uniquement si on n'a pas déjà marqué comme répondu
+            final call = await fetchIncomingCall(_currentCallId!);
+            if (call != null && call['answered_at'] == null) {
+              await _supabase.from('call_history').update({
+                'answered_at': DateTime.now().toUtc().toIso8601String(),
+              }).eq('id', _currentCallId!).eq('status', 'ringing');
+            }
           } catch (e) {
             debugPrint('[Agora] Failed to update answered_at on remote join: $e');
           }
