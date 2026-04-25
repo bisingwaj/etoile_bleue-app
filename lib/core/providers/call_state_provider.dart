@@ -7,6 +7,7 @@ import 'package:etoile_bleue_mobile/core/services/emergency_call_service.dart';
 import 'package:etoile_bleue_mobile/core/services/call_sound_service.dart';
 import 'package:etoile_bleue_mobile/core/services/cloud_recording_service.dart';
 import 'package:etoile_bleue_mobile/core/services/location_service.dart';
+import 'package:etoile_bleue_mobile/core/utils/error_utils.dart';
 
 enum ActiveCallStatus {
   idle,
@@ -34,6 +35,7 @@ class ActiveCallState {
   final String? blockedReason;
   final bool isSosCall;
   final DateTime? activeSince;
+  final String? errorMessage;
 
   const ActiveCallState({
     this.status = ActiveCallStatus.idle,
@@ -50,6 +52,7 @@ class ActiveCallState {
     this.blockedReason,
     this.isSosCall = false,
     this.activeSince,
+    this.errorMessage,
   });
 
   ActiveCallState copyWith({
@@ -73,6 +76,8 @@ class ActiveCallState {
     bool? isSosCall,
     DateTime? activeSince,
     bool clearActiveSince = false,
+    String? errorMessage,
+    bool clearErrorMessage = false,
   }) {
     return ActiveCallState(
       status: status ?? this.status,
@@ -89,6 +94,7 @@ class ActiveCallState {
       blockedReason: blockedReason ?? this.blockedReason,
       isSosCall: isSosCall ?? this.isSosCall,
       activeSince: clearActiveSince ? null : (activeSince ?? this.activeSince),
+      errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
     );
   }
 
@@ -160,13 +166,34 @@ class CallStateNotifier extends StateNotifier<ActiveCallState> {
       _tryStopRecording();
       _location.stopCitizenTracking();
       _endedResetTimer?.cancel();
-      state = const ActiveCallState(status: ActiveCallStatus.ended);
-      _endedResetTimer = Timer(const Duration(seconds: 2), () {
-        if (mounted) {
-          state = const ActiveCallState();
-        }
-      });
+      state = state.copyWith(status: ActiveCallStatus.ended);
+      _startEndedResetTimer();
     };
+
+    _service.onCallError = (err, msg) {
+      debugPrint('[CallState] Agora error reported: $err ($msg)');
+      final userFriendlyMsg = ErrorUtils.getAgoraErrorMessage(err);
+      state = state.copyWith(
+        status: ActiveCallStatus.ended,
+        errorMessage: userFriendlyMsg,
+      );
+      _sounds.stopRingback();
+      _sounds.playEnded();
+      _stopCallStatusListener();
+      _stopHeartbeat();
+      _tryStopRecording();
+      _location.stopCitizenTracking();
+      _startEndedResetTimer();
+    };
+  }
+
+  void _startEndedResetTimer() {
+    _endedResetTimer?.cancel();
+    _endedResetTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        state = const ActiveCallState();
+      }
+    });
   }
 
   Future<void> startSosCall({double? lat, double? lng}) async {

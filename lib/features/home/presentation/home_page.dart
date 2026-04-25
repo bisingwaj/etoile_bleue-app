@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:etoile_bleue_mobile/core/theme/app_theme.dart';
+import 'package:etoile_bleue_mobile/core/utils/error_utils.dart';
 import 'package:etoile_bleue_mobile/core/utils/tracking_utils.dart';
 import 'package:etoile_bleue_mobile/features/directory/presentation/directory_page.dart';
 import 'package:etoile_bleue_mobile/features/history/presentation/history_page.dart';
@@ -1215,17 +1216,12 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       if (errorStr.contains('CANCELED_BY_USER')) return;
 
       if (mounted) {
-        // Nettoyer le message pour l'utilisateur
-        String userFriendlyError = errorStr.replaceAll('Exception: ', '');
-        
-        // Si le message contient des codes techniques (ex: Agora error codes), on simplifie
-        if (userFriendlyError.contains('code:') || userFriendlyError.contains('AgoraRtcException')) {
-          userFriendlyError = 'errors.technical_error'.tr();
-        }
+        final friendlyError = ErrorUtils.getFriendlyErrorMessage(e);
+        if (friendlyError.isEmpty) return; // Cas CANCELED_BY_USER
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('home.emergency_connection_error'.tr(namedArgs: {'error': userFriendlyError})),
+            content: Text('home.emergency_connection_error'.tr(namedArgs: {'error': friendlyError})),
             backgroundColor: Colors.red,
           ),
         );

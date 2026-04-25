@@ -631,7 +631,18 @@
         "permission_denied": "Access denied. You do not have the necessary permissions.",
         "auth_failed": "Authentication failed. Please log in again.",
         "unexpected_error": "An unexpected error occurred. Please restart the app.",
-        "reconnect": "Retry"
+        "reconnect": "Retry",
+        "agora_invalid_params": "Invalid call parameters.",
+        "agora_token_expired": "Call session expired. Reconnecting...",
+        "agora_invalid_token": "Call authentication error.",
+        "agora_network_error": "Network error. Please check your connection.",
+        "agora_mic_denied": "Microphone access denied. Check your system settings.",
+        "agora_mic_not_found": "Microphone not found on this device.",
+        "agora_mic_occupied": "Microphone is being used by another app. Please close it.",
+        "agora_uid_conflict": "Session conflict detected. Reconnecting...",
+        "agora_server_error": "Could not reach Agora call servers.",
+        "agora_banned": "Your access to calls has been suspended by the server.",
+        "agora_service_unavailable": "Call service momentarily unavailable. Please try again in a few minutes."
     },
     "common": {
         "cancel": "Cancel",

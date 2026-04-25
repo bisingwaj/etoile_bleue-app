@@ -625,7 +625,18 @@
         "loading": "Loading error",
         "phone_updated": "Phone number updated successfully",
         "number_verified": "Number verified",
-        "detail": "Mposo: {error}"
+        "detail": "Mposo: {error}",
+        "agora_invalid_params": "Mambu ya mbila ya mbi.",
+        "agora_token_expired": "Nsamu ya mbila memana. Vutukila diaka...",
+        "agora_invalid_token": "Mbeba na kinsweki ya mbila.",
+        "agora_network_error": "Mbeba na r\u00e9zo. Tala soki internet kele.",
+        "agora_mic_denied": "Micro mebuya kusemoka. Tala ba param\u00e8tre ya t\u00e9l\u00e9phone.",
+        "agora_mic_not_found": "Micro kele ve na t\u00e9l\u00e9phone yayi.",
+        "agora_mic_occupied": "Micro kele kusala na nsamu ya nkaka. Kanga yau.",
+        "agora_uid_conflict": "Mbila ya nkaka mefunguka. Vutukila diaka...",
+        "agora_server_error": "Ita vanda mpasi mu kukota na r\u00e9zo ya mbila.",
+        "agora_banned": "Bamekanga yo mu kubenga muna mbeba ya nkaka.",
+        "agora_service_unavailable": "Kisalu ya kubenga kele na mwa mpasi. Vutukila diaka na mwa miniti."
     },
     "common": {
         "cancel": "Cancel",

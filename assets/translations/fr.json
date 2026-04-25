@@ -631,7 +631,18 @@
         "permission_denied": "Accès refusé. Vous n'avez pas les permissions nécessaires.",
         "auth_failed": "Échec de l'authentification. Veuillez vous reconnecter.",
         "unexpected_error": "Une erreur inattendue est survenue. Veuillez redémarrer l'application.",
-        "reconnect": "Réessayer"
+        "reconnect": "Réessayer",
+        "agora_invalid_params": "Paramètres d'appel invalides.",
+        "agora_token_expired": "Session d'appel expirée. Reconnexion...",
+        "agora_invalid_token": "Erreur d'authentification de l'appel.",
+        "agora_network_error": "Erreur réseau. Vérifiez votre connexion.",
+        "agora_mic_denied": "Accès au micro refusé. Vérifiez vos paramètres système.",
+        "agora_mic_not_found": "Microphone introuvable sur cet appareil.",
+        "agora_mic_occupied": "Le micro est utilisé par une autre application. Veuillez la fermer.",
+        "agora_uid_conflict": "Conflit de session détecté. Reconnexion en cours...",
+        "agora_server_error": "Impossible de joindre les serveurs d'appel Agora.",
+        "agora_banned": "Votre accès aux appels a été suspendu par le serveur.",
+        "agora_service_unavailable": "Service d'appel momentanément indisponible. Veuillez réessayer dans quelques minutes."
     },
     "common": {
         "cancel": "Annuler",

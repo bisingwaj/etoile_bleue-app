@@ -625,7 +625,18 @@
         "loading": "Loading error",
         "phone_updated": "Phone number updated successfully",
         "number_verified": "Number verified",
-        "detail": "Ez\u00edndi: {error}"
+        "detail": "Ez\u00edndi: {error}",
+        "agora_invalid_params": "Makambo ya libiangi ezali malamu te.",
+        "agora_token_expired": "Eleko ya libiangi esili. Kozongela...",
+        "agora_invalid_token": "Mbeba na fungola ya libiangi.",
+        "agora_network_error": "Mbeba na rezo. Tala soki ozali na internet.",
+        "agora_mic_denied": "Micro eboyi kofungwama. Tala ba parametre ya tèlèfoni.",
+        "agora_mic_not_found": "Micro ezali te na tèlèfoni oyo.",
+        "agora_mic_occupied": "Micro ezali kosalela na mosala mosusu. Kanga yango.",
+        "agora_uid_conflict": "Libiangi mosusu efungwami sika. Kozongela...",
+        "agora_server_error": "Ekozala mpasi mpo na kokota na r\u00e9zo ya libiangi.",
+        "agora_banned": "Bapeki yo kobenga mpo na mbeba mosusu.",
+        "agora_service_unavailable": "Mosala ya kobenga ezali na mwa mikakatano. Meka lisusu sima ya mwa miniti."
     },
     "common": {
         "cancel": "Cancel",

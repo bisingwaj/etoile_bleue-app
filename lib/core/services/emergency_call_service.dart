@@ -39,6 +39,7 @@ class EmergencyCallService {
   void Function(int uid)? onRemoteUserJoined;
   void Function(int uid)? onRemoteUserLeft;
   void Function()? onCallEnded;
+  void Function(dynamic err, String msg)? onCallError;
 
   EmergencyCallService(this._supabase);
 
@@ -426,7 +427,8 @@ class EmergencyCallService {
         debugPrint('[Agora] onConnectionLost');
       },
       onError: (err, msg) {
-        debugPrint('[Agora] ERROR: $err — $msg');
+        debugPrint('[CallState] Agora error reported: $err ($msg)');
+        onCallError?.call(err, msg);
       },
     ));
 

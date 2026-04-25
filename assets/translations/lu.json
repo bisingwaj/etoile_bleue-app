@@ -625,7 +625,18 @@
         "loading": "Loading error",
         "phone_updated": "Phone number updated successfully",
         "number_verified": "Number verified",
-        "detail": "Bulemu: {error}"
+        "detail": "Bulemu: {error}",
+        "agora_invalid_params": "Malu a dibeji mabi.",
+        "agora_token_expired": "Tshikondo tshia dibila tshishile. Kupingana kabidi...",
+        "agora_invalid_token": "Tshilema mu tshinshingidilu tshia dibila.",
+        "agora_network_error": "Tshilema tshia r\u00e9zo. Tangila ni udi ne internet.",
+        "agora_mic_denied": "Micro mubenge kufungula. Tangila malu a t\u00e9l\u00e9phone.",
+        "agora_mic_not_found": "Micro kiudi mu t\u00e9l\u00e9phone eu te.",
+        "agora_mic_occupied": "Micro udi wenza mudimu mukuabu. Anji ufungule.",
+        "agora_uid_conflict": "Dibila dikuabu diadi bafungula. Kupingana kabidi...",
+        "agora_server_error": "Bidi bikole bua kupeta r\u00e9zo wa dibila.",
+        "agora_banned": "Bakukandike bua kubila bua tshilema tshikuabu.",
+        "agora_service_unavailable": "Mudimu wa kubila udi ne mbeba. Pingana kabidi mu mwa minite."
     },
     "common": {
         "cancel": "Cancel",

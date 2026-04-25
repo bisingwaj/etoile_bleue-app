@@ -793,7 +793,7 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
   // ─── Header ─────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(ActiveCallState callState) {
-    final statusInfo = _statusInfo(callState.status);
+    final statusInfo = _statusInfo(callState);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -860,8 +860,12 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
     );
   }
 
-  ({String label, Color color}) _statusInfo(ActiveCallStatus status) {
-    switch (status) {
+  ({String label, Color color}) _statusInfo(ActiveCallState state) {
+    if (state.status == ActiveCallStatus.ended && state.errorMessage != null && state.errorMessage!.isNotEmpty) {
+      return (label: state.errorMessage!, color: Colors.red);
+    }
+
+    switch (state.status) {
       case ActiveCallStatus.connecting:
         return (label: 'calls.connecting'.tr(), color: Colors.orange);
       case ActiveCallStatus.ringing:
