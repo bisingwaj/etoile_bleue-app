@@ -32,6 +32,8 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
   String _elapsed = '00:00';
 
   // Connection-problem fallback
+  Timer? _redirectionTimer;
+  
   bool _showConnectionIssue = false;
   Timer? _connectionIssueTimer;
 
@@ -97,22 +99,22 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
           _stopTimer();
           _cancelConnectionIssueTimer();
           final incidentId = ref.read(callStateProvider).incidentId;
-
-          Future.delayed(const Duration(milliseconds: 1500), () {
+          
+          _redirectionTimer?.cancel();
+          _redirectionTimer = Timer(const Duration(milliseconds: 1500), () {
             if (mounted) {
               ref.read(callHistoryProvider.notifier).refresh();
               
-              if (incidentId != null) {
-                context.go('/incident/$incidentId');
-              } else {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go('/home');
-                }
-              }
+              // Toujours retourner vers la home pour le citoyen.
+              // Le Dynamic Island se chargera d'afficher le suivi s'il y a lieu.
+              context.go('/home');
             }
           });
+        }
+        
+        // Si on repasse en appel, annuler toute redirection prévue
+        if (next == ActiveCallStatus.connecting || next == ActiveCallStatus.ringing || next == ActiveCallStatus.active) {
+          _redirectionTimer?.cancel();
         }
 
         if (next == ActiveCallStatus.blocked) {
@@ -247,6 +249,8 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
 
   @override
   void dispose() {
+    _redirectionTimer?.cancel();
+    _interactionTimer?.cancel();
     _statusSub?.close();
     _incidentIdSub?.close();
     _timerTick?.cancel();
