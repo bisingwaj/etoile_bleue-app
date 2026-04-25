@@ -127,9 +127,8 @@ class ActiveInterventionState {
     if (_isTerminalDispatchStatus(dispatchStatus)) return false;
     
     // Le tracking (et la bannière) ne commence QUE si l'urgentiste a accepté la mission.
-    // 'processing' signifie que l'appel est en cours de traitement mais pas encore accepté.
-    return dispatchStatus == 'dispatched' ||
-        dispatchStatus == 'en_route' ||
+    // 'processing' = en cours de traitement, 'dispatched' = affecté mais pas encore accepté.
+    return dispatchStatus == 'en_route' ||
         dispatchStatus == 'en_route_hospital' ||
         dispatchStatus == 'arrived_hospital' ||
         dispatchStatus == 'transferring' ||
