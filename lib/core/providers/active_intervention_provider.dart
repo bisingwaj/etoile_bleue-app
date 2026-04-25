@@ -56,6 +56,7 @@ bool _isTerminalDispatchStatus(String status) {
     'on_site',
     'on_side',
     'arrived',
+    'on_scene',
   }.contains(status);
 }
 

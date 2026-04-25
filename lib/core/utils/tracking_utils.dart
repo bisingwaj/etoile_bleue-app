@@ -376,6 +376,7 @@ String dispatchStatusLabel(String status) {
     case 'en_route':
       return 'En route';
     case 'arrived':
+    case 'on_scene':
       return 'Sur place';
     case 'en_route_hospital':
       return 'Vers l\'hôpital';
@@ -404,6 +405,7 @@ IconData dispatchStatusIcon(String status) {
     case 'en_route':
       return Icons.airport_shuttle_rounded;
     case 'arrived':
+    case 'on_scene':
       return Icons.location_on_rounded;
     case 'en_route_hospital':
       return Icons.local_hospital_rounded;
@@ -426,6 +428,7 @@ Color dispatchStatusColor(String status) {
     case 'en_route':
       return const Color(0xFF10B981);
     case 'arrived':
+    case 'on_scene':
       return Colors.deepPurple;
     case 'en_route_hospital':
       return const Color(0xFF1565C0);

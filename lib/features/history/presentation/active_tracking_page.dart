@@ -205,7 +205,7 @@ class _ActiveTrackingPageState extends State<ActiveTrackingPage> {
   int _statusIndex(String? status) {
     if (status == 'dispatched') return 1;
     if (status == 'en_route')   return 2;
-    if (status == 'arrived' || status == 'investigating') return 3;
+    if (status == 'arrived' || status == 'on_scene' || status == 'investigating') return 3;
     if (status == 'ended' || status == 'resolved')        return 4;
     return 0;
   }
