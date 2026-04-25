@@ -451,18 +451,18 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        constraints: const BoxConstraints(minWidth: 240),
+        constraints: const BoxConstraints(maxWidth: 320),
         decoration: BoxDecoration(
           color: Colors.black, // True Dynamic Island black
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
             BoxShadow(
-              color: accentColor.withOpacity(0.2),
+              color: accentColor.withValues(alpha: 0.2),
               blurRadius: 2,
               spreadRadius: 1,
             ),
@@ -475,41 +475,45 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.15),
+                color: accentColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: accentColor, size: 16),
             ),
             const SizedBox(width: 12),
             // Text Info
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '🚨 Mission active',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '🚨 Mission active',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                Text(
-                  distEta ?? label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
+                  Text(
+                    distEta ?? label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             // Minimalist chevron
             Icon(
               CupertinoIcons.chevron_right,
-              color: Colors.white.withOpacity(0.4),
+              color: Colors.white.withValues(alpha: 0.4),
               size: 14,
             ),
           ],

@@ -393,20 +393,18 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
                         if (_showConnectionIssue) const SizedBox(height: 16),
                       ],
                       if (_showConnectionIssue) _buildConnectionIssueBanner(),
+                      
+                      // Bottom triage panel moved INSIDE ListView to prevent vertical overflow
+                      if ((isCallLive || callState.status == ActiveCallStatus.ringing) && 
+                          !callState.isCentraleCall) ...[
+                        const SizedBox(height: 16),
+                        const EmergencyTriagePanel(),
+                      ],
                     ],
                   ),
                 ),
               ),
             ),
-
-            // Bottom triage panel
-            if ((isCallLive || callState.status == ActiveCallStatus.ringing) && 
-                _isControlsVisible && 
-                !callState.isCentraleCall)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: const EmergencyTriagePanel(),
-              ),
 
             // Bottom controls
             IgnorePointer(
@@ -611,41 +609,44 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
           child: _FrostedGlass(
             padding: const EdgeInsets.all(12),
             backgroundColor: Colors.black26,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-              Row(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(CupertinoIcons.waveform, color: Colors.cyan.withValues(alpha: 0.8), size: 14),
-                  const SizedBox(width: 6),
-                  Text(
-                    'calls.live_transcription'.tr(),
-                    style: TextStyle(
-                      color: Colors.cyan.withValues(alpha: 0.8),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      Icon(CupertinoIcons.waveform, color: Colors.cyan.withValues(alpha: 0.8), size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        'calls.live_transcription'.tr(),
+                        style: TextStyle(
+                          color: Colors.cyan.withValues(alpha: 0.8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  ...latest.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${e.speaker == 'operator' ? 'calls.operator'.tr() : 'calls.you'.tr()}: ${e.content}',
+                      style: TextStyle(
+                        color: e.speaker == 'operator' ? Colors.white70 : Colors.greenAccent.withValues(alpha: 0.8),
+                        fontSize: 12,
+                        fontStyle: e.isFinal ? FontStyle.normal : FontStyle.italic,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )),
                 ],
               ),
-              const SizedBox(height: 8),
-              ...latest.map((e) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '${e.speaker == 'operator' ? 'calls.operator'.tr() : 'calls.you'.tr()}: ${e.content}',
-                  style: TextStyle(
-                    color: e.speaker == 'operator' ? Colors.white70 : Colors.greenAccent.withValues(alpha: 0.8),
-                    fontSize: 12,
-                    fontStyle: e.isFinal ? FontStyle.normal : FontStyle.italic,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              )),
-            ],
+            ),
           ),
-        ));
+        );
       },
       loading: () => const SizedBox.shrink(),
       error: (err, stack) => const SizedBox.shrink(),
@@ -816,30 +817,37 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
             child: const Icon(CupertinoIcons.chevron_down, color: Colors.white),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                CupertinoIcons.circle_fill,
-                color: statusInfo.color,
-                size: 10,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                statusInfo.label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  CupertinoIcons.circle_fill,
+                  color: statusInfo.color,
+                  size: 10,
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    statusInfo.label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         Container(
@@ -891,43 +899,51 @@ class _EmergencyCallScreenState extends ConsumerState<EmergencyCallScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       borderRadius: BorderRadius.circular(32),
       backgroundColor: Colors.black26,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildControlButton(
-            icon: callState.isMuted
-                ? CupertinoIcons.mic_slash_fill
-                : CupertinoIcons.mic_fill,
-            isActive: !callState.isMuted,
-            onTap: () => _executeWithDebounce(() => notifier.toggleMute()),
-          ),
-          _buildControlButton(
-            icon: callState.isVideoOn
-                ? CupertinoIcons.video_camera_solid
-                : CupertinoIcons.video_camera,
-            isActive: callState.isVideoOn,
-            onTap: () => _executeWithDebounce(() => notifier.toggleVideo()),
-          ),
-          if (showCameraFlip)
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
             _buildControlButton(
-              icon: CupertinoIcons.camera_rotate,
-              isActive: true,
-              onTap: () => _executeWithDebounce(() => notifier.switchCamera()),
+              icon: callState.isMuted
+                  ? CupertinoIcons.mic_slash_fill
+                  : CupertinoIcons.mic_fill,
+              isActive: !callState.isMuted,
+              onTap: () => _executeWithDebounce(() => notifier.toggleMute()),
             ),
-          _buildControlButton(
-            icon: callState.isSpeakerOn
-                ? CupertinoIcons.speaker_3_fill
-                : CupertinoIcons.speaker_1_fill,
-            isActive: callState.isSpeakerOn,
-            onTap: () => _executeWithDebounce(() => notifier.toggleSpeaker()),
-          ),
-          _buildControlButton(
-            icon: CupertinoIcons.phone_down_fill,
-            isActive: true,
-            color: Colors.red,
-            onTap: () => _executeWithDebounce(() => notifier.hangUp()),
-          ),
-        ],
+            const SizedBox(width: 12),
+            _buildControlButton(
+              icon: callState.isVideoOn
+                  ? CupertinoIcons.video_camera_solid
+                  : CupertinoIcons.video_camera,
+              isActive: callState.isVideoOn,
+              onTap: () => _executeWithDebounce(() => notifier.toggleVideo()),
+            ),
+            if (showCameraFlip) ...[
+              const SizedBox(width: 12),
+              _buildControlButton(
+                icon: CupertinoIcons.camera_rotate,
+                isActive: true,
+                onTap: () => _executeWithDebounce(() => notifier.switchCamera()),
+              ),
+            ],
+            const SizedBox(width: 12),
+            _buildControlButton(
+              icon: callState.isSpeakerOn
+                  ? CupertinoIcons.speaker_3_fill
+                  : CupertinoIcons.speaker_1_fill,
+              isActive: callState.isSpeakerOn,
+              onTap: () => _executeWithDebounce(() => notifier.toggleSpeaker()),
+            ),
+            const SizedBox(width: 12),
+            _buildControlButton(
+              icon: CupertinoIcons.phone_down_fill,
+              isActive: true,
+              color: Colors.red,
+              onTap: () => _executeWithDebounce(() => notifier.hangUp()),
+            ),
+          ],
+        ),
       ),
     );
   }
