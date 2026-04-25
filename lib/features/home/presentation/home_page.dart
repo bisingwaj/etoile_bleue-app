@@ -1210,14 +1210,22 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
       // La gestion de compte bloqué ou des erreurs terminales sera dorénavant captée
       // par les listeners à l'intérieur de EmergencyCallScreen.
     } catch (e) {
-      // Unmounted est possible si on est revenu à l'accueil très vite, 
-      // ou bien on utilise context qui est toujours valide via GoRouter
+      final errorStr = e.toString();
+      // Si l'utilisateur a annulé, on ne montre pas d'erreur rouge
+      if (errorStr.contains('CANCELED_BY_USER')) return;
+
       if (mounted) {
-        // En cas d'échec critique, la page d'appel verra son statut passer à `ended`
-        // et pop(), la SnackBar affichera la raison sur le Home.
+        // Nettoyer le message pour l'utilisateur
+        String userFriendlyError = errorStr.replaceAll('Exception: ', '');
+        
+        // Si le message contient des codes techniques (ex: Agora error codes), on simplifie
+        if (userFriendlyError.contains('code:') || userFriendlyError.contains('AgoraRtcException')) {
+          userFriendlyError = 'errors.technical_error'.tr();
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('home.emergency_connection_error'.tr(namedArgs: {'error': e.toString()})),
+            content: Text('home.emergency_connection_error'.tr(namedArgs: {'error': userFriendlyError})),
             backgroundColor: Colors.red,
           ),
         );
