@@ -1014,6 +1014,14 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
           DynamicIslandToast.showError(context, "Un appel d'urgence est déjà en cours");
           return;
         }
+
+        // Bloquer si une mission est déjà en cours
+        final interventionState = ref.read(activeInterventionProvider);
+        if (interventionState.isVisible) {
+          DynamicIslandToast.showInfo(context, 'home.mission_active_sos'.tr());
+          return;
+        }
+
         HapticFeedback.heavyImpact();
         _sosAudioPlayer.play(AssetSource('audio/sos_sound.wav'));
         _sosAnimationController.forward();
@@ -1172,6 +1180,13 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         ref.read(isCallMinimizedProvider.notifier).state = false;
         context.push('/call/active');
       }
+      return;
+    }
+
+    // Bloquer si une mission est déjà en cours
+    final interventionState = ref.read(activeInterventionProvider);
+    if (interventionState.isVisible) {
+      DynamicIslandToast.showInfo(context, 'home.mission_active_sos'.tr());
       return;
     }
     

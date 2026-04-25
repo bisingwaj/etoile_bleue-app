@@ -193,7 +193,8 @@
         "triage_dk_sub": "Nkokoka\nkutalima te",
         "triage_back": "PINGANA",
         "hold_cancel_hint": "Simba pona kotikela bilaka",
-        "emergency_connection_error": "Bulemu bwa muilu wa diku: {error}"
+        "emergency_connection_error": "Bulemu bwa muilu wa diku: {error}",
+        "mission_active_sos": "Udi ne mudimu udi wenzeka, bika 199."
     },
     "notifications": {
         "title": "Centre ya Bilaka",

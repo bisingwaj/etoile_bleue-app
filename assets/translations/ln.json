@@ -193,7 +193,8 @@
         "triage_dk_sub": "Nkokoka\nkozua maloba te",
         "triage_back": "ZONGA",
         "hold_cancel_hint": "Simba makasi pona kokatola makelele",
-        "emergency_connection_error": "Ez\u00edndi na boyokani ya d\u0268kya: {error}"
+        "emergency_connection_error": "Ez\u00edndi na boyokani ya d\u0268kya: {error}",
+        "mission_active_sos": "Ozali na mission moko ezali kosalema, benga 199."
     },
     "notifications": {
         "title": "Centre ya Bilaka",

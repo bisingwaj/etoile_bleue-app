@@ -193,7 +193,8 @@
         "triage_dk_sub": "Impossible\nto judge",
         "triage_back": "BACK",
         "hold_cancel_hint": "Hold to cancel the alert",
-        "emergency_connection_error": "Emergency connection error: {error}"
+        "emergency_connection_error": "Emergency connection error: {error}",
+        "mission_active_sos": "You have an ongoing mission, call 199."
     },
     "notifications": {
         "title": "Notification Center",

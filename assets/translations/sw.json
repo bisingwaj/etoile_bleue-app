@@ -193,7 +193,8 @@
         "triage_dk_sub": "Haiwezekani kuhukumu",
         "triage_back": "RUDI",
         "hold_cancel_hint": "Shikilia kughairi arifa",
-        "emergency_connection_error": "Hitilafu ya muunganisho wa dharura: {error}"
+        "emergency_connection_error": "Hitilafu ya muunganisho wa dharura: {error}",
+        "mission_active_sos": "Una misheni inayoendelea, piga simu 199."
     },
     "notifications": {
         "title": "Kituo cha Arifa",

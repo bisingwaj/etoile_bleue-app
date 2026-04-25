@@ -193,7 +193,8 @@
         "triage_dk_sub": "Impossible\n\u00e0 juger",
         "triage_back": "RETOUR",
         "hold_cancel_hint": "Maintenir pour annuler l'alerte",
-        "emergency_connection_error": "Erreur de connexion urgence : {error}"
+        "emergency_connection_error": "Erreur de connexion urgence : {error}",
+        "mission_active_sos": "Vous avez une mission en cours, appeler le 199."
     },
     "notifications": {
         "title": "Centre de notifications",
