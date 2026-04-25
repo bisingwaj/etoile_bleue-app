@@ -156,12 +156,14 @@ class _FullScreenMapPageState extends ConsumerState<FullScreenMapPage>
 
   @override
   Widget build(BuildContext context) {
-    // Retour automatique à l'accueil quand le tracking s'arrête
+    // Retour automatique à l'accueil quand le tracking s'arrête ou que le secouriste est arrivé
     ref.listen<ActiveInterventionState>(activeInterventionProvider, (previous, next) {
-      if (previous?.incidentId != null && next.incidentId == null) {
-        if (context.mounted) {
-          context.pop();
-        }
+      final wasVisible = previous?.isVisible ?? false;
+      final isVisible = next.isVisible;
+      final incidentCleared = previous?.incidentId != null && next.incidentId == null;
+
+      if ((incidentCleared || (wasVisible && !isVisible)) && context.mounted) {
+        context.pop();
       }
     });
 
